@@ -25,6 +25,23 @@ ROOT = Path(__file__).resolve().parent
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 
+
+def load_dotenv(path):
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+load_dotenv(ROOT / ".env")
+
 NUTRITION_DB = {
     "broccoli": {
         "name": "Broccoli",
@@ -70,6 +87,17 @@ NUTRITION_DB = {
         "why": "Oatmeal brings slow-digesting carbohydrates and soluble fiber, especially useful when paired with fruit or protein.",
         "effect": "Balanced shift",
     },
+    "pasta": {
+        "name": "Cacio e pepe",
+        "serving": "1.5 cups",
+        "calories": 540,
+        "protein": "19 g",
+        "fiber": "3 g",
+        "sugar": "0 g added",
+        "points": 14,
+        "why": "Pasta provides quick energy and some protein from cheese, while refined pasta, butter, and cheese keep the score moderate.",
+        "effect": "Softness gain",
+    },
     "eggplant_parmesan": {
         "name": "Eggplant parmesan",
         "serving": "1 cup / 1 entree portion",
@@ -114,6 +142,17 @@ NUTRITION_DB = {
         "why": "Great as a treat. The high added sugar and low micronutrient density mean it barely moves the score.",
         "effect": "Chubby shift",
     },
+    "syrup": {
+        "name": "Syrup",
+        "serving": "1 tablespoon",
+        "calories": 52,
+        "protein": "0 g",
+        "fiber": "0 g",
+        "sugar": "12 g added",
+        "points": 5,
+        "why": "Syrup mostly contributes added sugar, so a small amount should reduce the score without erasing the value of the whole meal.",
+        "effect": "Softness gain",
+    },
     "mixed": {
         "name": "Mixed plate",
         "serving": "1 photographed plate",
@@ -138,8 +177,12 @@ def filename_hint(file_name):
         return "berries"
     if "oat" in lower or "porridge" in lower:
         return "oatmeal"
+    if "cacio" in lower or "pepe" in lower or "pasta" in lower or "spaghetti" in lower or "noodle" in lower:
+        return "pasta"
     if "cake" in lower or "dessert" in lower:
         return "cake"
+    if "syrup" in lower or "maple" in lower or "honey" in lower:
+        return "syrup"
     if "pizza" in lower:
         return "pizza"
     if "eggplant" in lower:
@@ -161,10 +204,15 @@ def score_candidates(signals, file_name):
     dark = float(signals.get("dark", 0))
 
     scores["broccoli"] += green * 2.8 + max(0, 0.24 - tan) * 0.8
-    scores["berries"] += purple * 2.2 + red * 1.3 + bright * 0.35
-    scores["oatmeal"] += tan * 1.45 + bright * 0.25 + max(0, 0.2 - red) * 0.35
+    scores["berries"] += purple * 2.8 + red * 1.15 + bright * 0.25
+    scores["oatmeal"] += tan * 1.3 + bright * 0.2 + max(0, 0.28 - green) * 0.18
+    scores["pasta"] += tan * 2.2 + bright * 0.25 + max(0, 0.18 - red) * 0.3
     scores["pizza"] += red * 1.4 + tan * 1.25 + brown * 0.25
-    scores["cake"] += brown * 1.8 + dark * 0.95 + tan * 0.35
+    scores["cake"] += brown * 1.1 + dark * 0.9 + max(0, tan - 0.26) * 0.2
+    if tan > 0.14 and (purple > 0.03 or red > 0.05 or bright > 0.2):
+        scores["oatmeal"] += 0.45
+        scores["cake"] *= 0.55
+    scores["syrup"] += brown * 0.55 + bright * 0.2
     scores["chicken"] += tan * 1.8 + max(0, 0.16 - green) * 0.75 + max(0, 0.18 - red) * 0.4
     scores["eggplant_parmesan"] += tan * 0.8 + red * 0.8 + brown * 0.5 + green * 0.35
     scores["chicken_parmesan"] += tan * 1.0 + red * 0.75 + brown * 0.45
@@ -180,6 +228,101 @@ def score_candidates(signals, file_name):
     ]
 
 
+def oatmeal_bowl_components_from_signals(signals, file_name, current_components=None):
+    signals = signals or {}
+    current_components = current_components or []
+    current_keys = {component.get("key") for component in current_components}
+    if current_keys and current_keys - {"cake", "mixed"}:
+        return []
+
+    hint = filename_hint(file_name)
+    tan = float(signals.get("tan", 0))
+    brown = float(signals.get("brown", 0))
+    purple = float(signals.get("purple", 0))
+    red = float(signals.get("red", 0))
+    bright = float(signals.get("bright", 0))
+    dark = float(signals.get("dark", 0))
+    food_pixels = float(signals.get("foodPixels", 0))
+    green = float(signals.get("green", 0))
+    fruit_signal = purple > 0.018 or red > 0.045
+    text_signal = hint == "oatmeal" or any(
+        word in (file_name or "").lower()
+        for word in ["oat", "oatmeal", "porridge", "blueberr", "berry"]
+    )
+    oatmeal_signal = hint == "oatmeal" or (
+        (tan > 0.075 or (brown > 0.12 and bright > 0.08))
+        and green < 0.18
+        and dark < 0.38
+        and (fruit_signal or text_signal)
+    )
+    cake_signal = brown > 0.28 and dark > 0.2 and not fruit_signal and hint != "oatmeal"
+    if not oatmeal_signal or cake_signal:
+        return []
+
+    components = [
+        {
+            "key": "oatmeal",
+            "label": "Oatmeal",
+            "query": "cooked oatmeal",
+            "serving_estimate": "1 cup cooked",
+            "role": "base",
+            "nutrient_role": "fiber",
+            "portion": 0.65,
+            "confidence": 0.68,
+        }
+    ]
+    if fruit_signal:
+        components.append(
+            {
+                "key": "berries",
+                "label": "Blueberries",
+                "query": "blueberries raw",
+                "serving_estimate": "1/2 cup",
+                "role": "fruit_veg",
+                "nutrient_role": "fiber",
+                "portion": 0.25,
+                "confidence": 0.62,
+            }
+        )
+    if brown > 0.08 and bright > 0.12:
+        components.append(
+            {
+                "key": "syrup",
+                "label": "Syrup",
+                "query": "maple syrup",
+                "serving_estimate": "1 tablespoon",
+                "role": "sweetener",
+                "nutrient_role": "added_sugar",
+                "portion": 0.08,
+                "confidence": 0.45,
+            }
+        )
+    return components
+
+
+def name_for_components(components):
+    keys = {component.get("key") for component in components}
+    if {"oatmeal", "berries", "syrup"}.issubset(keys):
+        return "Oatmeal with blueberries and syrup"
+    if {"oatmeal", "berries"}.issubset(keys):
+        return "Oatmeal with blueberries"
+    return NUTRITION_DB[components[0]["key"]]["name"] if components else ""
+
+
+def promote_ranked_key(ranked, key):
+    promoted = []
+    found = False
+    for item in ranked:
+        if item.get("key") == key:
+            promoted.insert(0, {**item, "confidence": max(item.get("confidence", 0.5), 0.72)})
+            found = True
+        else:
+            promoted.append(item)
+    if not found:
+        promoted.insert(0, {"key": key, "confidence": 0.72})
+    return promoted
+
+
 def build_nutrition_result(payload):
     file_name = payload.get("fileName", "")
     signals = payload.get("signals", {})
@@ -187,20 +330,32 @@ def build_nutrition_result(payload):
     converted = bool(payload.get("converted"))
     image_data_url = payload.get("imageDataUrl", "")
     vision = analyze_with_openai_vision(image_data_url, file_name)
-    ranked = rank_from_vision(vision) if vision else score_candidates(signals, file_name)
-    components = components_from_vision(vision) if vision else []
+    if not vision:
+        return analysis_unavailable_result(
+            "Vision analysis is not configured. Set OPENAI_API_KEY to analyze uploaded food photos.",
+            source_format,
+            converted,
+            signals,
+        )
+    if vision.get("error"):
+        return analysis_unavailable_result(
+            f"Vision analysis failed: {vision.get('error')}",
+            source_format,
+            converted,
+            signals,
+        )
+    if is_non_food_vision(vision):
+        return non_food_result(vision, source_format, converted, signals)
+    ranked = rank_from_vision(vision)
+    components = components_from_vision(vision)
+    components = expand_composite_components(components, vision)
     if not components:
-        primary = ranked[0]
-        components = [
-            {
-                "key": primary["key"],
-                "label": primary.get("label") or NUTRITION_DB[primary["key"]]["name"],
-                "query": primary.get("query") or NUTRITION_DB[primary["key"]]["name"],
-                "serving_estimate": NUTRITION_DB[primary["key"]]["serving"],
-                "confidence": primary["confidence"],
-                "portion": 1,
-            }
-        ]
+        return analysis_unavailable_result(
+            "Vision analysis did not return any food components.",
+            source_format,
+            converted,
+            signals,
+        )
 
     component_foods = []
     for component in components[:6]:
@@ -208,13 +363,24 @@ def build_nutrition_result(payload):
             component.get("query") or component.get("label") or NUTRITION_DB[component["key"]]["name"],
             component["key"],
         )
+        component_food["key"] = component["key"]
         component_food["name"] = component.get("label") or component_food["name"]
         component_food["serving"] = component.get("serving_estimate") or component_food["serving"]
         component_food["confidence"] = component.get("confidence", 0.5)
         component_food["portion"] = component.get("portion", 1)
+        component_food["role"] = component.get("role") or infer_component_role(
+            component["key"],
+            component.get("label", ""),
+            component.get("query", ""),
+        )
+        component_food["nutrient_role"] = component.get("nutrient_role") or infer_nutrient_role(
+            component["key"],
+            component.get("label", ""),
+            component.get("query", ""),
+        )
         component_foods.append(component_food)
 
-    food = combine_components(component_foods, vision.get("dish_name") if vision else "")
+    food = combine_components(component_foods, vision.get("dish_name", ""))
     primary = ranked[0]
     key = primary["key"]
     food["key"] = key
@@ -231,7 +397,7 @@ def build_nutrition_result(payload):
         "steps": [
             "File accepted",
             "HEIC/HEIF converted to JPEG" if converted else "Image decoded in browser",
-            "OpenAI vision identified food candidates" if vision else "Browser extracted color and brightness signals",
+            "OpenAI vision identified food candidates",
             "Server normalized candidates",
             "USDA FoodData Central lookup" if food.get("databaseSource") == "USDA FoodData Central" else "Local nutrition fallback",
             "PlatePoints score calculated",
@@ -239,12 +405,104 @@ def build_nutrition_result(payload):
         "sourceFormat": source_format,
         "converted": converted,
         "signals": signals,
-        "visionProvider": "OpenAI Responses API" if vision else "Local signal heuristic",
+        "visionProvider": "OpenAI Responses API",
         "nutritionProvider": food.get("databaseSource", "Local nutrition fallback"),
         "notes": food.get("databaseNotes", []),
         "componentCount": len(component_foods),
     }
     return food
+
+
+def is_non_food_vision(vision):
+    if not vision:
+        return False
+    if vision.get("is_food") is False:
+        return True
+    foods = vision.get("foods")
+    if foods == []:
+        return True
+    if foods:
+        confidences = []
+        canonical_values = set()
+        for item in foods:
+            canonical_values.add(item.get("canonical", "mixed"))
+            try:
+                confidences.append(float(item.get("confidence", 0)))
+            except (TypeError, ValueError):
+                confidences.append(0)
+        max_confidence = max(confidences or [0])
+        if canonical_values == {"mixed"} and max_confidence < 0.45 and not vision.get("dish_name"):
+            return True
+    return False
+
+
+def non_food_result(vision, source_format, converted, signals):
+    confidence = vision.get("confidence", 0.0)
+    try:
+        confidence = float(confidence)
+    except (TypeError, ValueError):
+        confidence = 0
+    return {
+        "name": "No food detected",
+        "serving": "-",
+        "calories": "-",
+        "protein": "-",
+        "fiber": "-",
+        "sugar": "-",
+        "points": 0,
+        "why": "We could not identify a food item in this photo. Try another image with the meal clearly visible.",
+        "effect": "Avatar unchanged",
+        "confidence": round(max(0, min(1, confidence)), 2),
+        "alternatives": [],
+        "components": [],
+        "loggable": False,
+        "pipeline": {
+            "steps": [
+                "File accepted",
+                "HEIC/HEIF converted to JPEG" if converted else "Image decoded in browser",
+                "OpenAI vision checked for food",
+                "No loggable food detected",
+            ],
+            "sourceFormat": source_format,
+            "converted": converted,
+            "signals": signals,
+            "visionProvider": "OpenAI Responses API",
+            "nutritionProvider": "Skipped",
+            "notes": vision.get("notes", []),
+        },
+    }
+
+
+def analysis_unavailable_result(message, source_format, converted, signals):
+    return {
+        "name": "Analysis unavailable",
+        "serving": "-",
+        "calories": "-",
+        "protein": "-",
+        "fiber": "-",
+        "sugar": "-",
+        "points": 0,
+        "why": message,
+        "effect": "Avatar unchanged",
+        "confidence": 0,
+        "alternatives": [],
+        "components": [],
+        "loggable": False,
+        "pipeline": {
+            "steps": [
+                "File accepted",
+                "HEIC/HEIF converted to JPEG" if converted else "Image decoded in browser",
+                "Vision/database pipeline unavailable",
+                "No guessed food was logged",
+            ],
+            "sourceFormat": source_format,
+            "converted": converted,
+            "signals": signals,
+            "visionProvider": "OpenAI Responses API",
+            "nutritionProvider": "Skipped",
+            "notes": [message],
+        },
+    }
 
 
 def post_json(url, payload, headers=None, timeout=30):
@@ -266,15 +524,19 @@ def analyze_with_openai_vision(image_data_url, file_name):
 
     prompt = (
         "Analyze this food photo for a nutrition logging app. Return JSON only with this shape: "
-        '{"foods":[{"label":"string","canonical":"broccoli|chicken|berries|oatmeal|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
+        '{"is_food":true,"confidence":0.0,'
+        '"foods":[{"label":"specific visible food or component","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
         '"query":"plain USDA food search query","serving_estimate":"short serving estimate",'
+        '"role":"base|protein|fruit_veg|mix_in|topping|sauce|condiment|dessert",'
+        '"nutrient_role":"fiber|protein|added_sugar|fat|neutral",'
         '"portion":0.0,"confidence":0.0}],"dish_name":"string","notes":["short note"]}. '
+        "If the image is not food, return is_food=false, confidence, foods=[], dish_name='', and notes explaining what was seen. "
         "Identify the complete dish and visible components, not only the most colorful ingredient. "
-        "For example, oatmeal with blueberries should return dish_name='oatmeal with blueberries' "
-        "and separate foods for oatmeal and blueberries. Portion is the approximate share of the dish "
+        "For example, oatmeal with blueberries and syrup should return dish_name='oatmeal with blueberries and syrup' "
+        "and separate foods for oatmeal, blueberries, and syrup. Mark syrup, honey, butter, sauces, dressings, drizzles, and condiments as role='topping' or role='sauce'. Portion is the approximate share of the dish "
         "from 0 to 1. Prefer common food names that can be searched in USDA FoodData Central. "
         "For visually similar dishes, include plausible alternatives with confidence scores, such as eggplant parmesan versus chicken parmesan. "
-        "Use canonical=mixed only when a component does not fit the known canonical set."
+        "Use canonical=mixed when a component does not fit the known canonical set, but keep label and query specific, for example cacio e pepe, salmon, salad, rice, dumplings, or burrito."
     )
     payload = {
         "model": os.environ.get("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
@@ -320,7 +582,7 @@ def extract_response_text(response):
 def rank_from_vision(vision):
     foods = vision.get("foods") or []
     if not foods:
-        return score_candidates({}, "")
+        return []
 
     ranked = []
     for item in foods:
@@ -330,7 +592,7 @@ def rank_from_vision(vision):
         ranked.append(
             {
                 "key": canonical,
-                "label": item.get("label") or NUTRITION_DB[canonical]["name"],
+                "label": item.get("label") or item.get("query") or NUTRITION_DB[canonical]["name"],
                 "query": item.get("query") or item.get("label") or NUTRITION_DB[canonical]["name"],
                 "confidence": round(max(0.05, min(0.96, float(item.get("confidence", 0.5)))), 2),
             }
@@ -353,24 +615,111 @@ def components_from_vision(vision):
     foods = vision.get("foods") or []
     components = []
     for item in foods:
-        canonical = item.get("canonical", "mixed")
-        if canonical not in NUTRITION_DB:
-            canonical = "mixed"
+        original_label = item.get("label") or item.get("query") or ""
+        original_query = item.get("query") or item.get("label") or ""
+        canonical = normalize_component_key(item.get("canonical", "mixed"), original_label, original_query)
         try:
             portion = float(item.get("portion", 1))
         except (TypeError, ValueError):
             portion = 1
+        if looks_like_combined_dish(original_label) and canonical in {"oatmeal", "berries", "syrup"}:
+            original_label = NUTRITION_DB[canonical]["name"]
+            original_query = "cooked oatmeal" if canonical == "oatmeal" else ("blueberries raw" if canonical == "berries" else "maple syrup")
+            portion = default_component_portion(canonical)
         components.append(
             {
                 "key": canonical,
-                "label": item.get("label") or item.get("query") or NUTRITION_DB[canonical]["name"],
-                "query": item.get("query") or item.get("label") or NUTRITION_DB[canonical]["name"],
+                "label": original_label or NUTRITION_DB[canonical]["name"],
+                "query": original_query or NUTRITION_DB[canonical]["name"],
                 "serving_estimate": item.get("serving_estimate") or NUTRITION_DB[canonical]["serving"],
+                "role": item.get("role") or infer_component_role(canonical, original_label, original_query),
+                "nutrient_role": item.get("nutrient_role") or infer_nutrient_role(canonical, original_label, original_query),
                 "portion": max(0.05, min(1.0, portion)),
                 "confidence": round(max(0.05, min(0.96, float(item.get("confidence", 0.5)))), 2),
             }
         )
     return components
+
+
+def looks_like_combined_dish(label):
+    text = (label or "").lower()
+    return " with " in text or " and " in text or "," in text
+
+
+def default_component_portion(key):
+    return {"oatmeal": 0.6, "berries": 0.25, "syrup": 0.1}.get(key, 1)
+
+
+def infer_component_role(canonical, label="", query=""):
+    text = f"{canonical} {label} {query}".lower()
+    if any(word in text for word in ["syrup", "honey", "sugar", "sweetener", "jam", "jelly", "molasses"]):
+        return "sweetener"
+    if any(word in text for word in ["sauce", "dressing", "drizzle", "butter", "cream", "mayo", "aioli", "ranch", "glaze"]):
+        return "topping"
+    if canonical in {"berries", "broccoli"}:
+        return "fruit_veg"
+    if canonical in {"chicken"}:
+        return "protein"
+    if canonical in {"oatmeal"}:
+        return "base"
+    if canonical in {"pasta"}:
+        return "base"
+    if canonical in {"cake"}:
+        return "dessert"
+    return "mix_in"
+
+
+def infer_nutrient_role(canonical, label="", query=""):
+    text = f"{canonical} {label} {query}".lower()
+    if any(word in text for word in ["syrup", "honey", "sugar", "jam", "jelly"]):
+        return "added_sugar"
+    if canonical in {"chicken"}:
+        return "protein"
+    if canonical in {"berries", "broccoli", "oatmeal"}:
+        return "fiber"
+    return "neutral"
+
+
+def normalize_component_key(canonical, label="", query=""):
+    text = f"{canonical} {label} {query}".lower()
+    if "oat" in text or "porridge" in text:
+        return "oatmeal"
+    if "blueberr" in text or "berr" in text:
+        return "berries"
+    if "syrup" in text or "maple" in text or "honey" in text or "sweetener" in text:
+        return "syrup"
+    if "cacio" in text or "pepe" in text or "pasta" in text or "spaghetti" in text or "noodle" in text:
+        return "pasta"
+    if "eggplant" in text:
+        return "eggplant_parmesan"
+    if "chicken" in text and ("parmesan" in text or "parm" in text):
+        return "chicken_parmesan"
+    return canonical if canonical in NUTRITION_DB else "mixed"
+
+
+def expand_composite_components(components, vision):
+    if not vision:
+        return components
+    dish_text = " ".join(
+        [
+            str(vision.get("dish_name", "")),
+            " ".join(str(item.get("label", "")) for item in vision.get("foods", [])),
+            " ".join(str(item.get("query", "")) for item in vision.get("foods", [])),
+        ]
+    ).lower()
+    keys = {component["key"] for component in components}
+
+    inferred = []
+    if ("oat" in dish_text or "porridge" in dish_text) and "oatmeal" not in keys:
+        inferred.append({"key": "oatmeal", "label": "Oatmeal", "query": "cooked oatmeal", "serving_estimate": "1 cup cooked", "role": "base", "nutrient_role": "fiber", "portion": 0.6, "confidence": 0.7})
+    if ("blueberr" in dish_text or "berr" in dish_text) and "berries" not in keys:
+        inferred.append({"key": "berries", "label": "Blueberries", "query": "blueberries raw", "serving_estimate": "1/2 cup", "role": "fruit_veg", "nutrient_role": "fiber", "portion": 0.25, "confidence": 0.7})
+    if ("syrup" in dish_text or "maple" in dish_text or "honey" in dish_text) and "syrup" not in keys:
+        inferred.append({"key": "syrup", "label": "Syrup", "query": "maple syrup", "serving_estimate": "1 tablespoon", "role": "sweetener", "nutrient_role": "added_sugar", "portion": 0.1, "confidence": 0.65})
+
+    if inferred and (len(components) == 1 and components[0]["key"] == "mixed"):
+        return inferred
+    return components + inferred
 
 
 def combine_components(component_foods, dish_name=""):
@@ -387,10 +736,11 @@ def combine_components(component_foods, dish_name=""):
     else:
         name = f"{', '.join(names[:-1])}, and {names[-1]}"
 
-    calories = sum(float(food.get("calories", 0)) for food in component_foods)
-    protein = sum(parse_grams(food.get("protein", "0 g")) for food in component_foods)
-    fiber = sum(parse_grams(food.get("fiber", "0 g")) for food in component_foods)
-    sugar = sum(parse_grams(food.get("sugar", "0 g")) for food in component_foods)
+    weighted_components = [with_portion_weight(food) for food in component_foods]
+    calories = sum(food["weightedCalories"] for food in weighted_components)
+    protein = sum(food["weightedProtein"] for food in weighted_components)
+    fiber = sum(food["weightedFiber"] for food in weighted_components)
+    sugar = sum(food["weightedSugar"] for food in weighted_components)
     db_sources = sorted({food.get("databaseSource", "Local nutrition fallback") for food in component_foods})
     notes = []
     for food in component_foods:
@@ -403,22 +753,138 @@ def combine_components(component_foods, dish_name=""):
         "protein": f"{protein:.0f} g",
         "fiber": f"{fiber:.0f} g",
         "sugar": f"{sugar:.0f} g",
-        "why": "This looks like a composite meal, so the pipeline identifies visible components and combines their estimated nutrition.",
+        "why": build_component_why(component_foods),
         "databaseSource": " + ".join(db_sources),
         "databaseNotes": dedupe(notes)[:5],
         "components": [
             {
                 "name": food["name"],
                 "serving": food.get("serving", "estimated serving"),
-                "calories": food.get("calories", 0),
+                "role": food.get("role", "mix_in"),
+                "portion": food["portionWeight"],
+                "calories": round(food["weightedCalories"]),
                 "confidence": food.get("confidence", 0.5),
+                "why": short_component_why(food),
             }
-            for food in component_foods
+            for food in weighted_components
         ],
     }
     combined["points"] = calculate_points(combined)
     combined["effect"] = effect_for_points(combined["points"])
     return combined
+
+
+def with_portion_weight(food):
+    weighted = dict(food)
+    try:
+        portion = float(food.get("portion", 1))
+    except (TypeError, ValueError):
+        portion = 1
+
+    role = food.get("role") or infer_component_role(
+        food.get("key", "mixed"),
+        food.get("name", ""),
+        food.get("serving", ""),
+    )
+    role_caps = {
+        "sweetener": 0.16,
+        "condiment": 0.16,
+        "sauce": 0.22,
+        "topping": 0.25,
+        "mix_in": 0.45,
+        "fruit_veg": 0.55,
+        "base": 1.0,
+        "protein": 1.0,
+        "dessert": 1.0,
+    }
+    role_floors = {
+        "sweetener": 0.05,
+        "condiment": 0.04,
+        "sauce": 0.05,
+        "topping": 0.05,
+        "mix_in": 0.1,
+        "fruit_veg": 0.1,
+        "base": 0.2,
+        "protein": 0.2,
+        "dessert": 0.2,
+    }
+    portion = min(portion, role_caps.get(role, 1.0))
+    portion = max(role_floors.get(role, 0.1), min(1.0, portion))
+
+    weighted["role"] = role
+    weighted["portionWeight"] = portion
+    weighted["weightedCalories"] = float(food.get("calories", 0)) * portion
+    weighted["weightedProtein"] = parse_grams(food.get("protein", "0 g")) * portion
+    weighted["weightedFiber"] = parse_grams(food.get("fiber", "0 g")) * portion
+    weighted["weightedSugar"] = parse_grams(food.get("sugar", "0 g")) * portion
+    if role in {"sweetener", "condiment", "sauce", "topping"}:
+        weighted["weightedCalories"] = min(weighted["weightedCalories"], 70)
+        weighted["weightedSugar"] = min(weighted["weightedSugar"], 14)
+    if role == "sweetener":
+        weighted["weightedCalories"] = min(weighted["weightedCalories"], 60)
+        weighted["weightedSugar"] = min(weighted["weightedSugar"], 12)
+    return weighted
+
+
+def short_component_why(food):
+    key_name = food.get("name", "").lower()
+    if "oat" in key_name:
+        return "slow-digesting carbohydrates and soluble fiber for fullness"
+    if "blueberr" in key_name or "berr" in key_name:
+        return "fiber, antioxidants, and sweetness with low calorie density"
+    if "broccoli" in key_name:
+        return "fiber, vitamin C, and high volume for very few calories"
+    if "chicken" in key_name:
+        return "lean protein for recovery and satiety"
+    if "eggplant" in key_name:
+        return "plant volume and fiber, balanced by cheese and sauce"
+    if "pizza" in key_name:
+        return "quick energy and enjoyment, but a modest nutrition score"
+    if "cake" in key_name:
+        return "best treated as a dessert because added sugar drives the score down"
+    if "cacio" in key_name or "pasta" in key_name or "spaghetti" in key_name:
+        return "quick energy from pasta with cheese adding protein and calorie density"
+    if "syrup" in key_name or "honey" in key_name:
+        return "sweetness and added sugar, so portion size matters"
+
+    protein = parse_grams(food.get("protein", "0 g"))
+    fiber = parse_grams(food.get("fiber", "0 g"))
+    sugar = parse_grams(food.get("sugar", "0 g"))
+    try:
+        calories = float(food.get("calories", 0))
+    except (TypeError, ValueError):
+        calories = 0
+
+    reasons = []
+    if protein >= 15:
+        reasons.append("meaningful protein for fullness")
+    if fiber >= 4:
+        reasons.append("fiber that supports satiety and steadier energy")
+    if sugar >= 10:
+        reasons.append("added sugar, so portion size matters")
+    if calories >= 400:
+        reasons.append("calorie density, which lowers the score")
+    if not reasons:
+        base_why = food.get("why", "").rstrip(".")
+        if base_why and "pipeline" not in base_why.lower() and "ambiguous" not in base_why.lower():
+            return base_why
+        reasons.append("contributes to the overall meal balance")
+    return ", and ".join(reasons)
+
+
+def build_component_why(component_foods):
+    if len(component_foods) <= 1:
+        if not component_foods:
+            return NUTRITION_DB["mixed"]["why"]
+        food = component_foods[0]
+        return f"{food['name']} adds {short_component_why(food)}."
+
+    sentences = []
+    for food in component_foods[:4]:
+        verb = "add" if food["name"].lower().endswith("s") else "adds"
+        sentences.append(f"{food['name']} {verb} {short_component_why(food)}.")
+    sentences.append("Together, these choices determine the overall PlatePoints score.")
+    return " ".join(sentences)
 
 
 def parse_grams(value):

@@ -578,16 +578,6 @@
         line-height: 1.48;
       }
 
-      .analysis-method {
-        margin: 12px 0 0;
-        padding: 11px 12px;
-        border-radius: 8px;
-        background: #eef6f0;
-        color: #26543a;
-        font-size: 0.92rem;
-        line-height: 1.45;
-      }
-
       .save-row {
         display: flex;
         align-items: center;
@@ -641,6 +631,10 @@
         --body-width: 88px;
         --torso-height: 118px;
         --arm-width: 24px;
+        --skin: #f3c69f;
+        --outline: #222;
+        --pants: #2f6f9f;
+        --mouth: #d97863;
         position: relative;
         width: 220px;
         height: 270px;
@@ -655,21 +649,21 @@
         height: 62px;
         content: "";
         transform: translateX(-50%);
-        border: 4px solid #222;
+        border: 4px solid var(--outline);
         border-radius: 50%;
         background:
-          radial-gradient(circle at 38% 42%, #222 0 4px, transparent 5px),
-          radial-gradient(circle at 63% 42%, #222 0 4px, transparent 5px),
-          radial-gradient(circle at 50% 63%, #d97863 0 12px, transparent 13px),
-          #f3c69f;
+          radial-gradient(circle at 38% 42%, var(--outline) 0 4px, transparent 5px),
+          radial-gradient(circle at 63% 42%, var(--outline) 0 4px, transparent 5px),
+          radial-gradient(circle at 50% 63%, var(--mouth) 0 12px, transparent 13px),
+          var(--skin);
       }
 
       .torso,
       .arm,
       .leg {
         position: absolute;
-        background: #f3c69f;
-        border: 4px solid #222;
+        background: var(--skin);
+        border: 4px solid var(--outline);
       }
 
       .torso {
@@ -706,7 +700,7 @@
         width: 30px;
         height: 86px;
         border-radius: 18px;
-        background: #2f6f9f;
+        background: var(--pants);
       }
 
       .leg.left {
@@ -787,14 +781,22 @@
       }
 
       .log-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: 64px minmax(0, 1fr) auto;
+        align-items: start;
         gap: 12px;
         padding: 11px;
         border-radius: 8px;
         border: 1px solid var(--line);
         background: #fbfdfb;
+      }
+
+      .log-thumb {
+        width: 64px;
+        height: 64px;
+        border-radius: 8px;
+        object-fit: cover;
+        background: #e8eee9;
       }
 
       .log-item strong {
@@ -804,6 +806,20 @@
       .log-item span {
         color: var(--muted);
         font-size: 0.88rem;
+      }
+
+      .log-metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 7px;
+      }
+
+      .log-metrics span {
+        padding: 4px 7px;
+        border-radius: 999px;
+        background: #eef6f0;
+        color: #2d5140;
       }
 
       .point-badge {
@@ -1097,9 +1113,6 @@
                 <article class="result-card">
                   <h4>Why eat this</h4>
                   <p class="reason" id="whyEat">Upload a plate to get an evidence-style eating reason.</p>
-                  <p class="analysis-method" id="analysisMethod">
-                    Pipeline mode: HEIC/HEIF is converted to JPEG locally, OpenAI vision is used when OPENAI_API_KEY is configured, and USDA FoodData Central is used when USDA_API_KEY is configured.
-                  </p>
                 </article>
                 <article class="result-card">
                   <h4>Point value</h4>
@@ -1225,6 +1238,18 @@
           effect: "Balanced shift",
           imagePosition: "50% 50%"
         },
+        pasta: {
+          name: "Cacio e pepe",
+          serving: "1.5 cups",
+          calories: 540,
+          protein: "19 g",
+          fiber: "3 g",
+          sugar: "0 g added",
+          points: 14,
+          why: "Pasta provides quick energy and some protein from cheese, while refined pasta, butter, and cheese keep the score moderate.",
+          effect: "Softness gain",
+          imagePosition: "50% 50%"
+        },
         eggplant_parmesan: {
           name: "Eggplant parmesan",
           serving: "1 cup / 1 entree portion",
@@ -1287,9 +1312,10 @@
         }
       };
 
-      const fallbackOrder = ["broccoli", "chicken", "berries", "oatmeal", "eggplant_parmesan", "chicken_parmesan", "pizza", "cake", "mixed"];
+      const fallbackOrder = ["broccoli", "chicken", "berries", "oatmeal", "pasta", "eggplant_parmesan", "chicken_parmesan", "pizza", "cake", "mixed"];
       const state = {
         analyzed: null,
+        currentPhotoDataUrl: "",
         audioReady: false,
         audioContext: null,
         chimeUrl: "",
@@ -1320,12 +1346,12 @@
         if (lower.includes("chicken") || lower.includes("protein")) return "chicken";
         if (lower.includes("berry") || lower.includes("fruit")) return "berries";
         if (lower.includes("oat") || lower.includes("porridge")) return "oatmeal";
+        if (lower.includes("cacio") || lower.includes("pepe") || lower.includes("pasta") || lower.includes("spaghetti") || lower.includes("noodle")) return "pasta";
         if (lower.includes("eggplant")) return "eggplant_parmesan";
         if (lower.includes("parmesan") || lower.includes("parm")) return "chicken_parmesan";
         if (lower.includes("cake") || lower.includes("dessert")) return "cake";
         if (lower.includes("pizza")) return "pizza";
-        const index = Math.abs([...lower].reduce((sum, char) => sum + char.charCodeAt(0), 0)) % fallbackOrder.length;
-        return fallbackOrder[index];
+        return "mixed";
       }
 
       function normalizeFoodName(name = "") {
@@ -1333,6 +1359,7 @@
         if (lower.includes("eggplant") && (lower.includes("parmesan") || lower.includes("parm"))) return "eggplant_parmesan";
         if (lower.includes("chicken") && (lower.includes("parmesan") || lower.includes("parm"))) return "chicken_parmesan";
         if (lower.includes("oat")) return "oatmeal";
+        if (lower.includes("cacio") || lower.includes("pepe") || lower.includes("pasta") || lower.includes("spaghetti") || lower.includes("noodle")) return "pasta";
         if (lower.includes("blueberry") || lower.includes("berry")) return "berries";
         return chooseFoodFromName(lower);
       }
@@ -1346,8 +1373,6 @@
         $("#fiber").textContent = "-";
         $("#sugar").textContent = "-";
         $("#whyEat").textContent = "Reading the uploaded image and estimating the most likely food category.";
-        $("#analysisMethod").textContent =
-          "Local image analysis in progress: decoding the uploaded file, sampling pixels, and scoring likely food categories.";
         $("#pointValue").textContent = "Analyzing";
         $("#avatarEffect").textContent = "Pending";
         $("#saveFood").disabled = true;
@@ -1364,30 +1389,40 @@
         $("#foodName").textContent = food.name;
         $("#confidence").textContent = food.confidence ? `${Math.round(food.confidence * 100)}%` : "-";
         $("#servingSize").textContent = food.serving;
-        $("#calories").textContent = `${food.calories} kcal`;
+        $("#calories").textContent = typeof food.calories === "number" ? `${food.calories} kcal` : food.calories;
         $("#protein").textContent = food.protein;
         $("#fiber").textContent = food.fiber;
         $("#sugar").textContent = food.sugar;
-        const alternatives = food.alternatives && food.alternatives.length
-          ? ` Alternatives: ${food.alternatives.map((item) => `${item.name} ${Math.round(item.confidence * 100)}%`).join(", ")}.`
-          : "";
-        const components = food.components && food.components.length > 1
-          ? ` Components: ${food.components.map((item) => `${item.name} (${item.serving}, ${Math.round(item.confidence * 100)}%)`).join("; ")}.`
-          : "";
-        $("#whyEat").textContent = `${food.why}${components}${note ? ` ${note}` : ""}${alternatives}`;
-        $("#analysisMethod").textContent =
-          food.pipeline
-            ? `Food/nutrition pipeline: ${food.pipeline.steps.join(" → ")}.`
-            : "Sample card: selected from the local nutrition guide.";
-        $("#pointValue").textContent = `${food.points} points`;
+        $("#whyEat").textContent = formatWhyText(food);
+        $("#pointValue").textContent = `${food.points || 0} points`;
         $("#avatarEffect").textContent = food.effect;
-        $("#saveFood").disabled = false;
-        $("#saveHint").textContent = state.user
-          ? `Signed in as ${state.user}. Ready to save.`
-          : "Create an account to save this analysis to your profile.";
-        previewUnsaved(food.points);
-        renderCorrections(food);
+        const loggable = food.loggable !== false;
+        $("#saveFood").disabled = !loggable;
+        $("#saveHint").textContent = loggable
+          ? (state.user ? `Signed in as ${state.user}. Ready to save.` : "Create an account to save this analysis to your profile.")
+          : (food.name === "Analysis unavailable" ? "Connect the vision/database pipeline before saving uploaded food." : "No loggable food detected. Choose another photo.");
+        if (loggable) {
+          previewUnsaved(food.points);
+          renderCorrections(food);
+        } else {
+          setAvatar(getTotalPoints());
+          correctionPanel.classList.remove("is-visible");
+          correctionOptions.innerHTML = "";
+        }
         setAnalysisBadge("Analysis complete", true);
+      }
+
+      function formatWhyText(food) {
+        if (food.components && food.components.length > 1) {
+          const componentReasons = food.components
+            .filter((item) => item.why)
+            .slice(0, 4)
+            .map((item) => `${item.name}: ${item.why}.`);
+          if (componentReasons.length) {
+            return `${componentReasons.join(" ")} Together, these choices determine the overall PlatePoints score.`;
+          }
+        }
+        return food.why;
       }
 
       function renderCorrections(food) {
@@ -1523,26 +1558,33 @@
           purple: 0,
           bright: 0,
           dark: 0,
+          foodPixels: 0,
           count: 0
         };
 
-        for (let i = 0; i < pixels.length; i += 16) {
+        for (let y = 6; y < size - 6; y += 2) {
+          for (let x = 6; x < size - 6; x += 2) {
+            const i = (y * size + x) * 4;
           const r = pixels[i];
           const g = pixels[i + 1];
           const b = pixels[i + 2];
           const brightness = (r + g + b) / 3;
           totals.count += 1;
+            const mostlyPlate = brightness > 220 && Math.max(r, g, b) - Math.min(r, g, b) < 28;
+            if (mostlyPlate) continue;
+            totals.foodPixels += 1;
           if (g > r * 1.12 && g > b * 1.08 && g > 72) totals.green += 1;
           if (r > g * 1.15 && r > b * 1.15 && r > 90) totals.red += 1;
-          if (r > 125 && g > 92 && b < 95 && Math.abs(r - g) < 78) totals.tan += 1;
-          if (r > 55 && r < 145 && g > 35 && g < 110 && b < 85) totals.brown += 1;
+            if (r > 112 && g > 82 && b < 112 && Math.abs(r - g) < 86) totals.tan += 1;
+            if (r > 45 && r < 155 && g > 30 && g < 122 && b < 98) totals.brown += 1;
           if (r > 75 && b > 78 && g < 90 && Math.abs(r - b) < 80) totals.purple += 1;
           if (brightness > 185) totals.bright += 1;
           if (brightness < 70) totals.dark += 1;
+          }
         }
 
         Object.keys(totals).forEach((key) => {
-          if (key !== "count") totals[key] = totals[key] / totals.count;
+          if (key !== "count" && key !== "foodPixels") totals[key] = totals[key] / Math.max(1, totals.foodPixels);
         });
         return totals;
       }
@@ -1551,20 +1593,12 @@
         if (signals.green > 0.2 && signals.tan < 0.28) return "broccoli";
         if (signals.purple > 0.1 || (signals.red > 0.22 && signals.bright > 0.16)) return "berries";
         if (signals.red > 0.18 && signals.tan > 0.14) return "pizza";
-        if (signals.brown > 0.23 || (signals.dark > 0.24 && signals.tan > 0.08)) return "cake";
+        if ((signals.tan > 0.12 || signals.brown > 0.16) && signals.green < 0.18 && signals.dark < 0.38 && (signals.purple > 0.018 || signals.red > 0.045)) return "oatmeal";
+        if (signals.tan > 0.075 && signals.green < 0.18 && signals.dark < 0.38) return "pasta";
+        if (signals.brown > 0.3 && signals.dark > 0.22 && signals.tan < 0.1) return "cake";
         if (signals.tan > 0.22 && signals.green < 0.12 && signals.red < 0.17) return "chicken";
         const named = chooseFoodFromName(fileName);
         return named === "mixed" ? "mixed" : named;
-      }
-
-      function signalSummary(signals) {
-        const strongest = Object.entries(signals)
-          .filter(([key]) => key !== "count")
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3)
-          .map(([key, value]) => `${key} ${(value * 100).toFixed(0)}%`)
-          .join(", ");
-        return `Photo analysis note: first-pass visual scan saw ${strongest}.`;
       }
 
       function setAnalysisBadge(message, done = false) {
@@ -1656,8 +1690,10 @@
         dropZone.style.backgroundImage = "none";
         previewImage.alt = fileName ? `Uploaded food photo: ${fileName}` : "Uploaded food photo";
         if (decodable) {
+          state.currentPhotoDataUrl = dataUrl;
           previewImage.src = dataUrl;
         } else {
+          state.currentPhotoDataUrl = "";
           previewImage.removeAttribute("src");
           dropZone.style.backgroundImage =
             'linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)), url("assets/food-spread.png")';
@@ -1679,8 +1715,6 @@
 
         try {
           if (heic) {
-            $("#analysisMethod").textContent =
-              "Converting HEIC/HEIF to JPEG on the local server before visual analysis.";
             setAnalysisBadge("Converting HEIC to JPEG");
             analysisFile = await convertHeicToJpeg(file);
             converted = true;
@@ -1692,23 +1726,26 @@
           const image = await loadImage(dataUrl);
           const signals = getPhotoSignals(image);
           setAnalysisBadge("Running nutrition pipeline");
-          $("#analysisMethod").textContent =
-            "Running food/nutrition pipeline: OpenAI vision when configured, USDA FoodData Central when configured, then local fallback.";
           const result = await runNutritionPipeline({ file: analysisFile, signals, converted, imageDataUrl: dataUrl });
-          const note = `${signalSummary(signals)} ${
-            converted
-              ? "HEIC/HEIF was converted to JPEG before analysis."
-              : "Image decoded locally in the browser."
-          }`;
-          applyNutritionResult(result, note);
+          applyNutritionResult(result);
           playDoneSound();
         } catch (error) {
-          const key = heic ? "mixed" : chooseFoodFromName(file.name);
           setPhotoPreview(dataUrl || "", file.name, false);
-          const note = heic
-            ? `HEIC/HEIF was accepted, but conversion did not complete: ${error.message}. A production deployment should route this through a server-side HEIC converter and vision model.`
-            : "The browser could not decode the uploaded image, so this estimate falls back to filename and default food signals.";
-          analyzeFood(key, note);
+          applyNutritionResult({
+            name: "Analysis unavailable",
+            serving: "-",
+            calories: "-",
+            protein: "-",
+            fiber: "-",
+            sugar: "-",
+            points: 0,
+            why: `The real vision/nutrition pipeline did not complete: ${error.message}`,
+            effect: "Avatar unchanged",
+            confidence: 0,
+            alternatives: [],
+            components: [],
+            loggable: false
+          });
           playDoneSound();
         }
       }
@@ -1776,9 +1813,16 @@
             .map(
               (item) => `
                 <div class="log-item">
+                  ${item.photo ? `<img class="log-thumb" src="${item.photo}" alt="${item.name}" />` : '<div class="log-thumb" aria-hidden="true"></div>'}
                   <div>
                     <strong>${item.name}</strong>
-                    <span>${item.serving} · ${item.calories} kcal</span>
+                    <span>${item.serving}</span>
+                    <div class="log-metrics">
+                      <span>${item.calories} kcal</span>
+                      <span>${item.protein || "-"}</span>
+                      <span>${item.fiber || "-"}</span>
+                      <span>${item.sugar || "-"}</span>
+                    </div>
                   </div>
                   <span class="point-badge">${item.points}</span>
                 </div>
@@ -1789,8 +1833,39 @@
         setAvatar(getTotalPoints());
       }
 
+      function resetAnalyzer() {
+        state.analyzed = null;
+        state.currentPhotoDataUrl = "";
+        foodImage.value = "";
+        previewImage.removeAttribute("src");
+        previewImage.alt = "";
+        dropZone.classList.remove("has-preview", "has-image");
+        dropZone.style.backgroundImage = "";
+        dropZone.style.backgroundPosition = "";
+        analysisBadge.classList.remove("is-visible", "is-done");
+        correctionPanel.classList.remove("is-visible");
+        correctionOptions.innerHTML = "";
+        customCorrection.value = "";
+        $("#dropTitle").textContent = "Take or upload a food photo";
+        $("#dropHelp").textContent = "Camera capture works on phones. JPEG, PNG, WebP, HEIC, and HEIF are accepted.";
+        chooseImageBtn.textContent = "Choose image";
+        $("#foodName").textContent = "Awaiting photo";
+        $("#confidence").textContent = "-";
+        $("#servingSize").textContent = "-";
+        $("#calories").textContent = "-";
+        $("#protein").textContent = "-";
+        $("#fiber").textContent = "-";
+        $("#sugar").textContent = "-";
+        $("#whyEat").textContent = "Upload a plate to get an evidence-style eating reason.";
+        $("#pointValue").textContent = "0 points";
+        $("#avatarEffect").textContent = "Neutral";
+        $("#saveFood").disabled = true;
+        $("#saveHint").textContent = "Saved to your food log. Upload another plate when ready.";
+        setAvatar(getTotalPoints());
+      }
+
       function saveCurrentFood() {
-        if (!state.analyzed) return;
+        if (!state.analyzed || state.analyzed.loggable === false) return;
         if (!state.user) {
           authModal.classList.add("is-open");
           $("#email").focus();
@@ -1800,12 +1875,18 @@
           name: state.analyzed.name,
           serving: state.analyzed.serving,
           calories: state.analyzed.calories,
-          points: state.analyzed.points
+          protein: state.analyzed.protein,
+          fiber: state.analyzed.fiber,
+          sugar: state.analyzed.sugar,
+          points: state.analyzed.points,
+          confidence: state.analyzed.confidence,
+          photo: state.currentPhotoDataUrl,
+          savedAt: new Date().toISOString()
         });
         state.log = state.log.slice(0, 8);
         localStorage.setItem("platepointsLog", JSON.stringify(state.log));
-        $("#saveHint").textContent = `${state.analyzed.name} saved to ${state.user}'s profile.`;
         renderLog();
+        resetAnalyzer();
       }
 
       function completeSignup(user) {

@@ -20,12 +20,14 @@ Optional:
 ```bash
 cd outputs/food-fit-site
 python3 -m pip install -r requirements.txt
-export OPENAI_API_KEY="..."
-export USDA_API_KEY="..."
+cp .env.example .env
+# Edit .env and add your real keys.
 python3 server.py
 ```
 
 Open `http://localhost:8123`.
+
+You can also use exported environment variables instead of `.env`; exported values take priority.
 
 ## Render
 
