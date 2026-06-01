@@ -1,0 +1,1903 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PlatePoints</title>
+    <meta
+      name="description"
+      content="Photo-based nutrition scoring with a responsive avatar and food log."
+    />
+    <style>
+      :root {
+        --ink: #17211d;
+        --muted: #5d6964;
+        --line: #dbe3dc;
+        --paper: #fbfaf4;
+        --panel: #ffffff;
+        --leaf: #2f8d53;
+        --mint: #dff5de;
+        --gold: #f1b94e;
+        --tomato: #ce4d38;
+        --blue: #2f6f9f;
+        --plum: #604269;
+        --shadow: 0 18px 55px rgba(27, 36, 31, 0.16);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .site-shell {
+        min-height: 100vh;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 14px clamp(18px, 4vw, 56px);
+        border-bottom: 1px solid rgba(23, 33, 29, 0.1);
+        background: rgba(251, 250, 244, 0.88);
+        backdrop-filter: blur(16px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 850;
+        letter-spacing: 0;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        place-items: center;
+        border: 2px solid var(--ink);
+        border-radius: 50%;
+        background: var(--mint);
+      }
+
+      .brand-mark svg {
+        width: 21px;
+        height: 21px;
+      }
+
+      .nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .ghost-btn,
+      .primary-btn,
+      .icon-btn {
+        border: 0;
+        border-radius: 8px;
+        min-height: 42px;
+        transition:
+          transform 160ms ease,
+          box-shadow 160ms ease,
+          background 160ms ease;
+      }
+
+      .primary-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 17px;
+        background: var(--ink);
+        color: white;
+        font-weight: 800;
+        box-shadow: 0 10px 24px rgba(23, 33, 29, 0.22);
+      }
+
+      .primary-btn:hover,
+      .ghost-btn:hover,
+      .icon-btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .ghost-btn {
+        padding: 0 15px;
+        background: #eef3ed;
+        color: var(--ink);
+        font-weight: 760;
+      }
+
+      .icon-btn {
+        display: grid;
+        width: 42px;
+        place-items: center;
+        background: #eef3ed;
+      }
+
+      .hero {
+        position: relative;
+        min-height: min(760px, calc(100vh - 18px));
+        display: grid;
+        align-items: end;
+        padding: clamp(26px, 5vw, 72px);
+        overflow: hidden;
+        isolation: isolate;
+      }
+
+      .hero::before {
+        position: absolute;
+        inset: 0;
+        z-index: -2;
+        content: "";
+        background:
+          linear-gradient(90deg, rgba(251, 250, 244, 0.98) 0%, rgba(251, 250, 244, 0.9) 36%, rgba(251, 250, 244, 0.18) 68%),
+          url("assets/food-spread.png") center / cover no-repeat;
+      }
+
+      .hero::after {
+        position: absolute;
+        inset: auto 0 0;
+        z-index: -1;
+        height: 120px;
+        content: "";
+        background: linear-gradient(0deg, var(--paper), rgba(251, 250, 244, 0));
+      }
+
+      .hero-copy {
+        width: min(690px, 100%);
+        padding-bottom: 54px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 14px;
+        color: var(--blue);
+        font-size: 0.82rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      h1 {
+        max-width: 11ch;
+        margin: 0;
+        font-size: clamp(3rem, 8vw, 6.8rem);
+        line-height: 0.88;
+        letter-spacing: 0;
+      }
+
+      .hero-copy p {
+        max-width: 560px;
+        margin: 22px 0 28px;
+        color: #33423b;
+        font-size: clamp(1.05rem, 2vw, 1.35rem);
+        line-height: 1.5;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      main {
+        display: grid;
+        gap: 46px;
+        padding: 0 clamp(18px, 4vw, 56px) 54px;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        max-width: 1180px;
+        width: 100%;
+        margin: 0 auto;
+      }
+
+      .section-head h2 {
+        margin: 0;
+        font-size: clamp(1.8rem, 3vw, 3rem);
+        letter-spacing: 0;
+      }
+
+      .section-head p {
+        max-width: 430px;
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .score-strip {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(150px, 1fr));
+        gap: 14px;
+        max-width: 1180px;
+        margin: -36px auto 0;
+        width: 100%;
+      }
+
+      .food-card {
+        min-height: 210px;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(23, 33, 29, 0.1);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: 0 12px 32px rgba(46, 57, 51, 0.1);
+      }
+
+      .food-photo {
+        height: 112px;
+        background-image: url("assets/food-spread.png");
+        background-size: 620px auto;
+        background-repeat: no-repeat;
+      }
+
+      .food-photo.broccoli {
+        background-position: 0 70%;
+      }
+
+      .food-photo.chicken {
+        background-position: 30% 72%;
+      }
+
+      .food-photo.cake {
+        background-position: 98% 39%;
+      }
+
+      .food-photo.berries {
+        background-position: 78% 2%;
+      }
+
+      .food-photo.pizza {
+        background-position: 96% 91%;
+      }
+
+      .food-body {
+        padding: 13px;
+      }
+
+      .food-body strong {
+        display: block;
+        font-size: 1.02rem;
+      }
+
+      .points-pill {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 10px;
+        padding: 6px 9px;
+        border-radius: 999px;
+        background: var(--mint);
+        color: #155c33;
+        font-weight: 850;
+        font-size: 0.88rem;
+      }
+
+      .app-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.12fr) minmax(315px, 0.88fr);
+        gap: 24px;
+        max-width: 1180px;
+        width: 100%;
+        margin: 0 auto;
+        align-items: start;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .uploader {
+        padding: clamp(18px, 3vw, 28px);
+      }
+
+      .drop-zone {
+        position: relative;
+        display: grid;
+        min-height: 285px;
+        place-items: center;
+        border: 2px dashed #b9c9bd;
+        border-radius: 8px;
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.84)),
+          url("assets/food-spread.png") center / cover;
+        text-align: center;
+        overflow: hidden;
+      }
+
+      .preview-image {
+        position: absolute;
+        inset: 0;
+        display: none;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .drop-zone.has-image {
+        border-style: solid;
+        background: #111;
+      }
+
+      .drop-zone.has-image .preview-image {
+        display: block;
+      }
+
+      .drop-zone.has-preview {
+        background-size: cover;
+        background-position: center;
+      }
+
+      .drop-zone.has-image .drop-content {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        width: auto;
+        padding: 14px;
+        text-align: left;
+      }
+
+      .drop-zone.has-image .drop-content svg {
+        display: none;
+      }
+
+      .drop-zone.has-image .drop-content h3 {
+        margin-bottom: 4px;
+        font-size: 1.08rem;
+      }
+
+      .drop-zone.has-image .drop-content p {
+        margin-bottom: 10px;
+        font-size: 0.92rem;
+      }
+
+      .drop-zone.has-preview .drop-content {
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(23, 33, 29, 0.1);
+      }
+
+      .analysis-badge {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        z-index: 2;
+        display: none;
+        align-items: center;
+        gap: 8px;
+        max-width: calc(100% - 28px);
+        padding: 9px 11px;
+        border-radius: 999px;
+        background: rgba(23, 33, 29, 0.84);
+        color: white;
+        font-size: 0.88rem;
+        font-weight: 850;
+      }
+
+      .analysis-badge.is-visible {
+        display: inline-flex;
+      }
+
+      .analysis-badge::before {
+        width: 9px;
+        height: 9px;
+        content: "";
+        border-radius: 50%;
+        background: var(--gold);
+        box-shadow: 0 0 0 0 rgba(241, 185, 78, 0.72);
+        animation: pulse 1.4s infinite;
+      }
+
+      .analysis-badge.is-done::before {
+        background: var(--leaf);
+        animation: none;
+      }
+
+      @keyframes pulse {
+        70% {
+          box-shadow: 0 0 0 9px rgba(241, 185, 78, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(241, 185, 78, 0);
+        }
+      }
+
+      .drop-content {
+        width: min(420px, calc(100% - 28px));
+        padding: 22px;
+        border-radius: 8px;
+      }
+
+      .drop-content svg {
+        width: 42px;
+        height: 42px;
+        margin-bottom: 12px;
+      }
+
+      .drop-content h3 {
+        margin: 0 0 8px;
+        font-size: 1.35rem;
+      }
+
+      .drop-content p {
+        margin: 0 0 16px;
+        color: var(--muted);
+      }
+
+      .file-input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+      }
+
+      .sample-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .sample-row button {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: #fff;
+        padding: 8px 11px;
+        color: #314039;
+        font-weight: 760;
+      }
+
+      .correction-panel {
+        display: none;
+        gap: 9px;
+        margin-top: 14px;
+        padding: 12px;
+        border: 1px solid #d6e3d9;
+        border-radius: 8px;
+        background: #f5faf6;
+      }
+
+      .correction-panel.is-visible {
+        display: grid;
+      }
+
+      .correction-panel strong {
+        font-size: 0.95rem;
+      }
+
+      .correction-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .correction-row button {
+        border: 1px solid #b8cabc;
+        border-radius: 999px;
+        background: white;
+        padding: 8px 11px;
+        color: #26352f;
+        font-weight: 780;
+      }
+
+      .custom-correct {
+        display: flex;
+        gap: 8px;
+      }
+
+      .custom-correct input {
+        min-width: 0;
+        flex: 1;
+        min-height: 39px;
+        border: 1px solid #b8c5bb;
+        border-radius: 8px;
+        padding: 0 10px;
+      }
+
+      .results-area {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+      }
+
+      .result-card {
+        min-height: 168px;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #fbfdfb;
+      }
+
+      .result-card h4 {
+        margin: 0 0 9px;
+        font-size: 1rem;
+      }
+
+      .metric {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 0;
+        border-bottom: 1px solid #e8eee9;
+      }
+
+      .metric:last-child {
+        border-bottom: 0;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .metric strong {
+        text-align: right;
+      }
+
+      .reason {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.48;
+      }
+
+      .analysis-method {
+        margin: 12px 0 0;
+        padding: 11px 12px;
+        border-radius: 8px;
+        background: #eef6f0;
+        color: #26543a;
+        font-size: 0.92rem;
+        line-height: 1.45;
+      }
+
+      .save-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+      }
+
+      .profile-panel {
+        display: grid;
+        gap: 16px;
+      }
+
+      .avatar-panel {
+        padding: 20px;
+        overflow: hidden;
+      }
+
+      .avatar-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .avatar-head h3,
+      .log-panel h3 {
+        margin: 0;
+        font-size: 1.25rem;
+      }
+
+      .avatar-head span {
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .avatar-stage {
+        position: relative;
+        display: grid;
+        min-height: 334px;
+        place-items: center;
+        border-radius: 8px;
+        background:
+          linear-gradient(180deg, #edf6f7 0%, #f8fbf0 100%);
+        border: 1px solid #dce9e6;
+      }
+
+      .avatar {
+        --body-width: 88px;
+        --torso-height: 118px;
+        --arm-width: 24px;
+        position: relative;
+        width: 220px;
+        height: 270px;
+        transition: transform 280ms ease;
+      }
+
+      .avatar::before {
+        position: absolute;
+        left: 50%;
+        top: 22px;
+        width: 62px;
+        height: 62px;
+        content: "";
+        transform: translateX(-50%);
+        border: 4px solid #222;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 38% 42%, #222 0 4px, transparent 5px),
+          radial-gradient(circle at 63% 42%, #222 0 4px, transparent 5px),
+          radial-gradient(circle at 50% 63%, #d97863 0 12px, transparent 13px),
+          #f3c69f;
+      }
+
+      .torso,
+      .arm,
+      .leg {
+        position: absolute;
+        background: #f3c69f;
+        border: 4px solid #222;
+      }
+
+      .torso {
+        left: 50%;
+        top: 82px;
+        width: var(--body-width);
+        height: var(--torso-height);
+        transform: translateX(-50%);
+        border-radius: 38px 38px 30px 30px;
+        background:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.28), transparent 54%),
+          var(--avatar-shirt, #65b96e);
+      }
+
+      .arm {
+        top: 102px;
+        width: var(--arm-width);
+        height: 116px;
+        border-radius: 20px;
+      }
+
+      .arm.left {
+        left: calc(50% - var(--body-width) / 2 - var(--arm-width) + 5px);
+        transform: rotate(13deg);
+      }
+
+      .arm.right {
+        right: calc(50% - var(--body-width) / 2 - var(--arm-width) + 5px);
+        transform: rotate(-13deg);
+      }
+
+      .leg {
+        top: 190px;
+        width: 30px;
+        height: 86px;
+        border-radius: 18px;
+        background: #2f6f9f;
+      }
+
+      .leg.left {
+        left: 78px;
+        transform: rotate(6deg);
+      }
+
+      .leg.right {
+        right: 78px;
+        transform: rotate(-6deg);
+      }
+
+      .avatar[data-state="lean"] {
+        --body-width: 74px;
+        --torso-height: 124px;
+        --arm-width: 22px;
+        --avatar-shirt: #3ea35d;
+      }
+
+      .avatar[data-state="fit"] {
+        --body-width: 106px;
+        --torso-height: 122px;
+        --arm-width: 31px;
+        --avatar-shirt: #2f6f9f;
+        transform: scale(1.03);
+      }
+
+      .avatar[data-state="heavy"] {
+        --body-width: 135px;
+        --torso-height: 114px;
+        --arm-width: 27px;
+        --avatar-shirt: #c95f49;
+        transform: scale(1.02);
+      }
+
+      .avatar-status {
+        position: absolute;
+        right: 14px;
+        bottom: 14px;
+        max-width: 190px;
+        padding: 10px 11px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(23, 33, 29, 0.1);
+        font-size: 0.92rem;
+        color: #314039;
+      }
+
+      .score-meter {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .meter-track {
+        height: 12px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e4ebe5;
+      }
+
+      .meter-fill {
+        width: 42%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--tomato), var(--gold), var(--leaf));
+        transition: width 280ms ease;
+      }
+
+      .log-panel {
+        padding: 18px;
+      }
+
+      .log-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .log-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 11px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #fbfdfb;
+      }
+
+      .log-item strong {
+        display: block;
+      }
+
+      .log-item span {
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .point-badge {
+        min-width: 54px;
+        text-align: center;
+        border-radius: 999px;
+        padding: 7px 8px;
+        color: white;
+        background: var(--leaf);
+        font-weight: 850;
+      }
+
+      .empty-state {
+        color: var(--muted);
+        margin: 0;
+        line-height: 1.5;
+      }
+
+      .auth-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: none;
+        place-items: center;
+        padding: 18px;
+        background: rgba(19, 27, 23, 0.54);
+      }
+
+      .auth-modal.is-open {
+        display: grid;
+      }
+
+      .auth-card {
+        width: min(430px, 100%);
+        padding: 22px;
+        border-radius: 8px;
+        background: white;
+        box-shadow: var(--shadow);
+      }
+
+      .auth-card h3 {
+        margin: 0 0 8px;
+        font-size: 1.55rem;
+      }
+
+      .auth-card p {
+        margin: 0 0 16px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .auth-field {
+        display: grid;
+        gap: 7px;
+        margin-bottom: 12px;
+      }
+
+      .auth-field label {
+        font-weight: 800;
+      }
+
+      .auth-field input {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid #b8c5bb;
+        border-radius: 8px;
+        padding: 0 12px;
+      }
+
+      .auth-actions {
+        display: grid;
+        gap: 10px;
+      }
+
+      .google-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        min-height: 44px;
+        border: 1px solid #cbd6cf;
+        border-radius: 8px;
+        background: white;
+        color: var(--ink);
+        font-weight: 800;
+      }
+
+      .modal-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .text-btn {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 800;
+      }
+
+      @media (max-width: 980px) {
+        .score-strip,
+        .app-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .profile-panel {
+          grid-column: 1 / -1;
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .topbar {
+          align-items: flex-start;
+        }
+
+        .nav-actions .ghost-btn {
+          display: none;
+        }
+
+        .hero {
+          min-height: 700px;
+          align-items: center;
+        }
+
+        .hero::before {
+          background:
+            linear-gradient(180deg, rgba(251, 250, 244, 0.96) 0%, rgba(251, 250, 244, 0.82) 52%, rgba(251, 250, 244, 0.18) 100%),
+            url("assets/food-spread.png") 58% center / cover no-repeat;
+        }
+
+        .hero-copy {
+          padding-bottom: 40px;
+        }
+
+        .section-head,
+        .save-row,
+        .modal-row {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .score-strip,
+        .app-grid,
+        .profile-panel,
+        .results-area {
+          grid-template-columns: 1fr;
+        }
+
+        .avatar-status {
+          position: static;
+          max-width: none;
+          margin: 0 14px 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <div class="brand" aria-label="PlatePoints">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M7 3v18" />
+              <path d="M7 7c-2 0-3-1.2-3-3" />
+              <path d="M7 7c2 0 3-1.2 3-3" />
+              <path d="M14 3v18" />
+              <path d="M18 3v18" />
+              <path d="M14 8h4" />
+            </svg>
+          </span>
+          <span>PlatePoints</span>
+        </div>
+        <nav class="nav-actions" aria-label="Primary">
+          <a class="ghost-btn" href="#score-guide" style="display: inline-flex; align-items: center; text-decoration: none;">Point guide</a>
+          <a class="primary-btn" href="#analyzer" style="text-decoration: none;">Analyze food</a>
+        </nav>
+      </header>
+
+      <section class="hero" aria-label="PlatePoints overview">
+        <div class="hero-copy">
+          <p class="eyebrow">Photo in. Nutrition scored. Avatar reacts.</p>
+          <h1>PlatePoints</h1>
+          <p>
+            Snap a meal, get approximate nutrition facts and a food score, then watch your avatar adapt as your food log trends stronger or softer.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-btn" href="#analyzer">Start with a photo</a>
+            <a class="ghost-btn" href="#score-guide" style="display: inline-flex; align-items: center; text-decoration: none;">See sample foods</a>
+          </div>
+        </div>
+      </section>
+
+      <main>
+        <section id="score-guide" aria-labelledby="score-title">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Food score examples</p>
+              <h2 id="score-title">Simple points, fast intuition.</h2>
+            </div>
+            <p>
+              High-fiber, nutrient-dense foods earn more. Desserts and fried snacks still log honestly, but they do not move the avatar toward peak form.
+            </p>
+          </div>
+          <div class="score-strip" aria-label="Sample food point values">
+            <article class="food-card">
+              <div class="food-photo broccoli" role="img" aria-label="Broccoli"></div>
+              <div class="food-body"><strong>Broccoli</strong><span class="points-pill">50 points</span></div>
+            </article>
+            <article class="food-card">
+              <div class="food-photo chicken" role="img" aria-label="Grilled chicken"></div>
+              <div class="food-body"><strong>Grilled chicken</strong><span class="points-pill">20 points</span></div>
+            </article>
+            <article class="food-card">
+              <div class="food-photo berries" role="img" aria-label="Berries"></div>
+              <div class="food-body"><strong>Berry bowl</strong><span class="points-pill">38 points</span></div>
+            </article>
+            <article class="food-card">
+              <div class="food-photo pizza" role="img" aria-label="Pizza"></div>
+              <div class="food-body"><strong>Pizza slice</strong><span class="points-pill">8 points</span></div>
+            </article>
+            <article class="food-card">
+              <div class="food-photo cake" role="img" aria-label="Chocolate cake"></div>
+              <div class="food-body"><strong>Chocolate cake</strong><span class="points-pill">1 point</span></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="analyzer" aria-labelledby="analyzer-title">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Web food log</p>
+              <h2 id="analyzer-title">Upload a plate, review the card, save it.</h2>
+            </div>
+            <p>
+              Uploads are inspected locally for a first-pass food estimate. HEIC and HEIF files are accepted, with server vision recommended when the browser cannot decode them.
+            </p>
+          </div>
+
+          <div class="app-grid">
+            <div class="panel uploader">
+              <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Choose or drop a food photo">
+                <img class="preview-image" id="previewImage" alt="" />
+                <span class="analysis-badge" id="analysisBadge">Analyzing selected photo</span>
+                <span class="drop-content">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <path d="m17 8-5-5-5 5" />
+                    <path d="M12 3v12" />
+                  </svg>
+                  <h3 id="dropTitle">Take or upload a food photo</h3>
+                  <p id="dropHelp">Camera capture works on phones. JPEG, PNG, WebP, HEIC, and HEIF are accepted.</p>
+                  <button class="primary-btn" id="chooseImageBtn" type="button">Choose image</button>
+                </span>
+              </div>
+              <input class="file-input" id="foodImage" type="file" accept="image/*,.heic,.heif,image/heic,image/heif" capture="environment" />
+
+              <div class="sample-row" aria-label="Analyze sample foods">
+                <button type="button" data-sample="broccoli">Try broccoli</button>
+                <button type="button" data-sample="chicken">Try grilled chicken</button>
+                <button type="button" data-sample="cake">Try cake</button>
+                <button type="button" data-sample="pizza">Try pizza</button>
+              </div>
+
+              <div class="correction-panel" id="correctionPanel" aria-live="polite">
+                <strong>Not quite? Pick the closest match.</strong>
+                <div class="correction-row" id="correctionOptions"></div>
+                <div class="custom-correct">
+                  <input id="customCorrection" type="text" placeholder="Type the actual food, e.g. eggplant parmesan" />
+                  <button type="button" id="applyCorrection">Use this</button>
+                </div>
+              </div>
+
+              <div class="results-area" id="resultsArea" aria-live="polite">
+                <article class="result-card">
+                  <h4>Food identified</h4>
+                  <div class="metric"><span>Item</span><strong id="foodName">Awaiting photo</strong></div>
+                  <div class="metric"><span>Confidence</span><strong id="confidence">-</strong></div>
+                  <div class="metric"><span>Serving</span><strong id="servingSize">-</strong></div>
+                  <div class="metric"><span>Calories</span><strong id="calories">-</strong></div>
+                </article>
+                <article class="result-card">
+                  <h4>Nutrition facts</h4>
+                  <div class="metric"><span>Protein</span><strong id="protein">-</strong></div>
+                  <div class="metric"><span>Fiber</span><strong id="fiber">-</strong></div>
+                  <div class="metric"><span>Added sugar</span><strong id="sugar">-</strong></div>
+                </article>
+                <article class="result-card">
+                  <h4>Why eat this</h4>
+                  <p class="reason" id="whyEat">Upload a plate to get an evidence-style eating reason.</p>
+                  <p class="analysis-method" id="analysisMethod">
+                    Pipeline mode: HEIC/HEIF is converted to JPEG locally, OpenAI vision is used when OPENAI_API_KEY is configured, and USDA FoodData Central is used when USDA_API_KEY is configured.
+                  </p>
+                </article>
+                <article class="result-card">
+                  <h4>Point value</h4>
+                  <div class="metric"><span>Meal score</span><strong id="pointValue">0 points</strong></div>
+                  <div class="metric"><span>Avatar effect</span><strong id="avatarEffect">Neutral</strong></div>
+                </article>
+              </div>
+
+              <div class="save-row">
+                <span id="saveHint">Analyze a food before saving it to your profile.</span>
+                <button class="primary-btn" id="saveFood" type="button" disabled>Save to profile</button>
+              </div>
+            </div>
+
+            <aside class="profile-panel" aria-label="Profile and avatar">
+              <section class="panel avatar-panel">
+                <div class="avatar-head">
+                  <div>
+                    <h3>Your avatar</h3>
+                    <span id="avatarLabel">Balanced beginner</span>
+                  </div>
+                  <strong id="totalPoints">0 pts</strong>
+                </div>
+                <div class="avatar-stage">
+                  <div class="avatar" id="avatar" data-state="lean" aria-label="Avatar body state">
+                    <span class="torso"></span>
+                    <span class="arm left"></span>
+                    <span class="arm right"></span>
+                    <span class="leg left"></span>
+                    <span class="leg right"></span>
+                  </div>
+                  <div class="avatar-status" id="avatarStatus">
+                    Save higher-point meals to build a stronger avatar.
+                  </div>
+                </div>
+                <div class="score-meter" aria-label="Avatar progress meter">
+                  <div class="meter-track"><div class="meter-fill" id="meterFill"></div></div>
+                  <span id="meterText">0 / 160 weekly points</span>
+                </div>
+              </section>
+
+              <section class="panel log-panel">
+                <h3>Food log</h3>
+                <div class="log-list" id="logList">
+                  <p class="empty-state">No saved meals yet. Your first save will ask for email or Google sign on.</p>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="auth-modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <div class="auth-card">
+        <h3 id="authTitle">Create your profile</h3>
+        <p>We need an account before saving your photo-based nutrition result to a profile.</p>
+        <div class="auth-field">
+          <label for="email">Email address</label>
+          <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="auth-actions">
+          <button class="primary-btn" id="emailSignup" type="button">Continue with email</button>
+          <button class="google-btn" id="googleSignup" type="button">
+            <span aria-hidden="true">G</span>
+            Continue with Google
+          </button>
+        </div>
+        <div class="modal-row">
+          <small id="authNote">Prototype sign on stores this session locally.</small>
+          <button class="text-btn" id="closeModal" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const foods = {
+        broccoli: {
+          name: "Broccoli",
+          serving: "1.5 cups cooked",
+          calories: 82,
+          protein: "5 g",
+          fiber: "7 g",
+          sugar: "0 g added",
+          points: 50,
+          why: "High fiber, vitamin C, potassium, and volume per calorie make this a strong satiety play.",
+          effect: "Strong lean gain",
+          imagePosition: "0 70%"
+        },
+        chicken: {
+          name: "Grilled chicken",
+          serving: "5 oz cooked",
+          calories: 235,
+          protein: "44 g",
+          fiber: "0 g",
+          sugar: "0 g added",
+          points: 20,
+          why: "Dense protein helps recovery and keeps the meal satisfying, especially with vegetables or grains.",
+          effect: "Muscle support",
+          imagePosition: "30% 72%"
+        },
+        berries: {
+          name: "Berry bowl",
+          serving: "1.25 cups",
+          calories: 105,
+          protein: "2 g",
+          fiber: "8 g",
+          sugar: "0 g added",
+          points: 38,
+          why: "Fiber, antioxidants, and low energy density make berries a high-return snack or side.",
+          effect: "Lean boost",
+          imagePosition: "78% 2%"
+        },
+        oatmeal: {
+          name: "Oatmeal",
+          serving: "1 cup cooked",
+          calories: 154,
+          protein: "6 g",
+          fiber: "4 g",
+          sugar: "0 g added",
+          points: 32,
+          why: "Oatmeal brings slow-digesting carbohydrates and soluble fiber, especially useful when paired with fruit or protein.",
+          effect: "Balanced shift",
+          imagePosition: "50% 50%"
+        },
+        eggplant_parmesan: {
+          name: "Eggplant parmesan",
+          serving: "1 cup / 1 entree portion",
+          calories: 340,
+          protein: "15 g",
+          fiber: "7 g",
+          sugar: "6 g added",
+          points: 26,
+          why: "Eggplant parmesan can offer fiber and plant volume, while cheese, breading, and sauce keep the score moderate.",
+          effect: "Balanced shift",
+          imagePosition: "50% 50%"
+        },
+        chicken_parmesan: {
+          name: "Chicken parmesan",
+          serving: "1 cutlet / 1 entree portion",
+          calories: 520,
+          protein: "42 g",
+          fiber: "3 g",
+          sugar: "5 g added",
+          points: 17,
+          why: "Chicken parmesan is protein-rich, but breading, cheese, and sauce make it more calorie-dense.",
+          effect: "Softness gain",
+          imagePosition: "50% 50%"
+        },
+        pizza: {
+          name: "Pizza slice",
+          serving: "1 large slice",
+          calories: 310,
+          protein: "13 g",
+          fiber: "2 g",
+          sugar: "2 g added",
+          points: 8,
+          why: "Useful for enjoyment and quick energy, but refined flour and saturated fat keep the score modest.",
+          effect: "Softness gain",
+          imagePosition: "96% 91%"
+        },
+        cake: {
+          name: "Chocolate cake",
+          serving: "1 slice",
+          calories: 430,
+          protein: "5 g",
+          fiber: "3 g",
+          sugar: "34 g added",
+          points: 1,
+          why: "Great as a treat. The high added sugar and low micronutrient density mean it barely moves the score.",
+          effect: "Chubby shift",
+          imagePosition: "98% 39%"
+        },
+        mixed: {
+          name: "Mixed plate",
+          serving: "1 photographed plate",
+          calories: 360,
+          protein: "18 g",
+          fiber: "5 g",
+          sugar: "6 g added",
+          points: 24,
+          why: "The plate appears mixed or visually ambiguous, so this estimate uses a balanced default until a stronger classifier confirms the item.",
+          effect: "Balanced shift",
+          imagePosition: "50% 50%"
+        }
+      };
+
+      const fallbackOrder = ["broccoli", "chicken", "berries", "oatmeal", "eggplant_parmesan", "chicken_parmesan", "pizza", "cake", "mixed"];
+      const state = {
+        analyzed: null,
+        audioReady: false,
+        audioContext: null,
+        chimeUrl: "",
+        user: localStorage.getItem("platepointsUser") || "",
+        log: JSON.parse(localStorage.getItem("platepointsLog") || "[]")
+      };
+
+      const $ = (selector) => document.querySelector(selector);
+      const foodImage = $("#foodImage");
+      const dropZone = $("#dropZone");
+      const chooseImageBtn = $("#chooseImageBtn");
+      const previewImage = $("#previewImage");
+      const analysisBadge = $("#analysisBadge");
+      const authModal = $("#authModal");
+      const correctionPanel = $("#correctionPanel");
+      const correctionOptions = $("#correctionOptions");
+      const customCorrection = $("#customCorrection");
+
+      function isHeicFile(file) {
+        const name = file.name.toLowerCase();
+        const type = file.type.toLowerCase();
+        return name.endsWith(".heic") || name.endsWith(".heif") || type.includes("heic") || type.includes("heif");
+      }
+
+      function chooseFoodFromName(fileName = "") {
+        const lower = fileName.toLowerCase();
+        if (lower.includes("broccoli") || lower.includes("green")) return "broccoli";
+        if (lower.includes("chicken") || lower.includes("protein")) return "chicken";
+        if (lower.includes("berry") || lower.includes("fruit")) return "berries";
+        if (lower.includes("oat") || lower.includes("porridge")) return "oatmeal";
+        if (lower.includes("eggplant")) return "eggplant_parmesan";
+        if (lower.includes("parmesan") || lower.includes("parm")) return "chicken_parmesan";
+        if (lower.includes("cake") || lower.includes("dessert")) return "cake";
+        if (lower.includes("pizza")) return "pizza";
+        const index = Math.abs([...lower].reduce((sum, char) => sum + char.charCodeAt(0), 0)) % fallbackOrder.length;
+        return fallbackOrder[index];
+      }
+
+      function normalizeFoodName(name = "") {
+        const lower = name.toLowerCase();
+        if (lower.includes("eggplant") && (lower.includes("parmesan") || lower.includes("parm"))) return "eggplant_parmesan";
+        if (lower.includes("chicken") && (lower.includes("parmesan") || lower.includes("parm"))) return "chicken_parmesan";
+        if (lower.includes("oat")) return "oatmeal";
+        if (lower.includes("blueberry") || lower.includes("berry")) return "berries";
+        return chooseFoodFromName(lower);
+      }
+
+      function updateAnalyzerStatus(message) {
+        $("#foodName").textContent = message;
+        $("#servingSize").textContent = "Scanning image";
+        $("#confidence").textContent = "-";
+        $("#calories").textContent = "-";
+        $("#protein").textContent = "-";
+        $("#fiber").textContent = "-";
+        $("#sugar").textContent = "-";
+        $("#whyEat").textContent = "Reading the uploaded image and estimating the most likely food category.";
+        $("#analysisMethod").textContent =
+          "Local image analysis in progress: decoding the uploaded file, sampling pixels, and scoring likely food categories.";
+        $("#pointValue").textContent = "Analyzing";
+        $("#avatarEffect").textContent = "Pending";
+        $("#saveFood").disabled = true;
+        $("#saveHint").textContent = "Analyzing photo before it can be saved.";
+      }
+
+      function analyzeFood(key, note = "") {
+        const food = { ...foods[key], key, confidence: 1, alternatives: [] };
+        applyNutritionResult(food, note || "Sample food selected from the guide.");
+      }
+
+      function applyNutritionResult(food, note = "") {
+        state.analyzed = food;
+        $("#foodName").textContent = food.name;
+        $("#confidence").textContent = food.confidence ? `${Math.round(food.confidence * 100)}%` : "-";
+        $("#servingSize").textContent = food.serving;
+        $("#calories").textContent = `${food.calories} kcal`;
+        $("#protein").textContent = food.protein;
+        $("#fiber").textContent = food.fiber;
+        $("#sugar").textContent = food.sugar;
+        const alternatives = food.alternatives && food.alternatives.length
+          ? ` Alternatives: ${food.alternatives.map((item) => `${item.name} ${Math.round(item.confidence * 100)}%`).join(", ")}.`
+          : "";
+        const components = food.components && food.components.length > 1
+          ? ` Components: ${food.components.map((item) => `${item.name} (${item.serving}, ${Math.round(item.confidence * 100)}%)`).join("; ")}.`
+          : "";
+        $("#whyEat").textContent = `${food.why}${components}${note ? ` ${note}` : ""}${alternatives}`;
+        $("#analysisMethod").textContent =
+          food.pipeline
+            ? `Food/nutrition pipeline: ${food.pipeline.steps.join(" → ")}.`
+            : "Sample card: selected from the local nutrition guide.";
+        $("#pointValue").textContent = `${food.points} points`;
+        $("#avatarEffect").textContent = food.effect;
+        $("#saveFood").disabled = false;
+        $("#saveHint").textContent = state.user
+          ? `Signed in as ${state.user}. Ready to save.`
+          : "Create an account to save this analysis to your profile.";
+        previewUnsaved(food.points);
+        renderCorrections(food);
+        setAnalysisBadge("Analysis complete", true);
+      }
+
+      function renderCorrections(food) {
+        const options = [];
+        if (food.alternatives) {
+          options.push(...food.alternatives.map((item) => ({
+            key: item.key,
+            name: item.name,
+            confidence: item.confidence
+          })));
+        }
+
+        const usefulDefaults = ["eggplant_parmesan", "chicken_parmesan", "mixed"];
+        usefulDefaults.forEach((key) => {
+          if (foods[key] && food.key !== key && !options.some((item) => item.key === key)) {
+            options.push({ key, name: foods[key].name, confidence: 0 });
+          }
+        });
+
+        if (!options.length) {
+          correctionPanel.classList.remove("is-visible");
+          correctionOptions.innerHTML = "";
+          return;
+        }
+
+        correctionOptions.innerHTML = options.slice(0, 6).map((item) => {
+          const confidence = item.confidence ? ` ${Math.round(item.confidence * 100)}%` : "";
+          return `<button type="button" data-correction="${item.key}">${item.name}${confidence}</button>`;
+        }).join("");
+        correctionPanel.classList.add("is-visible");
+      }
+
+      function applyCorrection(key, label = "") {
+        const template = foods[key] || foods.mixed;
+        const corrected = {
+          ...template,
+          key,
+          name: label || template.name,
+          confidence: 1,
+          alternatives: [],
+          components: [],
+          pipeline: {
+            steps: ["User corrected food identity", "Nutrition template selected", "PlatePoints score recalculated"]
+          }
+        };
+        applyNutritionResult(corrected, "Corrected by user after photo analysis.");
+        $("#saveHint").textContent = `Corrected to ${corrected.name}. Save it when ready.`;
+      }
+
+      function readAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.addEventListener("load", () => resolve(reader.result));
+          reader.addEventListener("error", () => reject(reader.error));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function convertHeicToJpeg(file) {
+        const formData = new FormData();
+        formData.append("image", file, file.name || "upload.heic");
+
+        const response = await fetch("/convert-heic", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          let message = "HEIC conversion failed.";
+          try {
+            const payload = await response.json();
+            message = payload.error || message;
+          } catch (error) {
+            message = response.statusText || message;
+          }
+          throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const baseName = (file.name || "photo").replace(/\.(heic|heif)$/i, "");
+        return new File([blob], `${baseName}.jpg`, { type: "image/jpeg" });
+      }
+
+      async function runNutritionPipeline({ file, signals, converted, imageDataUrl }) {
+        const response = await fetch("/nutrition-pipeline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            sourceFormat: file.type || file.name.split(".").pop() || "image",
+            converted,
+            signals,
+            imageDataUrl
+          })
+        });
+
+        if (!response.ok) {
+          let message = "Nutrition pipeline failed.";
+          try {
+            const payload = await response.json();
+            message = payload.error || message;
+          } catch (error) {
+            message = response.statusText || message;
+          }
+          throw new Error(message);
+        }
+
+        return response.json();
+      }
+
+      function loadImage(dataUrl) {
+        return new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => reject(new Error("This browser could not decode the image."));
+          image.src = dataUrl;
+        });
+      }
+
+      function getPhotoSignals(image) {
+        const canvas = document.createElement("canvas");
+        const size = 72;
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(image, 0, 0, size, size);
+        const pixels = context.getImageData(0, 0, size, size).data;
+        const totals = {
+          green: 0,
+          red: 0,
+          tan: 0,
+          brown: 0,
+          purple: 0,
+          bright: 0,
+          dark: 0,
+          count: 0
+        };
+
+        for (let i = 0; i < pixels.length; i += 16) {
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          const brightness = (r + g + b) / 3;
+          totals.count += 1;
+          if (g > r * 1.12 && g > b * 1.08 && g > 72) totals.green += 1;
+          if (r > g * 1.15 && r > b * 1.15 && r > 90) totals.red += 1;
+          if (r > 125 && g > 92 && b < 95 && Math.abs(r - g) < 78) totals.tan += 1;
+          if (r > 55 && r < 145 && g > 35 && g < 110 && b < 85) totals.brown += 1;
+          if (r > 75 && b > 78 && g < 90 && Math.abs(r - b) < 80) totals.purple += 1;
+          if (brightness > 185) totals.bright += 1;
+          if (brightness < 70) totals.dark += 1;
+        }
+
+        Object.keys(totals).forEach((key) => {
+          if (key !== "count") totals[key] = totals[key] / totals.count;
+        });
+        return totals;
+      }
+
+      function classifyPhoto(signals, fileName) {
+        if (signals.green > 0.2 && signals.tan < 0.28) return "broccoli";
+        if (signals.purple > 0.1 || (signals.red > 0.22 && signals.bright > 0.16)) return "berries";
+        if (signals.red > 0.18 && signals.tan > 0.14) return "pizza";
+        if (signals.brown > 0.23 || (signals.dark > 0.24 && signals.tan > 0.08)) return "cake";
+        if (signals.tan > 0.22 && signals.green < 0.12 && signals.red < 0.17) return "chicken";
+        const named = chooseFoodFromName(fileName);
+        return named === "mixed" ? "mixed" : named;
+      }
+
+      function signalSummary(signals) {
+        const strongest = Object.entries(signals)
+          .filter(([key]) => key !== "count")
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([key, value]) => `${key} ${(value * 100).toFixed(0)}%`)
+          .join(", ");
+        return `Photo analysis note: first-pass visual scan saw ${strongest}.`;
+      }
+
+      function setAnalysisBadge(message, done = false) {
+        analysisBadge.textContent = message;
+        analysisBadge.classList.add("is-visible");
+        analysisBadge.classList.toggle("is-done", done);
+      }
+
+      function unlockAudio() {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          if (!state.audioContext) state.audioContext = new AudioContext();
+          if (state.audioContext.state === "suspended") state.audioContext.resume();
+        }
+        state.audioReady = true;
+      }
+
+      function getChimeUrl() {
+        if (state.chimeUrl) return state.chimeUrl;
+
+        const sampleRate = 16000;
+        const duration = 0.46;
+        const sampleCount = Math.floor(sampleRate * duration);
+        const buffer = new ArrayBuffer(44 + sampleCount * 2);
+        const view = new DataView(buffer);
+        const writeString = (offset, value) => {
+          for (let i = 0; i < value.length; i += 1) view.setUint8(offset + i, value.charCodeAt(i));
+        };
+
+        writeString(0, "RIFF");
+        view.setUint32(4, 36 + sampleCount * 2, true);
+        writeString(8, "WAVE");
+        writeString(12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        writeString(36, "data");
+        view.setUint32(40, sampleCount * 2, true);
+
+        for (let index = 0; index < sampleCount; index += 1) {
+          const time = index / sampleRate;
+          const envelope = Math.min(1, time / 0.03) * Math.max(0, 1 - time / duration);
+          const note =
+            Math.sin(2 * Math.PI * 523.25 * time) * 0.45 +
+            Math.sin(2 * Math.PI * 659.25 * Math.max(0, time - 0.08)) * (time > 0.08 ? 0.3 : 0) +
+            Math.sin(2 * Math.PI * 783.99 * Math.max(0, time - 0.16)) * (time > 0.16 ? 0.25 : 0);
+          view.setInt16(44 + index * 2, Math.max(-1, Math.min(1, note * envelope)) * 12000, true);
+        }
+
+        const blob = new Blob([buffer], { type: "audio/wav" });
+        state.chimeUrl = URL.createObjectURL(blob);
+        return state.chimeUrl;
+      }
+
+      function playDoneSound() {
+        if (!state.audioReady) return;
+
+        if (!state.audioContext) {
+          const audio = new Audio(getChimeUrl());
+          audio.volume = 0.42;
+          audio.play().catch(() => {});
+          return;
+        }
+
+        const context = state.audioContext;
+        const now = context.currentTime;
+        const gain = context.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.08, now + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+        gain.connect(context.destination);
+
+        [523.25, 659.25, 783.99].forEach((frequency, index) => {
+          const oscillator = context.createOscillator();
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(frequency, now + index * 0.075);
+          oscillator.connect(gain);
+          oscillator.start(now + index * 0.075);
+          oscillator.stop(now + 0.42);
+        });
+      }
+
+      function setPhotoPreview(dataUrl, fileName, decodable = true) {
+        dropZone.classList.add("has-preview", "has-image");
+        dropZone.style.backgroundImage = "none";
+        previewImage.alt = fileName ? `Uploaded food photo: ${fileName}` : "Uploaded food photo";
+        if (decodable) {
+          previewImage.src = dataUrl;
+        } else {
+          previewImage.removeAttribute("src");
+          dropZone.style.backgroundImage =
+            'linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)), url("assets/food-spread.png")';
+        }
+        $("#dropTitle").textContent = decodable ? "Analyzing this photo" : "Photo accepted";
+        $("#dropHelp").textContent = decodable
+          ? fileName || "Selected food photo"
+          : "This format needs server-side decoding for a full visual preview.";
+        chooseImageBtn.textContent = "Choose another";
+      }
+
+      async function analyzeUploadedPhoto(file) {
+        updateAnalyzerStatus(`Analyzing ${file.name || "photo"}...`);
+        setAnalysisBadge("Analyzing selected photo");
+        const heic = isHeicFile(file);
+        let dataUrl;
+        let analysisFile = file;
+        let converted = false;
+
+        try {
+          if (heic) {
+            $("#analysisMethod").textContent =
+              "Converting HEIC/HEIF to JPEG on the local server before visual analysis.";
+            setAnalysisBadge("Converting HEIC to JPEG");
+            analysisFile = await convertHeicToJpeg(file);
+            converted = true;
+          }
+
+          dataUrl = await readAsDataUrl(analysisFile);
+          setPhotoPreview(dataUrl, analysisFile.name);
+
+          const image = await loadImage(dataUrl);
+          const signals = getPhotoSignals(image);
+          setAnalysisBadge("Running nutrition pipeline");
+          $("#analysisMethod").textContent =
+            "Running food/nutrition pipeline: OpenAI vision when configured, USDA FoodData Central when configured, then local fallback.";
+          const result = await runNutritionPipeline({ file: analysisFile, signals, converted, imageDataUrl: dataUrl });
+          const note = `${signalSummary(signals)} ${
+            converted
+              ? "HEIC/HEIF was converted to JPEG before analysis."
+              : "Image decoded locally in the browser."
+          }`;
+          applyNutritionResult(result, note);
+          playDoneSound();
+        } catch (error) {
+          const key = heic ? "mixed" : chooseFoodFromName(file.name);
+          setPhotoPreview(dataUrl || "", file.name, false);
+          const note = heic
+            ? `HEIC/HEIF was accepted, but conversion did not complete: ${error.message}. A production deployment should route this through a server-side HEIC converter and vision model.`
+            : "The browser could not decode the uploaded image, so this estimate falls back to filename and default food signals.";
+          analyzeFood(key, note);
+          playDoneSound();
+        }
+      }
+
+      function openImagePicker() {
+        unlockAudio();
+        $("#saveHint").textContent = "Choose a food photo from your device.";
+        foodImage.value = "";
+        foodImage.click();
+      }
+
+      function handlePickedFile(file) {
+        unlockAudio();
+        if (!file) {
+          $("#saveHint").textContent = "No photo was selected. Try Choose image again or drag a file onto the box.";
+          return;
+        }
+        analyzeUploadedPhoto(file);
+      }
+
+      function previewUnsaved(points) {
+        const total = getTotalPoints() + points;
+        setAvatar(total, true);
+      }
+
+      function getTotalPoints() {
+        return state.log.reduce((sum, item) => sum + item.points, 0);
+      }
+
+      function setAvatar(total, preview = false) {
+        const avatar = $("#avatar");
+        const bounded = Math.min(total, 160);
+        const percent = Math.max(7, Math.round((bounded / 160) * 100));
+        $("#meterFill").style.width = `${percent}%`;
+        $("#meterText").textContent = `${bounded} / 160 weekly points${preview ? " with current plate" : ""}`;
+        $("#totalPoints").textContent = `${total} pts`;
+
+        if (total < 12) {
+          avatar.dataset.state = "heavy";
+          $("#avatarLabel").textContent = "Soft start";
+          $("#avatarStatus").textContent = preview
+            ? "This plate would keep the avatar in treat-mode."
+            : "Low-scoring meals make the avatar look softer.";
+        } else if (total < 80) {
+          avatar.dataset.state = "lean";
+          $("#avatarLabel").textContent = "Balanced beginner";
+          $("#avatarStatus").textContent = preview
+            ? "This plate nudges the avatar toward a leaner look."
+            : "Keep logging balanced meals to build momentum.";
+        } else {
+          avatar.dataset.state = "fit";
+          $("#avatarLabel").textContent = "Fit streak";
+          $("#avatarStatus").textContent = preview
+            ? "Nice. This plate would add visible strength."
+            : "High-point meals have built a visibly stronger avatar.";
+        }
+      }
+
+      function renderLog() {
+        const logList = $("#logList");
+        if (!state.log.length) {
+          logList.innerHTML = '<p class="empty-state">No saved meals yet. Your first save will ask for email or Google sign on.</p>';
+        } else {
+          logList.innerHTML = state.log
+            .map(
+              (item) => `
+                <div class="log-item">
+                  <div>
+                    <strong>${item.name}</strong>
+                    <span>${item.serving} · ${item.calories} kcal</span>
+                  </div>
+                  <span class="point-badge">${item.points}</span>
+                </div>
+              `
+            )
+            .join("");
+        }
+        setAvatar(getTotalPoints());
+      }
+
+      function saveCurrentFood() {
+        if (!state.analyzed) return;
+        if (!state.user) {
+          authModal.classList.add("is-open");
+          $("#email").focus();
+          return;
+        }
+        state.log.unshift({
+          name: state.analyzed.name,
+          serving: state.analyzed.serving,
+          calories: state.analyzed.calories,
+          points: state.analyzed.points
+        });
+        state.log = state.log.slice(0, 8);
+        localStorage.setItem("platepointsLog", JSON.stringify(state.log));
+        $("#saveHint").textContent = `${state.analyzed.name} saved to ${state.user}'s profile.`;
+        renderLog();
+      }
+
+      function completeSignup(user) {
+        state.user = user || "Google user";
+        localStorage.setItem("platepointsUser", state.user);
+        authModal.classList.remove("is-open");
+        $("#saveHint").textContent = `Signed in as ${state.user}. Saving current food.`;
+        saveCurrentFood();
+      }
+
+      foodImage.addEventListener("change", (event) => {
+        const file = event.target.files && event.target.files[0];
+        handlePickedFile(file);
+      });
+
+      chooseImageBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        openImagePicker();
+      });
+
+      dropZone.addEventListener("click", openImagePicker);
+
+      dropZone.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openImagePicker();
+        }
+      });
+
+      dropZone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        dropZone.classList.add("has-preview");
+        $("#saveHint").textContent = "Drop the food photo to analyze it.";
+      });
+
+      dropZone.addEventListener("dragleave", () => {
+        $("#saveHint").textContent = state.analyzed
+          ? "Photo analyzed. Save it to your profile when ready."
+          : "Analyze a food before saving it to your profile.";
+      });
+
+      dropZone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        unlockAudio();
+        const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+        handlePickedFile(file);
+      });
+
+      document.querySelectorAll("[data-sample]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const key = button.dataset.sample;
+          dropZone.classList.remove("has-image");
+          previewImage.removeAttribute("src");
+          analysisBadge.classList.remove("is-visible", "is-done");
+          $("#dropTitle").textContent = "Sample food selected";
+          $("#dropHelp").textContent = "Choose an image to replace this sample with your own photo.";
+          chooseImageBtn.textContent = "Choose image";
+          dropZone.classList.add("has-preview");
+          dropZone.style.backgroundImage = `linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12)), url("assets/food-spread.png")`;
+          dropZone.style.backgroundPosition = foods[key].imagePosition;
+          analyzeFood(key);
+        });
+      });
+
+      correctionOptions.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-correction]");
+        if (!button) return;
+        applyCorrection(button.dataset.correction);
+      });
+
+      $("#applyCorrection").addEventListener("click", () => {
+        const value = customCorrection.value.trim();
+        if (!value) return;
+        applyCorrection(normalizeFoodName(value), value);
+      });
+
+      $("#saveFood").addEventListener("click", saveCurrentFood);
+      $("#closeModal").addEventListener("click", () => authModal.classList.remove("is-open"));
+      $("#emailSignup").addEventListener("click", () => {
+        const value = $("#email").value.trim();
+        if (!value || !value.includes("@")) {
+          $("#authNote").textContent = "Enter an email address to continue.";
+          return;
+        }
+        completeSignup(value);
+      });
+      $("#googleSignup").addEventListener("click", () => completeSignup("google.profile@example.com"));
+      authModal.addEventListener("click", (event) => {
+        if (event.target === authModal) authModal.classList.remove("is-open");
+      });
+
+      renderLog();
+    </script>
+  </body>
+</html>

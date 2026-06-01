@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: platepoints-staging
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: OPENAI_VISION_MODEL
+        value: gpt-4.1-mini
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: USDA_API_KEY
+        sync: false
