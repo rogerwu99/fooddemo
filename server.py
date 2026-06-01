@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import cgi
 import json
 import mimetypes
 import os
@@ -9,6 +8,8 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+from email.parser import BytesParser
+from email.policy import default
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -533,6 +534,30 @@ def effect_for_points(points):
     return "Chubby shift"
 
 
+def parse_multipart_upload(headers, body, field_name="image"):
+    content_type = headers.get("Content-Type", "")
+    if "multipart/form-data" not in content_type:
+        raise ValueError("Expected multipart/form-data upload")
+
+    message_bytes = (
+        f"Content-Type: {content_type}\r\n"
+        "MIME-Version: 1.0\r\n\r\n"
+    ).encode("utf-8") + body
+    message = BytesParser(policy=default).parsebytes(message_bytes)
+
+    for part in message.iter_parts():
+        disposition = part.get_content_disposition()
+        if disposition != "form-data":
+            continue
+        params = dict(part.get_params(header="content-disposition") or [])
+        if params.get("name") != field_name:
+            continue
+        filename = params.get("filename") or "upload.heic"
+        return filename, part.get_payload(decode=True) or b""
+
+    raise ValueError("No image uploaded")
+
+
 def convert_heic_bytes(source, output):
     if pillow_heif and Image:
         pillow_heif.register_heif_opener()
@@ -577,20 +602,14 @@ class PlatePointsHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "Nutrition pipeline failed", "details": str(error)}, status=400)
 
     def _convert_heic(self):
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={
-                "REQUEST_METHOD": "POST",
-                "CONTENT_TYPE": self.headers.get("Content-Type", ""),
-            },
-        )
-        upload = form["image"] if "image" in form else None
-        if upload is None or not getattr(upload, "filename", ""):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            filename, upload_bytes = parse_multipart_upload(self.headers, self.rfile.read(length))
+        except Exception as error:
             self._send_json({"error": "No image uploaded"}, status=400)
             return
 
-        suffix = Path(upload.filename).suffix.lower() or ".heic"
+        suffix = Path(filename).suffix.lower() or ".heic"
         if suffix not in {".heic", ".heif"}:
             self._send_json({"error": "Only HEIC or HEIF files are converted here"}, status=400)
             return
@@ -599,8 +618,7 @@ class PlatePointsHandler(SimpleHTTPRequestHandler):
             source = Path(temp_dir) / f"upload{suffix}"
             output = Path(temp_dir) / "converted.jpg"
 
-            with source.open("wb") as source_file:
-                shutil.copyfileobj(upload.file, source_file)
+            source.write_bytes(upload_bytes)
 
             try:
                 convert_heic_bytes(source, output)
