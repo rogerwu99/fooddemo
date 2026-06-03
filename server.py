@@ -42,6 +42,15 @@ def load_dotenv(path):
 
 load_dotenv(ROOT / ".env")
 
+
+def public_supabase_url():
+    url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+    for suffix in ("/rest/v1", "/auth/v1", "/storage/v1"):
+        if url.endswith(suffix):
+            return url[: -len(suffix)]
+    return url
+
+
 NUTRITION_DB = {
     "broccoli": {
         "name": "Broccoli",
@@ -409,6 +418,67 @@ def build_nutrition_result(payload):
         "nutritionProvider": food.get("databaseSource", "Local nutrition fallback"),
         "notes": food.get("databaseNotes", []),
         "componentCount": len(component_foods),
+    }
+    return food
+
+
+def build_manual_correction_result(payload):
+    label = (payload.get("label") or payload.get("food") or "").strip()
+    if not label:
+        return analysis_unavailable_result(
+            "Enter the corrected food name before looking up nutrition.",
+            "manual correction",
+            False,
+            {},
+        )
+
+    key = normalize_component_key(payload.get("key", "mixed"), label, label)
+    if key == "mixed" and not os.environ.get("USDA_API_KEY", "").strip():
+        return analysis_unavailable_result(
+            "USDA_API_KEY is required to look up arbitrary manual food corrections.",
+            "manual correction",
+            False,
+            {},
+        )
+
+    component = {
+        "key": key,
+        "label": label,
+        "query": label,
+        "serving_estimate": payload.get("serving") or NUTRITION_DB.get(key, NUTRITION_DB["mixed"])["serving"],
+        "role": infer_component_role(key, label, label),
+        "nutrient_role": infer_nutrient_role(key, label, label),
+        "portion": 1,
+        "confidence": 1,
+    }
+    component_food = lookup_nutrition(component["query"], component["key"])
+    component_food["key"] = component["key"]
+    component_food["name"] = component["label"]
+    component_food["serving"] = component["serving_estimate"] or component_food["serving"]
+    component_food["confidence"] = 1
+    component_food["portion"] = 1
+    component_food["role"] = component["role"]
+    component_food["nutrient_role"] = component["nutrient_role"]
+
+    food = combine_components([component_food], label)
+    food["key"] = key
+    food["confidence"] = 1
+    food["alternatives"] = []
+    food["loggable"] = True
+    food["pipeline"] = {
+        "steps": [
+            "User corrected food identity",
+            "Server looked up corrected food",
+            "USDA FoodData Central lookup" if food.get("databaseSource") == "USDA FoodData Central" else "Local nutrition fallback",
+            "PlatePoints score recalculated",
+        ],
+        "sourceFormat": "manual correction",
+        "converted": False,
+        "signals": {},
+        "visionProvider": "Manual correction",
+        "nutritionProvider": food.get("databaseSource", "Local nutrition fallback"),
+        "notes": food.get("databaseNotes", []),
+        "componentCount": 1,
     }
     return food
 
@@ -1049,12 +1119,28 @@ class PlatePointsHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def do_GET(self):
+        if self.path == "/app-config":
+            self._send_json(
+                {
+                    "supabaseUrl": public_supabase_url(),
+                    "supabaseAnonKey": os.environ.get("SUPABASE_ANON_KEY", "").strip(),
+                    "foodLogTable": os.environ.get("SUPABASE_FOOD_LOG_TABLE", "food_logs").strip(),
+                    "photoBucket": os.environ.get("SUPABASE_PHOTO_BUCKET", "food-photos").strip(),
+                }
+            )
+            return
+        super().do_GET()
+
     def do_POST(self):
         if self.path == "/convert-heic":
             self._convert_heic()
             return
         if self.path == "/nutrition-pipeline":
             self._nutrition_pipeline()
+            return
+        if self.path == "/manual-correction":
+            self._manual_correction()
             return
 
         self.send_error(404, "Unknown endpoint")
@@ -1066,6 +1152,14 @@ class PlatePointsHandler(SimpleHTTPRequestHandler):
             self._send_json(build_nutrition_result(payload))
         except Exception as error:
             self._send_json({"error": "Nutrition pipeline failed", "details": str(error)}, status=400)
+
+    def _manual_correction(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            self._send_json(build_manual_correction_result(payload))
+        except Exception as error:
+            self._send_json({"error": "Manual correction failed", "details": str(error)}, status=400)
 
     def _convert_heic(self):
         try:

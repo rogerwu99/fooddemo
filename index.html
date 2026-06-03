@@ -628,112 +628,126 @@
       }
 
       .avatar {
-        --body-width: 88px;
-        --torso-height: 118px;
-        --arm-width: 24px;
-        --skin: #f3c69f;
-        --outline: #222;
-        --pants: #2f6f9f;
-        --mouth: #d97863;
-        position: relative;
-        width: 220px;
-        height: 270px;
+        --torso-scale-x: 1;
+        --torso-scale-y: 1;
+        --arm-scale-x: 1;
+        --leg-scale-x: 1;
+        --shirt: #3ea35d;
+        --shorts: #2f6f9f;
+        --skin: #eab98e;
+        width: min(230px, 82%);
+        color: #17211d;
+        filter: drop-shadow(0 18px 18px rgba(23, 33, 29, 0.16));
+        transform-origin: 50% 86%;
+        transition:
+          filter 260ms ease,
+          transform 280ms ease;
+      }
+
+      .avatar svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        overflow: visible;
+      }
+
+      .avatar .avatar-shape,
+      .avatar .avatar-limb,
+      .avatar .avatar-head-shape,
+      .avatar .avatar-hair,
+      .avatar .avatar-shoe {
+        stroke: currentColor;
+        stroke-width: 6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .avatar .avatar-torso {
+        transform-box: fill-box;
+        transform-origin: center bottom;
+        transform: scale(var(--torso-scale-x), var(--torso-scale-y));
+        fill: var(--shirt);
+        transition:
+          fill 280ms ease,
+          transform 280ms ease;
+      }
+
+      .avatar .avatar-arm {
+        transform-box: fill-box;
+        transform-origin: center top;
+        transform: scaleX(var(--arm-scale-x));
+        fill: var(--skin);
         transition: transform 280ms ease;
       }
 
-      .avatar::before {
-        position: absolute;
-        left: 50%;
-        top: 22px;
-        width: 62px;
-        height: 62px;
-        content: "";
-        transform: translateX(-50%);
-        border: 4px solid var(--outline);
-        border-radius: 50%;
-        background:
-          radial-gradient(circle at 38% 42%, var(--outline) 0 4px, transparent 5px),
-          radial-gradient(circle at 63% 42%, var(--outline) 0 4px, transparent 5px),
-          radial-gradient(circle at 50% 63%, var(--mouth) 0 12px, transparent 13px),
-          var(--skin);
+      .avatar .avatar-legs {
+        transform-box: fill-box;
+        transform-origin: center top;
+        transform: scaleX(var(--leg-scale-x));
+        transition: transform 280ms ease;
       }
 
-      .torso,
-      .arm,
-      .leg {
-        position: absolute;
-        background: var(--skin);
-        border: 4px solid var(--outline);
+      .avatar .avatar-head-shape,
+      .avatar .avatar-neck,
+      .avatar .avatar-hand {
+        fill: var(--skin);
       }
 
-      .torso {
-        left: 50%;
-        top: 82px;
-        width: var(--body-width);
-        height: var(--torso-height);
-        transform: translateX(-50%);
-        border-radius: 38px 38px 30px 30px;
-        background:
-          linear-gradient(90deg, rgba(255, 255, 255, 0.28), transparent 54%),
-          var(--avatar-shirt, #65b96e);
+      .avatar .avatar-hair {
+        fill: #2b211d;
       }
 
-      .arm {
-        top: 102px;
-        width: var(--arm-width);
-        height: 116px;
-        border-radius: 20px;
+      .avatar .avatar-short {
+        fill: var(--shorts);
       }
 
-      .arm.left {
-        left: calc(50% - var(--body-width) / 2 - var(--arm-width) + 5px);
-        transform: rotate(13deg);
+      .avatar .avatar-shoe {
+        fill: #ffffff;
       }
 
-      .arm.right {
-        right: calc(50% - var(--body-width) / 2 - var(--arm-width) + 5px);
-        transform: rotate(-13deg);
+      .avatar .avatar-cheek {
+        fill: #df7b6b;
+        opacity: 0.42;
       }
 
-      .leg {
-        top: 190px;
-        width: 30px;
-        height: 86px;
-        border-radius: 18px;
-        background: var(--pants);
+      .avatar .avatar-eye {
+        fill: currentColor;
       }
 
-      .leg.left {
-        left: 78px;
-        transform: rotate(6deg);
-      }
-
-      .leg.right {
-        right: 78px;
-        transform: rotate(-6deg);
+      .avatar .avatar-smile {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 5;
+        stroke-linecap: round;
       }
 
       .avatar[data-state="lean"] {
-        --body-width: 74px;
-        --torso-height: 124px;
-        --arm-width: 22px;
-        --avatar-shirt: #3ea35d;
+        --torso-scale-x: 0.9;
+        --torso-scale-y: 1.03;
+        --arm-scale-x: 0.9;
+        --leg-scale-x: 0.9;
+        --shirt: #3ea35d;
+        --shorts: #2f6f9f;
       }
 
       .avatar[data-state="fit"] {
-        --body-width: 106px;
-        --torso-height: 122px;
-        --arm-width: 31px;
-        --avatar-shirt: #2f6f9f;
+        --torso-scale-x: 1.08;
+        --torso-scale-y: 1.02;
+        --arm-scale-x: 1.18;
+        --leg-scale-x: 1.08;
+        --shirt: #2f6f9f;
+        --shorts: #254f73;
         transform: scale(1.03);
       }
 
       .avatar[data-state="heavy"] {
-        --body-width: 135px;
-        --torso-height: 114px;
-        --arm-width: 27px;
-        --avatar-shirt: #c95f49;
-        transform: scale(1.02);
+        --torso-scale-x: 1.24;
+        --torso-scale-y: 0.97;
+        --arm-scale-x: 1.04;
+        --leg-scale-x: 1.03;
+        --shirt: #c95f49;
+        --shorts: #604269;
+        transform: scale(1.01);
       }
 
       .avatar-status {
@@ -1071,11 +1085,11 @@
                     <path d="M12 3v12" />
                   </svg>
                   <h3 id="dropTitle">Take or upload a food photo</h3>
-                  <p id="dropHelp">Camera capture works on phones. JPEG, PNG, WebP, HEIC, and HEIF are accepted.</p>
+                  <p id="dropHelp">Choose from your photo library or take a new picture. JPEG, PNG, WebP, HEIC, and HEIF are accepted.</p>
                   <button class="primary-btn" id="chooseImageBtn" type="button">Choose image</button>
                 </span>
               </div>
-              <input class="file-input" id="foodImage" type="file" accept="image/*,.heic,.heif,image/heic,image/heif" capture="environment" />
+              <input class="file-input" id="foodImage" type="file" accept="image/*,.heic,.heif,image/heic,image/heif" />
 
               <div class="sample-row" aria-label="Analyze sample foods">
                 <button type="button" data-sample="broccoli">Try broccoli</button>
@@ -1135,11 +1149,31 @@
                 </div>
                 <div class="avatar-stage">
                   <div class="avatar" id="avatar" data-state="lean" aria-label="Avatar body state">
-                    <span class="torso"></span>
-                    <span class="arm left"></span>
-                    <span class="arm right"></span>
-                    <span class="leg left"></span>
-                    <span class="leg right"></span>
+                    <svg viewBox="0 0 240 300" role="img" aria-hidden="true">
+                      <ellipse cx="120" cy="282" rx="72" ry="12" fill="rgba(23, 33, 29, 0.14)" />
+                      <path class="avatar-limb avatar-arm" d="M76 126 C54 145 48 180 56 214 C60 230 76 228 76 212 C74 184 82 158 96 140 Z" />
+                      <path class="avatar-limb avatar-arm" d="M164 126 C186 145 192 180 184 214 C180 230 164 228 164 212 C166 184 158 158 144 140 Z" />
+                      <circle class="avatar-hand avatar-shape" cx="64" cy="219" r="13" />
+                      <circle class="avatar-hand avatar-shape" cx="176" cy="219" r="13" />
+                      <path class="avatar-neck avatar-shape" d="M101 86 H139 V113 C139 124 101 124 101 113 Z" />
+                      <path class="avatar-shape avatar-torso" d="M78 118 C82 96 98 104 120 104 C142 104 158 96 162 118 C169 154 164 196 151 220 C141 238 99 238 89 220 C76 196 71 154 78 118 Z" />
+                      <g class="avatar-legs">
+                        <path class="avatar-shape avatar-short" d="M86 211 H119 V244 H83 C78 231 78 220 86 211 Z" />
+                        <path class="avatar-shape avatar-short" d="M121 211 H154 C162 220 162 231 157 244 H121 Z" />
+                        <path class="avatar-shape avatar-limb" d="M93 241 C91 258 91 268 93 280 H111 C115 264 116 252 116 241 Z" fill="var(--skin)" />
+                        <path class="avatar-shape avatar-limb" d="M124 241 C124 252 125 264 129 280 H147 C149 268 149 258 147 241 Z" fill="var(--skin)" />
+                      </g>
+                      <path class="avatar-shoe" d="M86 278 H116 C120 286 112 291 96 291 H82 C78 287 80 281 86 278 Z" />
+                      <path class="avatar-shoe" d="M124 278 H154 C160 281 162 287 158 291 H144 C128 291 120 286 124 278 Z" />
+                      <circle class="avatar-head-shape" cx="120" cy="62" r="42" />
+                      <path class="avatar-hair" d="M79 61 C82 29 103 16 128 20 C153 23 169 43 160 68 C144 58 124 49 95 55 C90 56 85 59 79 61 Z" />
+                      <circle class="avatar-eye" cx="105" cy="63" r="4" />
+                      <circle class="avatar-eye" cx="135" cy="63" r="4" />
+                      <circle class="avatar-cheek" cx="96" cy="76" r="8" />
+                      <circle class="avatar-cheek" cx="144" cy="76" r="8" />
+                      <path class="avatar-smile" d="M106 80 C114 89 126 89 134 80" />
+                      <path d="M98 139 C107 150 133 150 142 139" fill="none" stroke="rgba(255,255,255,0.54)" stroke-width="5" stroke-linecap="round" />
+                    </svg>
                   </div>
                   <div class="avatar-status" id="avatarStatus">
                     Save higher-point meals to build a stronger avatar.
@@ -1185,6 +1219,7 @@
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
       const foods = {
         broccoli: {
@@ -1310,12 +1345,17 @@
       };
 
       const fallbackOrder = ["broccoli", "chicken", "berries", "oatmeal", "pasta", "eggplant_parmesan", "chicken_parmesan", "pizza", "cake", "mixed"];
+      const pendingSaveKey = "platepointsPendingSave";
       const state = {
         analyzed: null,
         currentPhotoDataUrl: "",
         audioReady: false,
         audioContext: null,
         chimeUrl: "",
+        supabase: null,
+        supabaseConfig: null,
+        session: null,
+        savingPending: false,
         user: localStorage.getItem("platepointsUser") || "",
         log: JSON.parse(localStorage.getItem("platepointsLog") || "[]")
       };
@@ -1447,26 +1487,65 @@
 
         correctionOptions.innerHTML = options.slice(0, 6).map((item) => {
           const confidence = item.confidence ? ` ${Math.round(item.confidence * 100)}%` : "";
-          return `<button type="button" data-correction="${item.key}">${item.name}${confidence}</button>`;
+          return `<button type="button" data-correction="${item.key}" data-label="${escapeHtml(item.name)}">${escapeHtml(item.name)}${confidence}</button>`;
         }).join("");
         correctionPanel.classList.add("is-visible");
       }
 
-      function applyCorrection(key, label = "") {
-        const template = foods[key] || foods.mixed;
-        const corrected = {
-          ...template,
-          key,
-          name: label || template.name,
-          confidence: 1,
-          alternatives: [],
-          components: [],
-          pipeline: {
-            steps: ["User corrected food identity", "Nutrition template selected", "PlatePoints score recalculated"]
+      function escapeHtml(value = "") {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      async function lookupManualCorrection(key, label) {
+        const response = await fetch("/manual-correction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, label })
+        });
+        if (!response.ok) {
+          let message = "Manual correction failed.";
+          try {
+            const payload = await response.json();
+            message = payload.error || payload.details || message;
+          } catch (error) {
+            message = response.statusText || message;
           }
-        };
-        applyNutritionResult(corrected, "Corrected by user after photo analysis.");
-        $("#saveHint").textContent = `Corrected to ${corrected.name}. Save it when ready.`;
+          throw new Error(message);
+        }
+        return response.json();
+      }
+
+      async function applyCorrection(key, label = "") {
+        const correctionLabel = label || (foods[key] ? foods[key].name : key);
+        $("#saveFood").disabled = true;
+        $("#saveHint").textContent = `Looking up ${correctionLabel}...`;
+        try {
+          const corrected = await lookupManualCorrection(key, correctionLabel);
+          applyNutritionResult(corrected, "Corrected by user after photo analysis.");
+          $("#saveHint").textContent = corrected.loggable === false
+            ? "Could not look up that correction."
+            : `Corrected to ${corrected.name}. Save it when ready.`;
+        } catch (error) {
+          applyNutritionResult({
+            name: "Analysis unavailable",
+            serving: "-",
+            calories: "-",
+            protein: "-",
+            fiber: "-",
+            sugar: "-",
+            points: 0,
+            why: `Could not look up the corrected food: ${error.message}`,
+            effect: "Avatar unchanged",
+            confidence: 0,
+            alternatives: [],
+            components: [],
+            loggable: false
+          });
+        }
       }
 
       function readAsDataUrl(file) {
@@ -1830,6 +1909,165 @@
         setAvatar(getTotalPoints());
       }
 
+      function normalizeLogRow(row) {
+        return {
+          id: row.id,
+          name: row.name || row.identified_food || "Saved meal",
+          serving: row.serving || "-",
+          calories: row.calories || 0,
+          protein: row.protein || "-",
+          fiber: row.fiber || "-",
+          sugar: row.sugar || "-",
+          points: Number(row.points || 0),
+          confidence: row.confidence || 0,
+          photo: row.photo_url || row.photo || "",
+          savedAt: row.created_at || row.savedAt || new Date().toISOString()
+        };
+      }
+
+      async function initSupabase() {
+        try {
+          const response = await fetch("/app-config");
+          const config = await response.json();
+          state.supabaseConfig = config;
+          if (!config.supabaseUrl || !config.supabaseAnonKey || !window.supabase) {
+            $("#authNote").textContent = "Prototype sign on stores this session locally.";
+            renderLog();
+            return;
+          }
+
+          state.supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+          const { data } = await state.supabase.auth.getSession();
+          await setSupabaseSession(data.session);
+          state.supabase.auth.onAuthStateChange((_event, session) => {
+            setSupabaseSession(session);
+          });
+          $("#authNote").textContent = "Use email magic link or Google to save meals across devices.";
+        } catch (error) {
+          $("#authNote").textContent = "Auth service unavailable. Local prototype mode is active.";
+          renderLog();
+        }
+      }
+
+      async function setSupabaseSession(session) {
+        state.session = session;
+        if (!session || !session.user) {
+          if (state.supabase) {
+            state.user = "";
+            state.log = [];
+          } else {
+            state.user = localStorage.getItem("platepointsUser") || "";
+          }
+          renderLog();
+          return;
+        }
+        state.user = session.user.email || "Signed-in user";
+        localStorage.setItem("platepointsUser", state.user);
+        authModal.classList.remove("is-open");
+        await loadRemoteLog();
+        await savePendingFoodAfterAuth();
+      }
+
+      async function loadRemoteLog() {
+        if (!state.supabase || !state.session) {
+          renderLog();
+          return;
+        }
+        const table = state.supabaseConfig.foodLogTable || "food_logs";
+        const { data, error } = await state.supabase
+          .from(table)
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(30);
+        if (error) {
+          $("#saveHint").textContent = `Food log could not load: ${error.message}`;
+          renderLog();
+          return;
+        }
+        state.log = (data || []).map(normalizeLogRow);
+        renderLog();
+      }
+
+      function dataUrlToBlob(dataUrl) {
+        if (!dataUrl || !dataUrl.includes(",")) return null;
+        const [meta, base64] = dataUrl.split(",");
+        const mime = (meta.match(/data:(.*?);base64/) || [])[1] || "image/jpeg";
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        return new Blob([bytes], { type: mime });
+      }
+
+      async function uploadCurrentPhoto() {
+        if (!state.supabase || !state.session || !state.currentPhotoDataUrl) return "";
+        const blob = dataUrlToBlob(state.currentPhotoDataUrl);
+        if (!blob) return "";
+        const extension = blob.type.includes("png") ? "png" : "jpg";
+        const path = `${state.session.user.id}/${Date.now()}.${extension}`;
+        const bucket = state.supabaseConfig.photoBucket || "food-photos";
+        const { error } = await state.supabase.storage.from(bucket).upload(path, blob, {
+          contentType: blob.type,
+          upsert: false
+        });
+        if (error) throw error;
+        const { data } = state.supabase.storage.from(bucket).getPublicUrl(path);
+        return data.publicUrl || "";
+      }
+
+      function storePendingSave() {
+        if (!state.analyzed || state.analyzed.loggable === false) return false;
+        const pending = {
+          analyzed: state.analyzed,
+          photo: "",
+          createdAt: new Date().toISOString()
+        };
+
+        try {
+          localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
+          if (state.currentPhotoDataUrl && state.currentPhotoDataUrl.length < 900000) {
+            pending.photo = state.currentPhotoDataUrl;
+            localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
+          }
+          return true;
+        } catch (error) {
+          pending.photo = "";
+          try {
+            localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
+            return true;
+          } catch (innerError) {
+            $("#saveHint").textContent = "Could not preserve this meal through sign in. Try signing in first, then save.";
+            return false;
+          }
+        }
+      }
+
+      async function savePendingFoodAfterAuth() {
+        if (!state.supabase || !state.session || state.savingPending) return;
+        const raw = localStorage.getItem(pendingSaveKey);
+        if (!raw) return;
+
+        try {
+          const pending = JSON.parse(raw);
+          if (!pending.analyzed) {
+            localStorage.removeItem(pendingSaveKey);
+            return;
+          }
+          state.savingPending = true;
+          state.analyzed = pending.analyzed;
+          state.currentPhotoDataUrl = pending.photo || "";
+          $("#saveHint").textContent = "Signed in. Saving your pending food log...";
+          const saved = await saveCurrentFood();
+          if (saved) {
+            localStorage.removeItem(pendingSaveKey);
+            $("#saveHint").textContent = "Signed in and saved your pending food log.";
+          }
+        } catch (error) {
+          $("#saveHint").textContent = `Pending save failed: ${error.message}`;
+        } finally {
+          state.savingPending = false;
+        }
+      }
+
       function resetAnalyzer() {
         state.analyzed = null;
         state.currentPhotoDataUrl = "";
@@ -1844,7 +2082,7 @@
         correctionOptions.innerHTML = "";
         customCorrection.value = "";
         $("#dropTitle").textContent = "Take or upload a food photo";
-        $("#dropHelp").textContent = "Camera capture works on phones. JPEG, PNG, WebP, HEIC, and HEIF are accepted.";
+        $("#dropHelp").textContent = "Choose from your photo library or take a new picture. JPEG, PNG, WebP, HEIC, and HEIF are accepted.";
         chooseImageBtn.textContent = "Choose image";
         $("#foodName").textContent = "Awaiting photo";
         $("#confidence").textContent = "-";
@@ -1861,37 +2099,112 @@
         setAvatar(getTotalPoints());
       }
 
-      function saveCurrentFood() {
-        if (!state.analyzed || state.analyzed.loggable === false) return;
-        if (!state.user) {
+      async function saveCurrentFood() {
+        if (!state.analyzed || state.analyzed.loggable === false) return false;
+        if ((state.supabase && !state.session) || (!state.supabase && !state.user)) {
+          storePendingSave();
           authModal.classList.add("is-open");
           $("#email").focus();
-          return;
+          return false;
         }
-        state.log.unshift({
-          name: state.analyzed.name,
-          serving: state.analyzed.serving,
-          calories: state.analyzed.calories,
-          protein: state.analyzed.protein,
-          fiber: state.analyzed.fiber,
-          sugar: state.analyzed.sugar,
-          points: state.analyzed.points,
-          confidence: state.analyzed.confidence,
-          photo: state.currentPhotoDataUrl,
-          savedAt: new Date().toISOString()
-        });
-        state.log = state.log.slice(0, 8);
-        localStorage.setItem("platepointsLog", JSON.stringify(state.log));
-        renderLog();
-        resetAnalyzer();
+        $("#saveFood").disabled = true;
+        $("#saveHint").textContent = "Saving food log...";
+        try {
+          const entry = {
+            name: state.analyzed.name,
+            serving: state.analyzed.serving,
+            calories: state.analyzed.calories,
+            protein: state.analyzed.protein,
+            fiber: state.analyzed.fiber,
+            sugar: state.analyzed.sugar,
+            points: state.analyzed.points,
+            confidence: state.analyzed.confidence,
+            photo: state.currentPhotoDataUrl,
+            savedAt: new Date().toISOString()
+          };
+
+          if (state.supabase && state.session) {
+            let photoUrl = "";
+            try {
+              photoUrl = await uploadCurrentPhoto();
+            } catch (photoError) {
+              $("#saveHint").textContent = "Photo upload failed, saving food log without the image...";
+            }
+            const table = state.supabaseConfig.foodLogTable || "food_logs";
+            const { error } = await state.supabase.from(table).insert({
+              user_id: state.session.user.id,
+              name: entry.name,
+              serving: entry.serving,
+              calories: entry.calories,
+              protein: entry.protein,
+              fiber: entry.fiber,
+              sugar: entry.sugar,
+              points: entry.points,
+              confidence: entry.confidence,
+              photo_url: photoUrl,
+              nutrition: {
+                components: state.analyzed.components || [],
+                why: state.analyzed.why,
+                effect: state.analyzed.effect,
+                pipeline: state.analyzed.pipeline || {}
+              }
+            });
+            if (error) throw error;
+            await loadRemoteLog();
+          } else {
+            state.log.unshift(entry);
+            state.log = state.log.slice(0, 8);
+            localStorage.setItem("platepointsLog", JSON.stringify(state.log));
+            renderLog();
+          }
+          resetAnalyzer();
+          return true;
+        } catch (error) {
+          $("#saveFood").disabled = false;
+          $("#saveHint").textContent = `Save failed: ${error.message}`;
+          return false;
+        }
       }
 
-      function completeSignup(user) {
+      async function completeSignup(user) {
         state.user = user || "Google user";
         localStorage.setItem("platepointsUser", state.user);
         authModal.classList.remove("is-open");
         $("#saveHint").textContent = `Signed in as ${state.user}. Saving current food.`;
-        saveCurrentFood();
+        await saveCurrentFood();
+      }
+
+      async function signInWithEmail() {
+        const value = $("#email").value.trim();
+        if (!value || !value.includes("@")) {
+          $("#authNote").textContent = "Enter an email address to continue.";
+          return;
+        }
+        if (!state.supabase) {
+          await completeSignup(value);
+          return;
+        }
+        if (state.analyzed && !storePendingSave()) return;
+        const { error } = await state.supabase.auth.signInWithOtp({
+          email: value,
+          options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` }
+        });
+        $("#authNote").textContent = error
+          ? `Magic link failed: ${error.message}`
+          : "Check your email for a magic link, then return here to save.";
+      }
+
+      async function signInWithGoogle() {
+        if (!state.supabase) {
+          await completeSignup("google.profile@example.com");
+          return;
+        }
+        if (state.analyzed && !storePendingSave()) return;
+        const { error } = await state.supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: `${window.location.origin}${window.location.pathname}` }
+        });
+        if (error) $("#authNote").textContent = `Google sign in failed: ${error.message}`;
       }
 
       foodImage.addEventListener("change", (event) => {
@@ -1951,7 +2264,7 @@
       correctionOptions.addEventListener("click", (event) => {
         const button = event.target.closest("[data-correction]");
         if (!button) return;
-        applyCorrection(button.dataset.correction);
+        applyCorrection(button.dataset.correction, button.dataset.label || button.textContent.trim());
       });
 
       $("#applyCorrection").addEventListener("click", () => {
@@ -1960,22 +2273,16 @@
         applyCorrection(normalizeFoodName(value), value);
       });
 
-      $("#saveFood").addEventListener("click", saveCurrentFood);
+      $("#saveFood").addEventListener("click", () => saveCurrentFood());
       $("#closeModal").addEventListener("click", () => authModal.classList.remove("is-open"));
-      $("#emailSignup").addEventListener("click", () => {
-        const value = $("#email").value.trim();
-        if (!value || !value.includes("@")) {
-          $("#authNote").textContent = "Enter an email address to continue.";
-          return;
-        }
-        completeSignup(value);
-      });
-      $("#googleSignup").addEventListener("click", () => completeSignup("google.profile@example.com"));
+      $("#emailSignup").addEventListener("click", () => signInWithEmail());
+      $("#googleSignup").addEventListener("click", () => signInWithGoogle());
       authModal.addEventListener("click", (event) => {
         if (event.target === authModal) authModal.classList.remove("is-open");
       });
 
       renderLog();
+      initSupabase();
     </script>
   </body>
 </html>
