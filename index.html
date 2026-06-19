@@ -3031,6 +3031,10 @@
         history.replaceState(null, "", authReturnUrl(target));
       }
 
+      function rememberAuthReturn(target = "#analyzer") {
+        localStorage.setItem(authReturnHashKey, target);
+      }
+
       async function setSupabaseSession(session) {
         state.session = session;
         if (!session || !session.user) {
@@ -3170,7 +3174,7 @@
             if (compactPhoto && compactPhoto.length < 900000) pending.photo = compactPhoto;
             localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
           }
-          localStorage.setItem(authReturnHashKey, "#analyzer");
+          rememberAuthReturn("#analyzer");
           $("#authNote").textContent = `Pending meal saved for sign in: ${state.analyzed.name}.`;
           return true;
         } catch (error) {
@@ -3424,6 +3428,7 @@
           return;
         }
         if (state.analyzed && !(await storePendingSave())) return;
+        rememberAuthReturn("#analyzer");
         const { error } = await state.supabase.auth.signInWithOtp({
           email: value,
           options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}?authReturn=analyzer#analyzer` }
@@ -3440,6 +3445,7 @@
           return;
         }
         if (state.analyzed && !(await storePendingSave())) return;
+        rememberAuthReturn("#analyzer");
         const { error } = await state.supabase.auth.signInWithOAuth({
           provider: "google",
           options: { redirectTo: `${window.location.origin}${window.location.pathname}?authReturn=analyzer#analyzer` }
