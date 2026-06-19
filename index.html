@@ -8,6 +8,8 @@
       name="description"
       content="FeedNomi helps you log meals, feed Nomi, and learn what fuels you."
     />
+    <link rel="icon" type="image/svg+xml" href="assets/feednomi-mark.svg" />
+    <link rel="apple-touch-icon" href="assets/feednomi-mark.svg" />
     <style>
       :root {
         --ink: #17211d;
@@ -82,13 +84,15 @@
         height: 36px;
         place-items: center;
         border: 2px solid var(--ink);
-        border-radius: 50%;
+        border-radius: 10px;
         background: var(--mint);
+        overflow: hidden;
       }
 
-      .brand-mark svg {
-        width: 21px;
-        height: 21px;
+      .brand-mark img {
+        width: 100%;
+        height: 100%;
+        display: block;
       }
 
       .nav-actions {
@@ -1454,14 +1458,7 @@
       <header class="topbar">
         <div class="brand" aria-label="FeedNomi">
           <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <path d="M7 3v18" />
-              <path d="M7 7c-2 0-3-1.2-3-3" />
-              <path d="M7 7c2 0 3-1.2 3-3" />
-              <path d="M14 3v18" />
-              <path d="M18 3v18" />
-              <path d="M14 8h4" />
-            </svg>
+            <img src="assets/feednomi-mark.svg" alt="" />
           </span>
           <span>FeedNomi</span>
         </div>
@@ -1711,7 +1708,7 @@
                   </div>
                 </div>
                 <div class="log-list" id="logList">
-                  <p class="empty-state">No saved meals yet. Your first save will ask for email or Google sign on.</p>
+                  <p class="empty-state">No saved meals yet. Your first save will ask for email or Google sign-in.</p>
                 </div>
               </section>
             </aside>
@@ -1736,7 +1733,7 @@
           </button>
         </div>
         <div class="modal-row">
-          <small id="authNote">Prototype sign on stores this session locally.</small>
+          <small id="authNote">Prototype sign-in stores this session locally.</small>
           <button class="text-btn" id="closeModal" type="button">Cancel</button>
         </div>
       </div>
@@ -2861,7 +2858,7 @@
           : "Sign in with email or Google to view and save your food log.";
         $("#authNote").textContent = state.supabase
           ? "Use email magic link or Google to save meals across devices."
-          : "Prototype sign on stores this session locally.";
+          : "Prototype sign-in stores this session locally.";
         authModal.classList.add("is-open");
         $("#email").focus();
       }
@@ -3082,7 +3079,7 @@
           const config = await response.json();
           state.supabaseConfig = config;
           if (!config.supabaseUrl || !config.supabaseAnonKey || !window.supabase) {
-            $("#authNote").textContent = "Prototype sign on stores this session locally.";
+            $("#authNote").textContent = "Prototype sign-in stores this session locally.";
             setAuthStatus(state.user ? `Local prototype session: ${state.user}` : "Local prototype mode. Meals save in this browser.");
             updateAccountActions();
             renderLog();

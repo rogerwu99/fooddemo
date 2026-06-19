@@ -35,7 +35,7 @@ You can also use exported environment variables instead of `.env`; exported valu
 
 ## Supabase setup
 
-Run `supabase-schema.sql` in the Supabase SQL editor. For an existing project that already has a public `food-photos` bucket, run `supabase-storage-private-migration.sql` after deploying the current app code.
+Run `supabase-schema.sql` in the Supabase SQL editor. For an existing project that already has a public `food-photos` bucket, run `supabase-storage-private-migration.sql` after deploying the current app code. Before launch, run `supabase-security-audit.sql` to confirm the live table policies, bucket privacy, and photo URL shape.
 
 Then enable Email and Google providers in Supabase Auth, and add your local/staging/live URLs to the Auth redirect URLs.
 
@@ -59,6 +59,7 @@ Use `render.yaml` or create a Python web service manually:
 - Confirm hosting env vars are set for OpenAI, USDA, Supabase URL, and Supabase anon key.
 - Confirm Google OAuth has the staging/live callback URL configured in Google Cloud and Supabase.
 - Deploy app code before running `supabase-storage-private-migration.sql`.
+- Run `supabase-security-audit.sql` and confirm `food_logs` RLS is enabled, `food-photos` is private, and new rows store private photo paths rather than public URLs.
 - Save a real photo while signed in, reload the food log, and confirm the thumbnail still appears.
 - Sign out and confirm anonymous users cannot read/list `food-photos`.
 
