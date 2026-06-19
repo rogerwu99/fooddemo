@@ -2437,7 +2437,7 @@
         return new File([blob], `${baseName}.jpg`, { type: "image/jpeg" });
       }
 
-      async function runNutritionPipeline({ file, signals, converted, imageDataUrl }) {
+      async function runNutritionPipeline({ file, signals, converted, imageDataUrl, imageOptimization }) {
         const response = await fetch("/nutrition-pipeline", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2447,6 +2447,7 @@
             converted,
             signals,
             imageDataUrl,
+            imageOptimization,
             debugUsda
           })
         });
@@ -2505,32 +2506,80 @@
           foodPixels: 0,
           count: 0
         };
+        const colorBuckets = new Set();
+        let previousBrightness = null;
+        let edgeCount = 0;
+        let edgeTotal = 0;
 
         for (let y = 6; y < size - 6; y += 2) {
           for (let x = 6; x < size - 6; x += 2) {
             const i = (y * size + x) * 4;
-          const r = pixels[i];
-          const g = pixels[i + 1];
-          const b = pixels[i + 2];
-          const brightness = (r + g + b) / 3;
-          totals.count += 1;
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            const brightness = (r + g + b) / 3;
+            totals.count += 1;
             const mostlyPlate = brightness > 220 && Math.max(r, g, b) - Math.min(r, g, b) < 28;
             if (mostlyPlate) continue;
             totals.foodPixels += 1;
-          if (g > r * 1.12 && g > b * 1.08 && g > 72) totals.green += 1;
-          if (r > g * 1.15 && r > b * 1.15 && r > 90) totals.red += 1;
+            colorBuckets.add(`${Math.floor(r / 48)}-${Math.floor(g / 48)}-${Math.floor(b / 48)}`);
+            if (previousBrightness !== null) {
+              edgeTotal += Math.abs(brightness - previousBrightness) > 34 ? 1 : 0;
+              edgeCount += 1;
+            }
+            previousBrightness = brightness;
+            if (g > r * 1.12 && g > b * 1.08 && g > 72) totals.green += 1;
+            if (r > g * 1.15 && r > b * 1.15 && r > 90) totals.red += 1;
             if (r > 112 && g > 82 && b < 112 && Math.abs(r - g) < 86) totals.tan += 1;
             if (r > 45 && r < 155 && g > 30 && g < 122 && b < 98) totals.brown += 1;
-          if (r > 75 && b > 78 && g < 90 && Math.abs(r - b) < 80) totals.purple += 1;
-          if (brightness > 185) totals.bright += 1;
-          if (brightness < 70) totals.dark += 1;
+            if (r > 75 && b > 78 && g < 90 && Math.abs(r - b) < 80) totals.purple += 1;
+            if (brightness > 185) totals.bright += 1;
+            if (brightness < 70) totals.dark += 1;
           }
         }
 
         Object.keys(totals).forEach((key) => {
           if (key !== "count" && key !== "foodPixels") totals[key] = totals[key] / Math.max(1, totals.foodPixels);
         });
+        totals.foodCoverage = totals.foodPixels / Math.max(1, totals.count);
+        totals.colorVariety = Math.min(1, colorBuckets.size / 26);
+        totals.edgeDensity = edgeTotal / Math.max(1, edgeCount);
+        totals.imageWidth = image.width;
+        totals.imageHeight = image.height;
         return totals;
+      }
+
+      function chooseAnalysisImageSize(image, signals, file) {
+        const name = (file.name || "").toLowerCase();
+        const longest = Math.max(image.width, image.height);
+        const megapixels = (image.width * image.height) / 1000000;
+        const aspect = longest / Math.max(1, Math.min(image.width, image.height));
+        if (/(label|nutrition|package|menu|receipt)/i.test(name)) return Math.min(longest, 1280);
+        const complexity =
+          signals.colorVariety * 0.42 +
+          signals.edgeDensity * 0.38 +
+          Math.min(1, Math.max(0, aspect - 1.4) / 1.8) * 0.12 +
+          Math.min(1, megapixels / 12) * 0.08;
+        if (complexity < 0.28 && signals.foodCoverage > 0.18) return Math.min(longest, 768);
+        if (complexity > 0.55 || megapixels > 8 || aspect > 2.1) return Math.min(longest, 1280);
+        return Math.min(longest, 1024);
+      }
+
+      function resizeImageForAnalysis(image, maxSize, quality = 0.82) {
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        return {
+          dataUrl: canvas.toDataURL("image/jpeg", quality),
+          width: canvas.width,
+          height: canvas.height,
+          maxSize,
+          originalWidth: image.width,
+          originalHeight: image.height
+        };
       }
 
       function classifyPhoto(signals, fileName) {
@@ -2669,8 +2718,25 @@
 
           const image = await loadImage(dataUrl);
           const signals = getPhotoSignals(image);
-          setAnalysisBadge("Running nutrition pipeline");
-          const result = await runNutritionPipeline({ file: analysisFile, signals, converted, imageDataUrl: dataUrl });
+          const analysisMaxSize = chooseAnalysisImageSize(image, signals, analysisFile);
+          const optimized = resizeImageForAnalysis(image, analysisMaxSize);
+          signals.analysisMaxSize = optimized.maxSize;
+          signals.analysisWidth = optimized.width;
+          signals.analysisHeight = optimized.height;
+          setAnalysisBadge(`Running nutrition pipeline (${optimized.width}x${optimized.height})`);
+          const result = await runNutritionPipeline({
+            file: analysisFile,
+            signals,
+            converted,
+            imageDataUrl: optimized.dataUrl,
+            imageOptimization: {
+              maxSize: optimized.maxSize,
+              width: optimized.width,
+              height: optimized.height,
+              originalWidth: optimized.originalWidth,
+              originalHeight: optimized.originalHeight
+            }
+          });
           applyNutritionResult(result);
           playDoneSound();
         } catch (error) {

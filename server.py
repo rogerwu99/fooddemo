@@ -376,6 +376,7 @@ def build_nutrition_result(payload):
     signals = payload.get("signals", {})
     source_format = payload.get("sourceFormat", "image")
     converted = bool(payload.get("converted"))
+    image_optimization = payload.get("imageOptimization") or {}
     image_data_url = payload.get("imageDataUrl", "")
     vision = analyze_with_openai_vision(image_data_url, file_name)
     if not vision:
@@ -451,6 +452,7 @@ def build_nutrition_result(payload):
         "sourceFormat": source_format,
         "converted": converted,
         "signals": signals,
+        "imageOptimization": image_optimization,
         "visionProvider": "OpenAI Responses API",
         "nutritionProvider": food.get("databaseSource", "Nutrition unavailable"),
         "notes": food.get("databaseNotes", []),
