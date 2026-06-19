@@ -9,6 +9,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from email.parser import BytesParser
 from email.policy import default
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -371,6 +372,48 @@ def promote_ranked_key(ranked, key):
     return promoted
 
 
+def enrich_component_with_nutrition(component, include_candidates=False):
+    role = component.get("role") or infer_component_role(
+        component["key"],
+        component.get("label", ""),
+        component.get("query", ""),
+    )
+    nutrient_role = component.get("nutrient_role") or infer_nutrient_role(
+        component["key"],
+        component.get("label", ""),
+        component.get("query", ""),
+    )
+    component_food = lookup_nutrition(
+        component.get("query") or component.get("label") or NUTRITION_DB[component["key"]]["name"],
+        component["key"],
+        role,
+        nutrient_role,
+        include_candidates,
+    )
+    component_food["key"] = component["key"]
+    component_food["name"] = component.get("label") or component_food["name"]
+    component_food["serving"] = component.get("serving_estimate") or component_food["serving"]
+    component_food["confidence"] = component.get("confidence", 0.5)
+    component_food["portion"] = component.get("portion", 1)
+    component_food["role"] = role
+    component_food["nutrient_role"] = nutrient_role
+    return component_food
+
+
+def lookup_component_nutrition_parallel(components, include_candidates=False):
+    selected_components = components[:6]
+    if not selected_components:
+        return []
+    max_workers = min(6, len(selected_components))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(
+            executor.map(
+                lambda component: enrich_component_with_nutrition(component, include_candidates),
+                selected_components,
+            )
+        )
+
+
 def build_nutrition_result(payload):
     file_name = payload.get("fileName", "")
     signals = payload.get("signals", {})
@@ -406,33 +449,7 @@ def build_nutrition_result(payload):
             signals,
         )
 
-    component_foods = []
-    for component in components[:6]:
-        role = component.get("role") or infer_component_role(
-            component["key"],
-            component.get("label", ""),
-            component.get("query", ""),
-        )
-        nutrient_role = component.get("nutrient_role") or infer_nutrient_role(
-            component["key"],
-            component.get("label", ""),
-            component.get("query", ""),
-        )
-        component_food = lookup_nutrition(
-            component.get("query") or component.get("label") or NUTRITION_DB[component["key"]]["name"],
-            component["key"],
-            role,
-            nutrient_role,
-            bool(payload.get("debugUsda")),
-        )
-        component_food["key"] = component["key"]
-        component_food["name"] = component.get("label") or component_food["name"]
-        component_food["serving"] = component.get("serving_estimate") or component_food["serving"]
-        component_food["confidence"] = component.get("confidence", 0.5)
-        component_food["portion"] = component.get("portion", 1)
-        component_food["role"] = role
-        component_food["nutrient_role"] = nutrient_role
-        component_foods.append(component_food)
+    component_foods = lookup_component_nutrition_parallel(components, bool(payload.get("debugUsda")))
 
     food = combine_components(component_foods, vision.get("dish_name", ""))
     primary = ranked[0]
