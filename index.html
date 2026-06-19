@@ -1926,6 +1926,7 @@
         cake: "assets/score-cake.jpg"
       };
       const pendingSaveKey = "platepointsPendingSave";
+      const pendingSaveBackupKey = "feednomiPendingSaveBackup";
       const authReturnHashKey = "platepointsAuthReturnHash";
       const profileKey = "platepointsProfile";
       const debugUsda = new URLSearchParams(window.location.search).get("debugUsda") === "1";
@@ -3035,6 +3036,33 @@
         localStorage.setItem(authReturnHashKey, target);
       }
 
+      function setStoredPendingSave(payload) {
+        const value = JSON.stringify(payload);
+        localStorage.setItem(pendingSaveKey, value);
+        try {
+          sessionStorage.setItem(pendingSaveBackupKey, value);
+        } catch (error) {
+          // localStorage is the primary handoff; sessionStorage is only a same-tab backup.
+        }
+      }
+
+      function getStoredPendingSave() {
+        try {
+          return localStorage.getItem(pendingSaveKey) || sessionStorage.getItem(pendingSaveBackupKey);
+        } catch (error) {
+          return localStorage.getItem(pendingSaveKey);
+        }
+      }
+
+      function clearStoredPendingSave() {
+        localStorage.removeItem(pendingSaveKey);
+        try {
+          sessionStorage.removeItem(pendingSaveBackupKey);
+        } catch (error) {
+          // Ignore backup cleanup failures.
+        }
+      }
+
       async function setSupabaseSession(session) {
         state.session = session;
         if (!session || !session.user) {
@@ -3055,11 +3083,11 @@
         setAuthStatus(`Signed in as ${state.user}. Loading food log...`);
         updateAccountActions();
         authModal.classList.remove("is-open");
-        await loadRemoteLog();
         const savedPending = await savePendingFoodAfterAuth();
+        if (!savedPending) await loadRemoteLog();
         restoreAuthReturnLocation(savedPending ? "#food-log" : "");
         openSetupIfNeeded();
-        if (!localStorage.getItem(pendingSaveKey) && !state.log.length) {
+        if (!getStoredPendingSave() && !state.log.length) {
           $("#saveHint").textContent = "Signed in. No pending meal was found to save.";
         }
       }
@@ -3166,22 +3194,24 @@
         };
 
         try {
-          localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
+          setStoredPendingSave(pending);
           if (state.currentPhotoDataUrl) {
             const compactPhoto = state.currentPhotoDataUrl.length < 900000
               ? state.currentPhotoDataUrl
               : await compactPhotoDataUrl(state.currentPhotoDataUrl);
             if (compactPhoto && compactPhoto.length < 900000) pending.photo = compactPhoto;
-            localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
+            setStoredPendingSave(pending);
           }
           rememberAuthReturn("#analyzer");
           $("#authNote").textContent = `Pending meal saved for sign in: ${state.analyzed.name}.`;
+          $("#saveHint").textContent = `Pending meal saved for sign in: ${state.analyzed.name}.`;
           return true;
         } catch (error) {
           pending.photo = "";
           try {
-            localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
+            setStoredPendingSave(pending);
             $("#authNote").textContent = `Pending meal saved without photo: ${state.analyzed.name}.`;
+            $("#saveHint").textContent = `Pending meal saved without photo: ${state.analyzed.name}.`;
             return true;
           } catch (innerError) {
             $("#saveHint").textContent = "Could not preserve this meal through sign in. Try signing in first, then save.";
@@ -3192,13 +3222,13 @@
 
       async function savePendingFoodAfterAuth() {
         if (!state.supabase || !state.session || state.savingPending) return false;
-        const raw = localStorage.getItem(pendingSaveKey);
+        const raw = getStoredPendingSave();
         if (!raw) return false;
 
         try {
           const pending = JSON.parse(raw);
           if (!pending.analyzed) {
-            localStorage.removeItem(pendingSaveKey);
+            clearStoredPendingSave();
             return false;
           }
           state.savingPending = true;
@@ -3207,7 +3237,7 @@
           $("#saveHint").textContent = "Signed in. Saving your pending food log...";
           const saved = await saveCurrentFood();
           if (saved) {
-            localStorage.removeItem(pendingSaveKey);
+            clearStoredPendingSave();
             $("#saveHint").textContent = "Signed in and saved your pending food log.";
             return true;
           }
@@ -3321,7 +3351,8 @@
       async function saveCurrentFood() {
         if (!state.analyzed || state.analyzed.loggable === false) return false;
         if ((state.supabase && !state.session) || (!state.supabase && !state.user)) {
-          await storePendingSave();
+          const pendingStored = await storePendingSave();
+          if (!pendingStored) return false;
           openAuthModal("save");
           return false;
         }
