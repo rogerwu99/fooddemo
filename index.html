@@ -1926,6 +1926,7 @@
         cake: "assets/score-cake.jpg"
       };
       const pendingSaveKey = "platepointsPendingSave";
+      const pendingSavePrimaryKey = "feednomiPendingSave";
       const pendingSaveBackupKey = "feednomiPendingSaveBackup";
       const authReturnHashKey = "platepointsAuthReturnHash";
       const profileKey = "platepointsProfile";
@@ -3038,7 +3039,11 @@
 
       function setStoredPendingSave(payload) {
         const value = JSON.stringify(payload);
+        localStorage.setItem(pendingSavePrimaryKey, value);
         localStorage.setItem(pendingSaveKey, value);
+        if (localStorage.getItem(pendingSavePrimaryKey) !== value && localStorage.getItem(pendingSaveKey) !== value) {
+          throw new Error("Browser storage did not keep the pending meal.");
+        }
         try {
           sessionStorage.setItem(pendingSaveBackupKey, value);
         } catch (error) {
@@ -3048,13 +3053,14 @@
 
       function getStoredPendingSave() {
         try {
-          return localStorage.getItem(pendingSaveKey) || sessionStorage.getItem(pendingSaveBackupKey);
+          return localStorage.getItem(pendingSavePrimaryKey) || localStorage.getItem(pendingSaveKey) || sessionStorage.getItem(pendingSaveBackupKey);
         } catch (error) {
-          return localStorage.getItem(pendingSaveKey);
+          return localStorage.getItem(pendingSavePrimaryKey) || localStorage.getItem(pendingSaveKey);
         }
       }
 
       function clearStoredPendingSave() {
+        localStorage.removeItem(pendingSavePrimaryKey);
         localStorage.removeItem(pendingSaveKey);
         try {
           sessionStorage.removeItem(pendingSaveBackupKey);
@@ -3084,10 +3090,13 @@
         updateAccountActions();
         authModal.classList.remove("is-open");
         const savedPending = await savePendingFoodAfterAuth();
+        const restoredPending = !savedPending && restorePendingFoodForRetry();
         if (!savedPending) await loadRemoteLog();
-        restoreAuthReturnLocation(savedPending ? "#food-log" : "");
+        restoreAuthReturnLocation(savedPending ? "#food-log" : "#analyzer");
         openSetupIfNeeded();
-        if (!getStoredPendingSave() && !state.log.length) {
+        if (restoredPending) {
+          $("#saveHint").textContent = "Signed in. Your pending meal is still here; save it again to add it to your food log.";
+        } else if (!getStoredPendingSave() && !state.log.length) {
           $("#saveHint").textContent = "Signed in. No pending meal was found to save.";
         }
       }
@@ -3247,6 +3256,28 @@
           state.savingPending = false;
         }
         return false;
+      }
+
+      function restorePendingFoodForRetry() {
+        const raw = getStoredPendingSave();
+        if (!raw) return false;
+        try {
+          const pending = JSON.parse(raw);
+          if (!pending.analyzed) return false;
+          state.analyzed = pending.analyzed;
+          state.currentPhotoDataUrl = pending.photo || "";
+          applyNutritionResult(pending.analyzed, "Pending meal restored. Save it again to add it to your food log.");
+          if (pending.photo) {
+            previewImage.src = pending.photo;
+            previewImage.alt = pending.analyzed.name || "Pending food photo";
+            dropZone.classList.add("has-image");
+            dropZone.classList.remove("has-preview");
+          }
+          $("#saveHint").textContent = "Your pending meal was restored. Save it again to add it to your food log.";
+          return true;
+        } catch (error) {
+          return false;
+        }
       }
 
       async function refreshFoodLog() {
@@ -3651,7 +3682,6 @@
         if (event.target === setupModal) setupModal.classList.remove("is-open");
       });
 
-      restoreAuthReturnLocation();
       renderLog();
       initSupabase();
     </script>
