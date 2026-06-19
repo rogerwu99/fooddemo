@@ -1556,7 +1556,7 @@
                   <button class="primary-btn" id="chooseImageBtn" type="button">Choose image</button>
                 </span>
               </div>
-              <input class="file-input" id="foodImage" type="file" accept="image/*,.heic,.heif,image/heic,image/heif" />
+              <input class="file-input" id="foodImage" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,.heic,.heif,image/heic,image/heif" />
 
               <div class="sample-row" aria-label="Analyze sample foods">
                 <button type="button" data-sample="broccoli">Try broccoli</button>
@@ -1966,6 +1966,21 @@
         const name = file.name.toLowerCase();
         const type = file.type.toLowerCase();
         return name.endsWith(".heic") || name.endsWith(".heif") || type.includes("heic") || type.includes("heif");
+      }
+
+      function isAvifFile(file) {
+        const name = (file.name || "").toLowerCase();
+        const type = (file.type || "").toLowerCase();
+        return name.endsWith(".avif") || type.includes("avif");
+      }
+
+      function isSupportedImageFile(file) {
+        const name = (file.name || "").toLowerCase();
+        const type = (file.type || "").toLowerCase();
+        if (isHeicFile(file)) return true;
+        if (isAvifFile(file)) return false;
+        if (["image/jpeg", "image/png", "image/webp"].includes(type)) return true;
+        return /\.(jpe?g|png|webp)$/i.test(name);
       }
 
       function chooseFoodFromName(fileName = "") {
@@ -2690,6 +2705,22 @@
         unlockAudio();
         if (!file) {
           $("#saveHint").textContent = "No photo was selected. Try Choose image again or drag a file onto the box.";
+          return;
+        }
+        if (!isSupportedImageFile(file)) {
+          const avifMessage = isAvifFile(file)
+            ? "AVIF photos are not supported yet. Please export or share the photo as JPEG, PNG, WebP, HEIC, or HEIF."
+            : "This file type is not supported. Please choose a JPEG, PNG, WebP, HEIC, or HEIF food photo.";
+          foodImage.value = "";
+          state.currentPhotoDataUrl = "";
+          state.analyzed = null;
+          analysisBadge.classList.remove("is-visible", "is-done");
+          $("#dropTitle").textContent = "Unsupported photo format";
+          $("#dropHelp").textContent = avifMessage;
+          $("#saveHint").textContent = avifMessage;
+          $("#foodName").textContent = "Awaiting photo";
+          $("#whyEat").textContent = "Choose a supported image format to analyze nutrition.";
+          $("#saveFood").disabled = true;
           return;
         }
         analyzeUploadedPhoto(file);
