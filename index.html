@@ -3031,6 +3031,10 @@
         if (!target) return;
         localStorage.removeItem(authReturnHashKey);
         history.replaceState(null, "", authReturnUrl(target));
+        requestAnimationFrame(() => {
+          document.querySelector(target)?.scrollIntoView({ block: "start" });
+          setTimeout(() => document.querySelector(target)?.scrollIntoView({ block: "start" }), 250);
+        });
       }
 
       function rememberAuthReturn(target = "#analyzer") {
