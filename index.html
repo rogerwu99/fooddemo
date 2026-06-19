@@ -1707,6 +1707,7 @@
                   <div class="account-actions">
                     <button class="text-btn" id="editProfile" type="button">Edit profile</button>
                     <button class="text-btn" id="refreshLog" type="button">Refresh log</button>
+                    <button class="text-btn" id="signIn" type="button">Sign in</button>
                     <button class="text-btn" id="signOut" type="button">Sign out</button>
                   </div>
                 </div>
@@ -2748,6 +2749,26 @@
         status.dataset.kind = kind;
       }
 
+      function updateAccountActions() {
+        const signedIn = Boolean(state.supabase ? state.session : state.user);
+        $("#signIn").style.display = signedIn ? "none" : "inline-flex";
+        $("#signOut").style.display = signedIn ? "inline-flex" : "none";
+        $("#editProfile").style.display = signedIn ? "inline-flex" : "none";
+        $("#refreshLog").style.display = signedIn ? "inline-flex" : "none";
+      }
+
+      function openAuthModal(reason = "signin") {
+        $("#authTitle").textContent = reason === "save" ? "Create your profile" : "Sign in";
+        authModal.querySelector("p").textContent = reason === "save"
+          ? "We need an account before saving your photo-based nutrition result to a profile."
+          : "Sign in with email or Google to view and save your food log.";
+        $("#authNote").textContent = state.supabase
+          ? "Use email magic link or Google to save meals across devices."
+          : "Prototype sign on stores this session locally.";
+        authModal.classList.add("is-open");
+        $("#email").focus();
+      }
+
       function renderLog() {
         const logList = $("#logList");
         if (!state.log.length) {
@@ -2960,12 +2981,14 @@
       async function initSupabase() {
         try {
           setAuthStatus("Checking account connection...");
+          updateAccountActions();
           const response = await fetch("/app-config");
           const config = await response.json();
           state.supabaseConfig = config;
           if (!config.supabaseUrl || !config.supabaseAnonKey || !window.supabase) {
             $("#authNote").textContent = "Prototype sign on stores this session locally.";
             setAuthStatus(state.user ? `Local prototype session: ${state.user}` : "Local prototype mode. Meals save in this browser.");
+            updateAccountActions();
             renderLog();
             return;
           }
@@ -2980,6 +3003,7 @@
         } catch (error) {
           $("#authNote").textContent = "Auth service unavailable. Local prototype mode is active.";
           setAuthStatus("Auth service unavailable. Local prototype mode is active.", "error");
+          updateAccountActions();
           renderLog();
         }
       }
@@ -3018,12 +3042,14 @@
             state.user = localStorage.getItem("platepointsUser") || "";
             setAuthStatus(state.user ? `Local prototype session: ${state.user}` : "Local prototype mode. Meals save in this browser.");
           }
+          updateAccountActions();
           renderLog();
           return;
         }
         state.user = session.user.email || "Signed-in user";
         localStorage.setItem("platepointsUser", state.user);
         setAuthStatus(`Signed in as ${state.user}. Loading food log...`);
+        updateAccountActions();
         authModal.classList.remove("is-open");
         await loadRemoteLog();
         const savedPending = await savePendingFoodAfterAuth();
@@ -3247,6 +3273,7 @@
         if (state.supabase) state.log = [];
         localStorage.removeItem("platepointsUser");
         setAuthStatus("Signed out. Save a plate to sign in again.");
+        updateAccountActions();
         renderLog();
       }
 
@@ -3291,8 +3318,7 @@
         if (!state.analyzed || state.analyzed.loggable === false) return false;
         if ((state.supabase && !state.session) || (!state.supabase && !state.user)) {
           await storePendingSave();
-          authModal.classList.add("is-open");
-          $("#email").focus();
+          openAuthModal("save");
           return false;
         }
         $("#saveFood").disabled = true;
@@ -3523,6 +3549,7 @@
       $("#saveFood").addEventListener("click", () => saveCurrentFood());
       $("#editProfile").addEventListener("click", () => openProfileSetup("edit"));
       $("#refreshLog").addEventListener("click", () => refreshFoodLog());
+      $("#signIn").addEventListener("click", () => openAuthModal("signin"));
       $("#signOut").addEventListener("click", () => signOut());
       $("#logList").addEventListener("click", (event) => {
         const button = event.target.closest(".delete-log");
