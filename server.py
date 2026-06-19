@@ -2,6 +2,7 @@
 import json
 import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -24,6 +25,44 @@ except ImportError:
 ROOT = Path(__file__).resolve().parent
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
+
+FRUIT_VEG_TERMS = {
+    "apple", "apricot", "asparagus", "avocado", "banana", "beet", "berries", "berry",
+    "blueberry", "broccoli", "cabbage", "carrot", "cauliflower", "celery", "cherry",
+    "cucumber", "eggplant", "grape", "greens", "kale", "kiwi", "lettuce", "mango",
+    "melon", "mushroom", "orange", "peach", "pear", "pepper", "pineapple", "plum",
+    "potato", "raspberry", "spinach", "squash", "strawberry", "tomato", "zucchini",
+}
+
+LESS_PREFERRED_USDA_TERMS = {
+    "babyfood", "baby food", "dried", "dehydrated", "powder", "chips", "flour",
+    "bread", "muffin", "cake", "pie", "pudding", "candy", "juice", "nectar",
+    "beverage", "smoothie", "sweetened", "syrup", "branded",
+}
+
+PROTEIN_FOOD_TERMS = {
+    "beef", "burger", "chicken", "cod", "cutlet", "egg", "fish", "lamb", "meat",
+    "pork", "salmon", "shrimp", "steak", "tempeh", "tofu", "tuna", "turkey",
+}
+
+BASE_FOOD_TERMS = {
+    "bagel", "bread", "cereal", "farro", "grain", "noodle", "oat", "oatmeal",
+    "pasta", "porridge", "quinoa", "rice", "spaghetti",
+}
+
+DESSERT_FOOD_TERMS = {
+    "brownie", "cake", "cookie", "cupcake", "donut", "doughnut", "ice cream",
+    "pastry", "pie", "pudding", "tart",
+}
+
+PROCESSED_BASE_PRODUCT_TERMS = {
+    "bar", "bread", "cracker", "crackers", "granola", "muffin", "muffins", "roll", "rolls", "snack",
+}
+
+PREPARED_DISH_TERMS = {
+    "bake", "baked", "bowl", "burrito", "casserole", "curry", "enchilada",
+    "lasagna", "parmesan", "parm", "sandwich", "stew", "stir fry", "taco",
+}
 
 
 def load_dotenv(path):
@@ -368,25 +407,30 @@ def build_nutrition_result(payload):
 
     component_foods = []
     for component in components[:6]:
+        role = component.get("role") or infer_component_role(
+            component["key"],
+            component.get("label", ""),
+            component.get("query", ""),
+        )
+        nutrient_role = component.get("nutrient_role") or infer_nutrient_role(
+            component["key"],
+            component.get("label", ""),
+            component.get("query", ""),
+        )
         component_food = lookup_nutrition(
             component.get("query") or component.get("label") or NUTRITION_DB[component["key"]]["name"],
             component["key"],
+            role,
+            nutrient_role,
+            bool(payload.get("debugUsda")),
         )
         component_food["key"] = component["key"]
         component_food["name"] = component.get("label") or component_food["name"]
         component_food["serving"] = component.get("serving_estimate") or component_food["serving"]
         component_food["confidence"] = component.get("confidence", 0.5)
         component_food["portion"] = component.get("portion", 1)
-        component_food["role"] = component.get("role") or infer_component_role(
-            component["key"],
-            component.get("label", ""),
-            component.get("query", ""),
-        )
-        component_food["nutrient_role"] = component.get("nutrient_role") or infer_nutrient_role(
-            component["key"],
-            component.get("label", ""),
-            component.get("query", ""),
-        )
+        component_food["role"] = role
+        component_food["nutrient_role"] = nutrient_role
         component_foods.append(component_food)
 
     food = combine_components(component_foods, vision.get("dish_name", ""))
@@ -394,28 +438,21 @@ def build_nutrition_result(payload):
     key = primary["key"]
     food["key"] = key
     food["confidence"] = round(sum(item.get("confidence", 0) for item in component_foods) / max(1, len(component_foods)), 2)
-    food["alternatives"] = [
-        {
-            "key": item["key"],
-            "name": item.get("label") or NUTRITION_DB[item["key"]]["name"],
-            "confidence": item["confidence"],
-        }
-        for item in ranked[1:4]
-    ]
+    food["alternatives"] = correction_alternatives(vision, ranked, key, food.get("name", ""))
     food["pipeline"] = {
         "steps": [
             "File accepted",
             "HEIC/HEIF converted to JPEG" if converted else "Image decoded in browser",
             "OpenAI vision identified food candidates",
             "Server normalized candidates",
-            "USDA FoodData Central lookup" if food.get("databaseSource") == "USDA FoodData Central" else "Local nutrition fallback",
-            "PlatePoints score calculated",
+            "USDA FoodData Central lookup" if food.get("databaseSource") == "USDA FoodData Central" else "No reliable nutrition match",
+            "FeedNomi score calculated",
         ],
         "sourceFormat": source_format,
         "converted": converted,
         "signals": signals,
         "visionProvider": "OpenAI Responses API",
-        "nutritionProvider": food.get("databaseSource", "Local nutrition fallback"),
+        "nutritionProvider": food.get("databaseSource", "Nutrition unavailable"),
         "notes": food.get("databaseNotes", []),
         "componentCount": len(component_foods),
     }
@@ -451,7 +488,13 @@ def build_manual_correction_result(payload):
         "portion": 1,
         "confidence": 1,
     }
-    component_food = lookup_nutrition(component["query"], component["key"])
+    component_food = lookup_nutrition(
+        component["query"],
+        component["key"],
+        component["role"],
+        component["nutrient_role"],
+        bool(payload.get("debugUsda")),
+    )
     component_food["key"] = component["key"]
     component_food["name"] = component["label"]
     component_food["serving"] = component["serving_estimate"] or component_food["serving"]
@@ -464,19 +507,74 @@ def build_manual_correction_result(payload):
     food["key"] = key
     food["confidence"] = 1
     food["alternatives"] = []
-    food["loggable"] = True
+    food["loggable"] = not food.get("nutritionUnavailable")
+    food["corrected"] = True
+    food["correctionLabel"] = label
     food["pipeline"] = {
         "steps": [
             "User corrected food identity",
             "Server looked up corrected food",
-            "USDA FoodData Central lookup" if food.get("databaseSource") == "USDA FoodData Central" else "Local nutrition fallback",
-            "PlatePoints score recalculated",
+            "USDA FoodData Central lookup" if food.get("databaseSource") == "USDA FoodData Central" else "No reliable nutrition match",
+            "FeedNomi score recalculated" if not food.get("nutritionUnavailable") else "Nutrition unavailable; no score saved",
         ],
         "sourceFormat": "manual correction",
         "converted": False,
         "signals": {},
         "visionProvider": "Manual correction",
-        "nutritionProvider": food.get("databaseSource", "Local nutrition fallback"),
+        "nutritionProvider": food.get("databaseSource", "Nutrition unavailable"),
+        "notes": food.get("databaseNotes", []),
+        "componentCount": 1,
+    }
+    return food
+
+
+def build_selected_usda_result(payload):
+    label = (payload.get("label") or payload.get("food") or "").strip()
+    candidate = payload.get("candidate") or {}
+    match = candidate.get("food") or candidate
+    if not label or not match:
+        return analysis_unavailable_result(
+            "Choose a USDA nutrition row before applying it.",
+            "manual USDA selection",
+            False,
+            {},
+        )
+
+    key = normalize_component_key(payload.get("key", "mixed"), label, label)
+    base = dict(NUTRITION_DB.get(key, NUTRITION_DB["mixed"]))
+    role = payload.get("role") or infer_component_role(key, label, label)
+    nutrient_role = payload.get("nutrientRole") or payload.get("nutrient_role") or infer_nutrient_role(key, label, label)
+    component_food = apply_usda_match(base, match, label, selected_by_user=True)
+    component_food["key"] = key
+    component_food["name"] = label
+    component_food["confidence"] = 1
+    component_food["portion"] = 1
+    component_food["role"] = role
+    component_food["nutrient_role"] = nutrient_role
+
+    food = combine_components([component_food], label)
+    food["key"] = key
+    food["confidence"] = 1
+    food["alternatives"] = []
+    food["loggable"] = not food.get("nutritionUnavailable")
+    food["corrected"] = True
+    food["correctionLabel"] = label
+    food["selectedUsda"] = {
+        "fdcId": match.get("fdcId"),
+        "description": match.get("description", label),
+        "dataType": match.get("dataType", "USDA"),
+    }
+    food["pipeline"] = {
+        "steps": [
+            "User selected USDA nutrition row",
+            "Server applied selected USDA nutrients",
+            "FeedNomi score recalculated",
+        ],
+        "sourceFormat": "manual USDA selection",
+        "converted": False,
+        "signals": {},
+        "visionProvider": "Manual correction",
+        "nutritionProvider": food.get("databaseSource", "USDA FoodData Central"),
         "notes": food.get("databaseNotes", []),
         "componentCount": 1,
     }
@@ -599,13 +697,17 @@ def analyze_with_openai_vision(image_data_url, file_name):
         '"query":"plain USDA food search query","serving_estimate":"short serving estimate",'
         '"role":"base|protein|fruit_veg|mix_in|topping|sauce|condiment|dessert",'
         '"nutrient_role":"fiber|protein|added_sugar|fat|neutral",'
-        '"portion":0.0,"confidence":0.0}],"dish_name":"string","notes":["short note"]}. '
+        '"portion":0.0,"confidence":0.0}],'
+        '"dish_alternatives":[{"label":"complete alternate dish identity","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
+        '"query":"plain USDA food search query","confidence":0.0,"reason":"short visual reason"}],'
+        '"dish_name":"string","notes":["short note"]}. '
         "If the image is not food, return is_food=false, confidence, foods=[], dish_name='', and notes explaining what was seen. "
         "Identify the complete dish and visible components, not only the most colorful ingredient. "
         "For example, oatmeal with blueberries and syrup should return dish_name='oatmeal with blueberries and syrup' "
         "and separate foods for oatmeal, blueberries, and syrup. Mark syrup, honey, butter, sauces, dressings, drizzles, and condiments as role='topping' or role='sauce'. Portion is the approximate share of the dish "
         "from 0 to 1. Prefer common food names that can be searched in USDA FoodData Central. "
-        "For visually similar dishes, include plausible alternatives with confidence scores, such as eggplant parmesan versus chicken parmesan. "
+        "For visually similar dishes, include complete dish alternatives with confidence scores in dish_alternatives, not as component foods. "
+        "For example, a breaded cutlet with red sauce and cheese could include eggplant parmesan, chicken parmesan, and veal parmesan. "
         "Use canonical=mixed when a component does not fit the known canonical set, but keep label and query specific, for example cacio e pepe, salmon, salad, rice, dumplings, or burrito."
     )
     payload = {
@@ -681,6 +783,97 @@ def rank_from_vision(vision):
     return unique
 
 
+def normalized_label(value):
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+
+
+def labels_refer_to_same_food(left, right):
+    left_label = normalized_label(left)
+    right_label = normalized_label(right)
+    if not left_label or not right_label:
+        return False
+    if left_label == right_label:
+        return True
+    shorter, longer = sorted([left_label, right_label], key=len)
+    return len(shorter) >= 8 and f" {shorter} " in f" {longer} "
+
+
+def dish_alternatives_from_vision(vision, primary_key, current_name=""):
+    raw_options = vision.get("dish_alternatives") or vision.get("alternatives") or []
+    options = []
+    seen = set()
+    current_labels = [
+        vision.get("dish_name", ""),
+        current_name,
+        NUTRITION_DB.get(primary_key, NUTRITION_DB["mixed"])["name"],
+    ]
+
+    for item in raw_options:
+        if not isinstance(item, dict):
+            continue
+        label = (item.get("label") or item.get("query") or "").strip()
+        query = (item.get("query") or label).strip()
+        if not label and not query:
+            continue
+
+        key = normalize_component_key(item.get("canonical", "mixed"), label, query)
+        name = label or query or NUTRITION_DB.get(key, NUTRITION_DB["mixed"])["name"]
+        name_marker = normalized_label(name)
+        if not name_marker or any(labels_refer_to_same_food(current, name) for current in current_labels):
+            continue
+        if key == primary_key and key != "mixed":
+            continue
+
+        try:
+            confidence = float(item.get("confidence", 0.5))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        confidence = round(max(0.05, min(0.96, confidence)), 2)
+
+        marker = (key, name_marker)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        options.append(
+            {
+                "key": key,
+                "name": name,
+                "confidence": confidence,
+                "source": "Vision alternative",
+            }
+        )
+
+    return options[:4]
+
+
+def correction_alternatives(vision, ranked, primary_key, current_name=""):
+    options = dish_alternatives_from_vision(vision, primary_key, current_name)
+    if options:
+        return options
+
+    if vision.get("dish_name") and len(vision.get("foods") or []) > 1:
+        return []
+
+    for item in ranked[1:4]:
+        item_name = item.get("label") or NUTRITION_DB[item["key"]]["name"]
+        if (
+            item.get("confidence", 0) <= 0.1
+            or item["key"] == primary_key
+            or item["key"] == "mixed"
+            or labels_refer_to_same_food(current_name, item_name)
+        ):
+            continue
+        options.append(
+            {
+                "key": item["key"],
+                "name": item_name,
+                "confidence": item["confidence"],
+                "source": "Vision alternative",
+            }
+        )
+    return options
+
+
 def components_from_vision(vision):
     foods = vision.get("foods") or []
     components = []
@@ -720,21 +913,26 @@ def default_component_portion(key):
     return {"oatmeal": 0.6, "berries": 0.25, "syrup": 0.1}.get(key, 1)
 
 
+def text_has_term(text, terms):
+    words = (text or "").lower()
+    return any(re.search(rf"(?<![a-z]){re.escape(term)}(?![a-z])", words) for term in terms)
+
+
 def infer_component_role(canonical, label="", query=""):
     text = f"{canonical} {label} {query}".lower()
     if any(word in text for word in ["syrup", "honey", "sugar", "sweetener", "jam", "jelly", "molasses"]):
         return "sweetener"
     if any(word in text for word in ["sauce", "dressing", "drizzle", "butter", "cream", "mayo", "aioli", "ranch", "glaze"]):
         return "topping"
-    if canonical in {"berries", "broccoli"}:
-        return "fruit_veg"
-    if canonical in {"chicken"}:
+    if text_has_term(text, PROTEIN_FOOD_TERMS):
         return "protein"
-    if canonical in {"oatmeal"}:
+    if text_has_term(text, PREPARED_DISH_TERMS):
+        return "prepared"
+    if canonical in {"berries", "broccoli"} or text_has_term(text, FRUIT_VEG_TERMS):
+        return "fruit_veg"
+    if text_has_term(text, BASE_FOOD_TERMS):
         return "base"
-    if canonical in {"pasta"}:
-        return "base"
-    if canonical in {"cake"}:
+    if text_has_term(text, DESSERT_FOOD_TERMS):
         return "dessert"
     return "mix_in"
 
@@ -743,9 +941,9 @@ def infer_nutrient_role(canonical, label="", query=""):
     text = f"{canonical} {label} {query}".lower()
     if any(word in text for word in ["syrup", "honey", "sugar", "jam", "jelly"]):
         return "added_sugar"
-    if canonical in {"chicken"}:
+    if text_has_term(text, PROTEIN_FOOD_TERMS):
         return "protein"
-    if canonical in {"berries", "broccoli", "oatmeal"}:
+    if canonical in {"berries", "broccoli", "oatmeal"} or text_has_term(text, FRUIT_VEG_TERMS):
         return "fiber"
     return "neutral"
 
@@ -806,12 +1004,65 @@ def combine_components(component_foods, dish_name=""):
     else:
         name = f"{', '.join(names[:-1])}, and {names[-1]}"
 
+    unavailable_components = [food for food in component_foods if food.get("nutritionUnavailable")]
+    if unavailable_components:
+        notes = []
+        source_matches = []
+        for food in component_foods:
+            notes.extend(food.get("databaseNotes", []))
+            source_matches.append(f"{food.get('name', 'Food')}: {food.get('sourceMatch', 'No reliable USDA match')}")
+        return {
+            "name": name,
+            "serving": " + ".join(food.get("serving", "estimated serving") for food in component_foods),
+            "nutritionBasis": "No reliable nutrition source",
+            "calories": "-",
+            "protein": "-",
+            "fiber": "-",
+            "sugar": "-",
+            "naturalSugar": 0,
+            "addedSugar": 0,
+            "unknownSugar": 0,
+            "why": "Nutrition could not be calculated because at least one component did not have a reliable USDA match.",
+            "databaseSource": "Nutrition unavailable",
+            "databaseNotes": dedupe(notes)[:5],
+            "sourceMatch": "; ".join(source_matches[:3]),
+            "portionConfidence": "Low - nutrition source unavailable",
+            "components": [
+                {
+                    "name": food["name"],
+                    "serving": food.get("serving", "estimated serving"),
+                    "nutritionBasis": food.get("nutritionBasis", "No reliable nutrition source"),
+                    "sourceMatch": food.get("sourceMatch", "No reliable USDA match"),
+                    "role": food.get("role", "mix_in"),
+                    "nutrientRole": food.get("nutrient_role", "neutral"),
+                    "portion": food.get("portion", 1),
+                    "calories": "-",
+                    "confidence": food.get("confidence", 0.5),
+                    "why": "no reliable USDA nutrition source",
+                }
+                for food in component_foods
+            ],
+            "points": 0,
+            "effect": "Avatar unchanged",
+            "loggable": False,
+            "nutritionUnavailable": True,
+            "usdaCandidates": unavailable_components[0].get("usdaCandidates", []),
+        }
+
     weighted_components = [with_portion_weight(food) for food in component_foods]
     calories = sum(food["weightedCalories"] for food in weighted_components)
     protein = sum(food["weightedProtein"] for food in weighted_components)
     fiber = sum(food["weightedFiber"] for food in weighted_components)
     sugar = sum(food["weightedSugar"] for food in weighted_components)
+    natural_sugar = sum(food["weightedNaturalSugar"] for food in weighted_components)
+    added_sugar = sum(food["weightedAddedSugar"] for food in weighted_components)
+    unknown_sugar = sum(food["weightedUnknownSugar"] for food in weighted_components)
     db_sources = sorted({food.get("databaseSource", "Local nutrition fallback") for food in component_foods})
+    source_matches = [
+        f"{food.get('name', 'Food')}: {food.get('sourceMatch', food.get('databaseSource', 'Local estimate'))}"
+        for food in component_foods
+    ]
+    avg_confidence = sum(float(food.get("confidence", 0.5) or 0.5) for food in component_foods) / max(1, len(component_foods))
     notes = []
     for food in component_foods:
         notes.extend(food.get("databaseNotes", []))
@@ -819,18 +1070,27 @@ def combine_components(component_foods, dish_name=""):
     combined = {
         "name": name,
         "serving": " + ".join(food.get("serving", "estimated serving") for food in component_foods),
+        "nutritionBasis": " + ".join(food.get("nutritionBasis", food.get("serving", "estimated serving")) for food in component_foods),
         "calories": round(calories),
         "protein": f"{protein:.0f} g",
         "fiber": f"{fiber:.0f} g",
         "sugar": f"{sugar:.0f} g",
+        "naturalSugar": round(natural_sugar, 1),
+        "addedSugar": round(added_sugar, 1),
+        "unknownSugar": round(unknown_sugar, 1),
         "why": build_component_why(component_foods),
         "databaseSource": " + ".join(db_sources),
         "databaseNotes": dedupe(notes)[:5],
+        "sourceMatch": "; ".join(source_matches[:3]),
+        "portionConfidence": portion_confidence_label(avg_confidence, len(component_foods)),
         "components": [
             {
                 "name": food["name"],
                 "serving": food.get("serving", "estimated serving"),
+                "nutritionBasis": food.get("nutritionBasis", food.get("serving", "estimated serving")),
+                "sourceMatch": food.get("sourceMatch", food.get("databaseSource", "Local estimate")),
                 "role": food.get("role", "mix_in"),
+                "nutrientRole": food.get("nutrient_role", "neutral"),
                 "portion": food["portionWeight"],
                 "calories": round(food["weightedCalories"]),
                 "confidence": food.get("confidence", 0.5),
@@ -839,9 +1099,23 @@ def combine_components(component_foods, dish_name=""):
             for food in weighted_components
         ],
     }
+    debug_candidates = next((food.get("usdaCandidates") for food in component_foods if food.get("usdaCandidates")), None)
+    if debug_candidates:
+        combined["usdaCandidates"] = debug_candidates
+        combined["debugUsda"] = True
     combined["points"] = calculate_points(combined)
     combined["effect"] = effect_for_points(combined["points"])
     return combined
+
+
+def portion_confidence_label(avg_confidence, component_count):
+    if component_count > 3:
+        return "Low - complex mixed meal"
+    if avg_confidence >= 0.82:
+        return "Medium - clear food, visual serving estimate"
+    if avg_confidence >= 0.58:
+        return "Low-medium - visual serving estimate"
+    return "Low - adjust serving size when available"
 
 
 def with_portion_weight(food):
@@ -862,10 +1136,11 @@ def with_portion_weight(food):
         "sauce": 0.22,
         "topping": 0.25,
         "mix_in": 0.45,
-        "fruit_veg": 0.55,
+        "fruit_veg": 1.0,
         "base": 1.0,
         "protein": 1.0,
         "dessert": 1.0,
+        "prepared": 1.0,
     }
     role_floors = {
         "sweetener": 0.05,
@@ -877,6 +1152,7 @@ def with_portion_weight(food):
         "base": 0.2,
         "protein": 0.2,
         "dessert": 0.2,
+        "prepared": 0.2,
     }
     portion = min(portion, role_caps.get(role, 1.0))
     portion = max(role_floors.get(role, 0.1), min(1.0, portion))
@@ -887,12 +1163,23 @@ def with_portion_weight(food):
     weighted["weightedProtein"] = parse_grams(food.get("protein", "0 g")) * portion
     weighted["weightedFiber"] = parse_grams(food.get("fiber", "0 g")) * portion
     weighted["weightedSugar"] = parse_grams(food.get("sugar", "0 g")) * portion
+    weighted["weightedNaturalSugar"] = 0
+    weighted["weightedAddedSugar"] = 0
+    weighted["weightedUnknownSugar"] = weighted["weightedSugar"]
+    if role == "fruit_veg" and food.get("nutrient_role") != "added_sugar":
+        weighted["weightedNaturalSugar"] = weighted["weightedSugar"]
+        weighted["weightedUnknownSugar"] = 0
+    if role in {"sweetener", "condiment", "sauce", "topping", "dessert"} or food.get("nutrient_role") == "added_sugar":
+        weighted["weightedAddedSugar"] = weighted["weightedSugar"]
+        weighted["weightedUnknownSugar"] = 0
     if role in {"sweetener", "condiment", "sauce", "topping"}:
         weighted["weightedCalories"] = min(weighted["weightedCalories"], 70)
         weighted["weightedSugar"] = min(weighted["weightedSugar"], 14)
+        weighted["weightedAddedSugar"] = min(weighted["weightedAddedSugar"], 14)
     if role == "sweetener":
         weighted["weightedCalories"] = min(weighted["weightedCalories"], 60)
         weighted["weightedSugar"] = min(weighted["weightedSugar"], 12)
+        weighted["weightedAddedSugar"] = min(weighted["weightedAddedSugar"], 12)
     return weighted
 
 
@@ -921,6 +1208,14 @@ def short_component_why(food):
     fiber = parse_grams(food.get("fiber", "0 g"))
     sugar = parse_grams(food.get("sugar", "0 g"))
     try:
+        added_sugar = float(food.get("addedSugar", food.get("weightedAddedSugar", 0)) or 0)
+    except (TypeError, ValueError):
+        added_sugar = 0
+    try:
+        natural_sugar = float(food.get("naturalSugar", food.get("weightedNaturalSugar", 0)) or 0)
+    except (TypeError, ValueError):
+        natural_sugar = 0
+    try:
         calories = float(food.get("calories", 0))
     except (TypeError, ValueError):
         calories = 0
@@ -930,8 +1225,10 @@ def short_component_why(food):
         reasons.append("meaningful protein for fullness")
     if fiber >= 4:
         reasons.append("fiber that supports satiety and steadier energy")
-    if sugar >= 10:
+    if added_sugar >= 8:
         reasons.append("added sugar, so portion size matters")
+    elif sugar >= 10 and natural_sugar >= sugar * 0.6:
+        reasons.append("natural sweetness with no meaningful added sugar")
     if calories >= 400:
         reasons.append("calorie density, which lowers the score")
     if not reasons:
@@ -947,13 +1244,21 @@ def build_component_why(component_foods):
         if not component_foods:
             return NUTRITION_DB["mixed"]["why"]
         food = component_foods[0]
-        return f"{food['name']} adds {short_component_why(food)}."
+        why = short_component_why(food)
+        verb = "contribute" if food["name"].lower().endswith("s") else "contributes"
+        if why.startswith(("contributes ", "adds ", "provides ")):
+            return f"{food['name']} {why}."
+        return f"{food['name']} {verb} {why}."
 
     sentences = []
     for food in component_foods[:4]:
-        verb = "add" if food["name"].lower().endswith("s") else "adds"
-        sentences.append(f"{food['name']} {verb} {short_component_why(food)}.")
-    sentences.append("Together, these choices determine the overall PlatePoints score.")
+        why = short_component_why(food)
+        verb = "contribute" if food["name"].lower().endswith("s") else "contributes"
+        if why.startswith(("contributes ", "adds ", "provides ")):
+            sentences.append(f"{food['name']} {why}.")
+        else:
+            sentences.append(f"{food['name']} {verb} {why}.")
+    sentences.append("Together, these choices determine the overall FeedNomi score.")
     return " ".join(sentences)
 
 
@@ -974,13 +1279,112 @@ def dedupe(items):
     return result
 
 
-def lookup_nutrition(query, fallback_key):
+def nutrition_unavailable_component(base, notes, query=""):
+    return {
+        "name": base.get("name") or query or "Food",
+        "serving": base.get("serving", "estimated serving"),
+        "nutritionBasis": "No reliable nutrition source",
+        "calories": 0,
+        "protein": "0 g",
+        "fiber": "0 g",
+        "sugar": "0 g",
+        "naturalSugar": 0,
+        "addedSugar": 0,
+        "unknownSugar": 0,
+        "points": 0,
+        "why": "Nutrition could not be calculated because no reliable database match was found.",
+        "effect": "Avatar unchanged",
+        "databaseSource": "Nutrition unavailable",
+        "databaseNotes": notes,
+        "sourceMatch": "No reliable USDA match",
+        "nutritionUnavailable": True,
+        "loggable": False,
+        "usdaCandidates": [],
+    }
+
+
+def usda_candidate_options(ranked_matches):
+    options = []
+    for item in ranked_matches:
+        food = item.get("food", {})
+        nutrients = item.get("nutrients") or extract_usda_nutrients(food.get("foodNutrients", []))
+        slim_food = {
+            "fdcId": food.get("fdcId"),
+            "description": food.get("description", ""),
+            "dataType": food.get("dataType", "USDA"),
+            "brandOwner": food.get("brandOwner", ""),
+            "servingSize": food.get("servingSize"),
+            "servingSizeUnit": food.get("servingSizeUnit", ""),
+            "foodNutrients": [
+                {"nutrientName": "Energy", "value": nutrients.get("calories")},
+                {"nutrientName": "Protein", "value": nutrients.get("protein")},
+                {"nutrientName": "Fiber, total dietary", "value": nutrients.get("fiber")},
+                {"nutrientName": "Total Sugars", "value": nutrients.get("added_sugar") or nutrients.get("sugar")},
+            ],
+        }
+        options.append(
+            {
+                "fdcId": food.get("fdcId"),
+                "description": food.get("description", ""),
+                "dataType": food.get("dataType", "USDA"),
+                "brandOwner": food.get("brandOwner", ""),
+                "servingSize": food.get("servingSize"),
+                "servingSizeUnit": food.get("servingSizeUnit", ""),
+                "calories": nutrients.get("calories"),
+                "protein": nutrients.get("protein"),
+                "fiber": nutrients.get("fiber"),
+                "sugar": nutrients.get("added_sugar") or nutrients.get("sugar"),
+                "rejectedReason": item.get("rejectedReason", ""),
+                "validatorDecision": item.get("validatorDecision"),
+                "food": slim_food,
+            }
+        )
+    return options
+
+
+def apply_usda_match(base, match, query, selected_by_user=False):
+    nutrients = extract_usda_nutrients(match.get("foodNutrients", []))
+    calories = nutrients.get("calories")
+    protein = nutrients.get("protein")
+    fiber = nutrients.get("fiber")
+    sugar = nutrients.get("added_sugar") or nutrients.get("sugar")
+    if calories is not None:
+        base["calories"] = round(calories)
+    if protein is not None:
+        base["protein"] = f"{protein:.0f} g"
+    if fiber is not None:
+        base["fiber"] = f"{fiber:.0f} g"
+    if sugar is not None:
+        base["sugar"] = f"{sugar:.0f} g"
+    usda_serving = match.get("servingSizeUnit") and match.get("servingSize") and (
+        f"{match.get('servingSize')} {match.get('servingSizeUnit')}"
+    )
+    base["serving"] = usda_serving or base["serving"]
+    base["nutritionBasis"] = usda_serving or "USDA database amount (serving not specified)"
+    base["databaseSource"] = "USDA FoodData Central"
+    base["sourceMatch"] = f"{match.get('description', query)} ({match.get('dataType', 'USDA')}, FDC {match.get('fdcId', 'unknown')})"
+    base["databaseNotes"] = [
+        f"Matched FDC ID {match.get('fdcId')} ({match.get('dataType', 'unknown type')}).",
+        "USDA values may be per serving or per 100 g depending on record metadata.",
+    ]
+    if selected_by_user:
+        base["databaseNotes"].append("User selected this USDA nutrition row.")
+    base["points"] = calculate_points(base)
+    base["effect"] = effect_for_points(base["points"])
+    base["nutritionUnavailable"] = False
+    base["loggable"] = True
+    return base
+
+
+def lookup_nutrition(query, fallback_key, role="", nutrient_role="", include_candidates=False):
     base = dict(NUTRITION_DB.get(fallback_key, NUTRITION_DB["mixed"]))
     api_key = os.environ.get("USDA_API_KEY", "").strip()
     if not api_key:
-        base["databaseSource"] = "Local nutrition fallback"
-        base["databaseNotes"] = ["Set USDA_API_KEY to enable FoodData Central lookup."]
-        return base
+        return nutrition_unavailable_component(
+            base,
+            ["Set USDA_API_KEY to enable FoodData Central lookup. No local nutrition estimate was used."],
+            query,
+        )
 
     try:
         search_url = f"{USDA_SEARCH_URL}?{urllib.parse.urlencode({'api_key': api_key})}"
@@ -988,7 +1392,7 @@ def lookup_nutrition(query, fallback_key):
             search_url,
             {
                 "query": query,
-                "pageSize": 5,
+                "pageSize": 12,
                 "pageNumber": 1,
                 "dataType": ["Foundation", "SR Legacy", "Survey (FNDDS)", "Branded"],
             },
@@ -997,35 +1401,374 @@ def lookup_nutrition(query, fallback_key):
         foods = result.get("foods") or []
         if not foods:
             raise ValueError("No USDA matches")
-        match = foods[0]
+        ranked_matches = rank_usda_matches(query, foods, base, role, nutrient_role)
+        ranked_matches = apply_openai_usda_validation(query, ranked_matches, base, role, nutrient_role)
+        accepted = next((item for item in ranked_matches if not item["rejectedReason"]), None)
+        best_candidate = accepted or ranked_matches[0]
+        match = best_candidate["food"]
+        rejected_matches = [item for item in ranked_matches if item["rejectedReason"]]
+        validator_count = sum(1 for item in ranked_matches if item.get("validatorDecision"))
         nutrients = extract_usda_nutrients(match.get("foodNutrients", []))
         calories = nutrients.get("calories")
         protein = nutrients.get("protein")
         fiber = nutrients.get("fiber")
         sugar = nutrients.get("added_sugar") or nutrients.get("sugar")
-        if calories is not None:
-            base["calories"] = round(calories)
-        if protein is not None:
-            base["protein"] = f"{protein:.0f} g"
-        if fiber is not None:
-            base["fiber"] = f"{fiber:.0f} g"
-        if sugar is not None:
-            base["sugar"] = f"{sugar:.0f} g"
-        base["serving"] = match.get("servingSizeUnit") and match.get("servingSize") and (
-            f"{match.get('servingSize')} {match.get('servingSizeUnit')}"
-        ) or base["serving"]
-        base["databaseSource"] = "USDA FoodData Central"
-        base["databaseNotes"] = [
-            f"Matched FDC ID {match.get('fdcId')} ({match.get('dataType', 'unknown type')}).",
-            "USDA values may be per serving or per 100 g depending on record metadata.",
-        ]
+        rejected_reason = best_candidate["rejectedReason"]
+        if rejected_reason:
+            notes = []
+            if validator_count:
+                notes.append(f"OpenAI match validator reviewed {validator_count} USDA candidates.")
+            notes.extend(
+                [
+                    rejected_reason,
+                    f"Rejected USDA match FDC ID {match.get('fdcId')} ({match.get('description', query)}).",
+                ]
+            )
+            notes.append("No local nutrition estimate was used.")
+            unavailable = nutrition_unavailable_component(base, notes, query)
+            unavailable["usdaCandidates"] = usda_candidate_options(ranked_matches[:8])
+            return unavailable
+        base = apply_usda_match(base, match, query)
+        if include_candidates:
+            base["usdaCandidates"] = usda_candidate_options(ranked_matches[:8])
+            base["debugUsda"] = True
+        if validator_count:
+            base["databaseNotes"].append(f"OpenAI match validator reviewed {validator_count} USDA candidates.")
+        if rejected_matches:
+            base["databaseNotes"].append(
+                f"Skipped {len(rejected_matches)} lower-quality USDA match{'es' if len(rejected_matches) != 1 else ''}."
+            )
         base["points"] = calculate_points(base)
         base["effect"] = effect_for_points(base["points"])
         return base
     except Exception as error:
-        base["databaseSource"] = "Local nutrition fallback"
-        base["databaseNotes"] = [f"USDA lookup failed: {error}"]
-        return base
+        return nutrition_unavailable_component(
+            base,
+            [f"USDA lookup failed: {error}", "No local nutrition estimate was used."],
+            query,
+        )
+
+
+def rejected_usda_match_reason(fallback_key, match, nutrients, fallback, role="", nutrient_role="", query=""):
+    description = (match.get("description") or "").lower()
+    query_text = (query or "").lower()
+    serving_unit = str(match.get("servingSizeUnit") or "").lower()
+    protein = nutrients.get("protein")
+    calories = nutrients.get("calories")
+    fiber = nutrients.get("fiber")
+    sugar = nutrients.get("added_sugar") or nutrients.get("sugar")
+    fallback_protein = parse_grams(fallback.get("protein", "0 g"))
+    fallback_fiber = parse_grams(fallback.get("fiber", "0 g"))
+    fallback_calories = float(fallback.get("calories", 0) or 0)
+
+    if serving_unit and serving_unit in {"iu", "mcg", "mg"} and role in {"base", "prepared", "protein", "fruit_veg"}:
+        return "USDA match had unusable serving-size metadata for this food, so nutrition was not calculated."
+
+    if role == "protein":
+        query_protein_terms = {term for term in PROTEIN_FOOD_TERMS if term in query_text}
+        if query_protein_terms and not any(term in description for term in query_protein_terms):
+            return "USDA match did not include the protein named in the food, so nutrition was not calculated."
+        protein_floor = 12
+        if fallback_protein >= 18:
+            protein_floor = max(protein_floor, min(32, fallback_protein * 0.6))
+        if protein is None:
+            return "USDA match was missing protein data for a protein-forward food, so nutrition was not calculated."
+        if protein < protein_floor:
+            return (
+                f"USDA match protein was {protein:.0f} g, below the expected range for a protein-forward food; "
+                "nutrition was not calculated."
+            )
+
+    if role == "fruit_veg" and any(term in description for term in ["juice", "nectar", "syrup", "pie filling", "candied"]):
+        return "USDA match looked like a sweetened or processed produce item, so the cleaner food estimate was kept."
+
+    if role == "prepared":
+        query_prepared_terms = {term for term in PREPARED_DISH_TERMS if text_has_term(query_text, {term})}
+        if query_prepared_terms and not any(term in description for term in query_prepared_terms):
+            return "USDA match looked like a plain ingredient rather than the prepared dish, so nutrition was not calculated."
+        if fallback_calories >= 150 and calories is not None and calories < fallback_calories * 0.55:
+            return "USDA match calories were too low for the prepared dish profile, so nutrition was not calculated."
+        if fallback_protein >= 10 and protein is not None and protein < fallback_protein * 0.5:
+            return "USDA match protein was too low for the prepared dish profile, so nutrition was not calculated."
+        if fallback_fiber >= 5 and fiber is not None and fiber < fallback_fiber * 0.45:
+            return "USDA match fiber was too low for the prepared dish profile, so nutrition was not calculated."
+
+    if role == "sweetener" and sugar is not None and sugar < 4 and calories is not None and calories < 20:
+        return "USDA match did not look like a meaningful sweetener portion, so nutrition was not calculated."
+
+    if role == "base" and calories is not None and calories < 40:
+        return "USDA match looked too low-calorie for a grain or starch base, so nutrition was not calculated."
+
+    if role == "base" and fallback_calories >= 100 and calories is not None and calories < fallback_calories * 0.6:
+        return "USDA match calories were too low for the stated grain or starch serving, so nutrition was not calculated."
+
+    if role == "base" and fallback_calories >= 100 and calories is not None and calories > fallback_calories * 2.5:
+        return "USDA match calories were too high for the stated grain or starch serving, so nutrition was not calculated."
+
+    if role == "base" and sugar is not None and sugar > 12 and not text_has_term(query_text, {"sweet", "sweetened", "flavored", "maple", "brown sugar"}):
+        return "USDA match looked like a sweetened grain product rather than a plain base, so nutrition was not calculated."
+
+    if role == "base" and text_has_term(description, DESSERT_FOOD_TERMS) and not text_has_term(query_text, DESSERT_FOOD_TERMS):
+        return "USDA match looked like a dessert rather than a grain or starch base, so nutrition was not calculated."
+
+    if role == "base" and text_has_term(description, PROCESSED_BASE_PRODUCT_TERMS) and not text_has_term(query_text, PROCESSED_BASE_PRODUCT_TERMS):
+        return "USDA match looked like a processed snack product rather than a grain or starch base, so nutrition was not calculated."
+
+    if fallback_protein >= 20 and protein is not None and protein < fallback_protein * 0.6:
+        return (
+            "USDA match was much lower protein than the expected dish profile, so nutrition was not calculated."
+        )
+
+    if calories is None and protein is None and fiber is None and sugar is None:
+        return "USDA match did not include usable calories or macro data, so nutrition was not calculated."
+
+    return ""
+
+
+def best_usda_match(query, foods):
+    ranked = rank_usda_matches(query, foods, {}, "", "")
+    return ranked[0]["food"] if ranked else foods[0]
+
+
+def rank_usda_matches(query, foods, fallback, role="", nutrient_role=""):
+    query_terms = {term for term in re.findall(r"[a-z]+", (query or "").lower()) if len(term) > 2}
+    data_type_score = {
+        "Foundation": 40,
+        "SR Legacy": 35,
+        "Survey (FNDDS)": 28,
+        "Branded": 4,
+    }
+
+    def score(food, nutrients):
+        description = (food.get("description") or "").lower()
+        data_type = food.get("dataType", "")
+        words = set(re.findall(r"[a-z]+", description))
+        value = data_type_score.get(data_type, 10)
+        value += sum(8 for term in query_terms if term in words or term in description)
+        if any(term in description for term in [" raw", ", raw", "fresh", "cooked", "boiled", "steamed"]):
+            value += 10
+        if any(term in description for term in LESS_PREFERRED_USDA_TERMS):
+            value -= 18
+        if data_type == "Branded":
+            value -= 10
+        value += nutrition_plausibility_score(description, nutrients, fallback, role, nutrient_role, query)
+        return value
+
+    ranked = []
+    for food in foods:
+        nutrients = extract_usda_nutrients(food.get("foodNutrients", []))
+        ranked.append(
+            {
+                "food": food,
+                "nutrients": nutrients,
+                "score": score(food, nutrients),
+                "rejectedReason": rejected_usda_match_reason(
+                    "",
+                    food,
+                    nutrients,
+                    fallback,
+                    role,
+                    nutrient_role,
+                    query,
+                ),
+            }
+        )
+    ranked.sort(key=lambda item: item["score"], reverse=True)
+    return ranked
+
+
+def apply_openai_usda_validation(query, ranked_matches, fallback, role="", nutrient_role=""):
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not api_key or not ranked_matches:
+        return ranked_matches
+
+    candidates = []
+    for item in ranked_matches[:8]:
+        food = item["food"]
+        nutrients = item.get("nutrients") or {}
+        candidates.append(
+            {
+                "fdcId": food.get("fdcId"),
+                "description": food.get("description"),
+                "dataType": food.get("dataType"),
+                "brandOwner": food.get("brandOwner"),
+                "servingSize": food.get("servingSize"),
+                "servingSizeUnit": food.get("servingSizeUnit"),
+                "calories": nutrients.get("calories"),
+                "protein": nutrients.get("protein"),
+                "fiber": nutrients.get("fiber"),
+                "sugar": nutrients.get("added_sugar") or nutrients.get("sugar"),
+            }
+        )
+
+    prompt = (
+        "You validate USDA FoodData Central search results for a nutrition logging app. "
+        "Decide whether each candidate is the same food the user requested and compatible with the stated serving style. "
+        "Reject candidates that are only an ingredient of the dish, a different dish, a bakery/snack/sweetened/branded variant when the request is plain, "
+        "or have serving metadata that makes the nutrition basis unreliable for the requested food. "
+        "Accept a branded row only when its description clearly represents the requested food. "
+        "Return JSON only with this exact shape: "
+        '{"candidates":[{"fdcId":123,"accept":true,"confidence":0.0,"reason":"short reason"}]}. '
+        "Keep reasons short and specific."
+    )
+    payload = {
+        "model": os.environ.get("OPENAI_VALIDATOR_MODEL", os.environ.get("OPENAI_VISION_MODEL", "gpt-4.1-mini")),
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": json.dumps(
+                            {
+                                "instructions": prompt,
+                                "requestedFood": query,
+                                "role": role,
+                                "nutrientRole": nutrient_role,
+                                "localFallback": {
+                                    "name": fallback.get("name"),
+                                    "serving": fallback.get("serving"),
+                                    "calories": fallback.get("calories"),
+                                    "protein": fallback.get("protein"),
+                                    "fiber": fallback.get("fiber"),
+                                    "sugar": fallback.get("sugar"),
+                                },
+                                "candidates": candidates,
+                            }
+                        ),
+                    }
+                ],
+            }
+        ],
+    }
+
+    try:
+        response = post_json(
+            OPENAI_RESPONSES_URL,
+            payload,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=25,
+        )
+        validation = json.loads(extract_response_text(response))
+    except Exception:
+        return ranked_matches
+
+    decisions = {}
+    for decision in validation.get("candidates", []):
+        fdc_id = decision.get("fdcId")
+        if fdc_id is None:
+            continue
+        decisions[str(fdc_id)] = decision
+
+    validated = []
+    for item in ranked_matches:
+        food = item["food"]
+        decision = decisions.get(str(food.get("fdcId")))
+        next_item = dict(item)
+        if decision:
+            accept = bool(decision.get("accept"))
+            confidence = max(0, min(1, float(decision.get("confidence", 0) or 0)))
+            reason = str(decision.get("reason") or "OpenAI validator rejected this USDA match.").strip()
+            next_item["validatorDecision"] = {
+                "accept": accept,
+                "confidence": confidence,
+                "reason": reason,
+            }
+            if accept:
+                next_item["score"] += int(round(confidence * 20))
+            elif not next_item.get("rejectedReason"):
+                next_item["rejectedReason"] = f"OpenAI match validator rejected this USDA row: {reason}"
+        validated.append(next_item)
+
+    validated.sort(key=lambda item: item["score"], reverse=True)
+    return validated
+
+
+def nutrition_plausibility_score(description, nutrients, fallback, role="", nutrient_role="", query=""):
+    score = 0
+    query_text = (query or "").lower()
+    protein = nutrients.get("protein")
+    calories = nutrients.get("calories")
+    fiber = nutrients.get("fiber")
+    sugar = nutrients.get("added_sugar") or nutrients.get("sugar")
+    fallback_protein = parse_grams(fallback.get("protein", "0 g"))
+    fallback_fiber = parse_grams(fallback.get("fiber", "0 g"))
+    fallback_calories = float(fallback.get("calories", 0) or 0)
+
+    if role == "protein":
+        query_protein_terms = {term for term in PROTEIN_FOOD_TERMS if term in query_text}
+        if query_protein_terms and any(term in description for term in query_protein_terms):
+            score += 18
+        elif query_protein_terms:
+            score -= 42
+        if protein is None:
+            score -= 30
+        elif protein >= max(12, min(32, fallback_protein * 0.6 if fallback_protein else 12)):
+            score += 24
+        elif protein < 8:
+            score -= 30
+        else:
+            score -= 10
+    elif role == "fruit_veg":
+        if fiber is not None and fiber >= 2:
+            score += 12
+        if sugar is not None and "added" not in description:
+            score += 4
+        if any(term in description for term in ["juice", "nectar", "syrup", "candied"]):
+            score -= 28
+    elif role == "sweetener":
+        if sugar is not None and sugar >= 4:
+            score += 18
+        if any(term in description for term in ["syrup", "honey", "sugar", "molasses"]):
+            score += 10
+    elif role == "base":
+        if text_has_term(description, DESSERT_FOOD_TERMS) and not text_has_term(query_text, DESSERT_FOOD_TERMS):
+            score -= 45
+        if text_has_term(description, PROCESSED_BASE_PRODUCT_TERMS) and not text_has_term(query_text, PROCESSED_BASE_PRODUCT_TERMS):
+            score -= 45
+        if fallback_calories >= 100 and calories is not None and calories < fallback_calories * 0.6:
+            score -= 25
+        if fallback_calories >= 100 and calories is not None and calories > fallback_calories * 2.5:
+            score -= 25
+        if sugar is not None and sugar > 12 and not text_has_term(query_text, {"sweet", "sweetened", "flavored", "maple", "brown sugar"}):
+            score -= 30
+        if calories is not None and calories >= 80:
+            score += 10
+        if protein is not None and protein > 25:
+            score -= 10
+    elif role == "prepared":
+        query_prepared_terms = {term for term in PREPARED_DISH_TERMS if text_has_term(query_text, {term})}
+        if query_prepared_terms and any(term in description for term in query_prepared_terms):
+            score += 22
+        elif query_prepared_terms:
+            score -= 36
+        if fallback_calories >= 150 and calories is not None:
+            if calories >= fallback_calories * 0.55:
+                score += 10
+            else:
+                score -= 18
+        if fallback_protein >= 10 and protein is not None:
+            if protein >= fallback_protein * 0.5:
+                score += 8
+            else:
+                score -= 14
+        if fallback_fiber >= 5 and fiber is not None:
+            if fiber >= fallback_fiber * 0.45:
+                score += 6
+            else:
+                score -= 10
+    elif role == "dessert":
+        if sugar is not None and sugar >= 10:
+            score += 8
+
+    if nutrient_role == "protein" and protein is not None and protein >= 12:
+        score += 8
+    if nutrient_role == "fiber" and fiber is not None and fiber >= 2:
+        score += 8
+    if nutrient_role == "added_sugar" and sugar is not None and sugar >= 4:
+        score += 8
+
+    return score
 
 
 def extract_usda_nutrients(food_nutrients):
@@ -1056,7 +1799,19 @@ def calculate_points(food):
         calories = float(food.get("calories", 0))
     except ValueError:
         return food.get("points", 24)
-    score = 18 + protein * 0.4 + fiber * 3 - sugar * 0.7 - max(0, calories - 350) * 0.025
+    components = food.get("components", [])
+    produce_portion = sum(
+        float(component.get("portion", 0) or 0)
+        for component in components
+        if component.get("role") == "fruit_veg"
+    )
+    has_produce = produce_portion > 0 or food.get("role") == "fruit_veg"
+    natural_sugar = float(food.get("naturalSugar", sugar if has_produce else 0) or 0)
+    added_sugar = float(food.get("addedSugar", 0) or 0)
+    unknown_sugar = float(food.get("unknownSugar", max(0, sugar - natural_sugar - added_sugar)) or 0)
+    sugar_penalty = added_sugar * 0.8 + unknown_sugar * 0.45 + natural_sugar * 0.15
+    produce_bonus = min(10, 6 + produce_portion * 6) if has_produce else 0
+    score = 18 + protein * 0.4 + fiber * 3 + produce_bonus - sugar_penalty - max(0, calories - 350) * 0.025
     return int(max(1, min(50, round(score))))
 
 
@@ -1115,7 +1870,7 @@ def convert_heic_bytes(source, output):
     raise RuntimeError("No HEIC converter available. Install pillow-heif for staging.")
 
 
-class PlatePointsHandler(SimpleHTTPRequestHandler):
+class FeedNomiHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
@@ -1142,6 +1897,9 @@ class PlatePointsHandler(SimpleHTTPRequestHandler):
         if self.path == "/manual-correction":
             self._manual_correction()
             return
+        if self.path == "/select-usda":
+            self._select_usda()
+            return
 
         self.send_error(404, "Unknown endpoint")
 
@@ -1160,6 +1918,14 @@ class PlatePointsHandler(SimpleHTTPRequestHandler):
             self._send_json(build_manual_correction_result(payload))
         except Exception as error:
             self._send_json({"error": "Manual correction failed", "details": str(error)}, status=400)
+
+    def _select_usda(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            self._send_json(build_selected_usda_result(payload))
+        except Exception as error:
+            self._send_json({"error": "USDA selection failed", "details": str(error)}, status=400)
 
     def _convert_heic(self):
         try:
@@ -1221,6 +1987,6 @@ class PlatePointsHandler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8123"))
     host = os.environ.get("HOST", "0.0.0.0")
-    server = ThreadingHTTPServer((host, port), PlatePointsHandler)
-    print(f"PlatePoints running at http://{host}:{port}")
+    server = ThreadingHTTPServer((host, port), FeedNomiHandler)
+    print(f"FeedNomi running at http://{host}:{port}")
     server.serve_forever()

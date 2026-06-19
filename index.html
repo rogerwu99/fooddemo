@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PlatePoints</title>
+    <title>FeedNomi</title>
     <meta
       name="description"
-      content="Photo-based nutrition scoring with a responsive avatar and food log."
+      content="FeedNomi helps you log meals, feed Nomi, and learn what fuels you."
     />
     <style>
       :root {
@@ -243,12 +243,12 @@
         grid-template-columns: repeat(5, minmax(150px, 1fr));
         gap: 14px;
         max-width: 1180px;
-        margin: -36px auto 0;
+        margin: 18px auto 0;
         width: 100%;
       }
 
       .food-card {
-        min-height: 210px;
+        min-height: 276px;
         position: relative;
         overflow: hidden;
         border: 1px solid rgba(23, 33, 29, 0.1);
@@ -258,30 +258,35 @@
       }
 
       .food-photo {
-        height: 112px;
-        background-image: url("assets/food-spread.png");
-        background-size: 620px auto;
+        height: 180px;
+        background-position: center;
         background-repeat: no-repeat;
+        background-size: cover;
       }
 
       .food-photo.broccoli {
-        background-position: 0 70%;
+        background-image: url("assets/score-broccoli.jpg");
+        background-position: center 52%;
       }
 
       .food-photo.chicken {
-        background-position: 30% 72%;
+        background-image: url("assets/score-chicken.jpg");
+        background-position: center 50%;
       }
 
       .food-photo.cake {
-        background-position: 98% 39%;
+        background-image: url("assets/score-cake.jpg");
+        background-position: center 47%;
       }
 
       .food-photo.berries {
-        background-position: 78% 2%;
+        background-image: url("assets/score-blueberries.jpg");
+        background-position: center 50%;
       }
 
       .food-photo.pizza {
-        background-position: 96% 91%;
+        background-image: url("assets/score-pizza.jpg");
+        background-position: center 50%;
       }
 
       .food-body {
@@ -333,11 +338,23 @@
         place-items: center;
         border: 2px dashed #b9c9bd;
         border-radius: 8px;
-        background:
-          linear-gradient(rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.84)),
-          url("assets/food-spread.png") center / cover;
+        background: linear-gradient(180deg, #f8fbf7 0%, #eef6f0 100%);
         text-align: center;
         overflow: hidden;
+      }
+
+      .plate-placeholder {
+        position: absolute;
+        inset: 24px 24px auto;
+        height: 132px;
+        color: #9aae9f;
+        opacity: 0.42;
+        pointer-events: none;
+      }
+
+      .drop-zone.has-preview .plate-placeholder,
+      .drop-zone.has-image .plate-placeholder {
+        display: none;
       }
 
       .preview-image {
@@ -501,19 +518,47 @@
         font-size: 0.95rem;
       }
 
+      .correction-summary {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.88rem;
+        line-height: 1.4;
+      }
+
       .correction-row {
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 8px;
       }
 
       .correction-row button {
         border: 1px solid #b8cabc;
-        border-radius: 999px;
+        border-radius: 8px;
         background: white;
-        padding: 8px 11px;
+        padding: 9px 10px;
         color: #26352f;
         font-weight: 780;
+        text-align: left;
+      }
+
+      .correction-row button span {
+        display: block;
+      }
+
+      .correction-subhead {
+        grid-column: 1 / -1;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 0.8rem;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+
+      .correction-confidence {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 700;
       }
 
       .custom-correct {
@@ -570,12 +615,57 @@
 
       .metric strong {
         text-align: right;
+        min-width: 0;
+        overflow-wrap: anywhere;
       }
 
       .reason {
         margin: 0;
         color: var(--muted);
         line-height: 1.48;
+      }
+
+      .nutrition-note {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.42;
+      }
+
+      .serving-editor {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #e8eee9;
+      }
+
+      .serving-editor label {
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .serving-options {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      .serving-options button {
+        min-height: 36px;
+        padding: 0 8px;
+        border: 1px solid #cbd8ce;
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        font-weight: 750;
+        cursor: pointer;
+      }
+
+      .serving-options button.is-selected {
+        border-color: #2f7d4f;
+        background: #e6f4ea;
+        color: #1f5f3a;
       }
 
       .save-row {
@@ -623,21 +713,41 @@
         place-items: center;
         border-radius: 8px;
         background:
+          radial-gradient(circle at 52% 24%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 34%),
           linear-gradient(180deg, #edf6f7 0%, #f8fbf0 100%);
         border: 1px solid #dce9e6;
       }
 
       .avatar {
-        --torso-scale-x: 1;
-        --torso-scale-y: 1;
-        --arm-scale-x: 1;
-        --leg-scale-x: 1;
-        --shirt: #3ea35d;
-        --shorts: #2f6f9f;
-        --skin: #eab98e;
+        --avatar-lift: 0px;
+        --head-tilt: 0deg;
+        --arm-left: 0deg;
+        --arm-right: 0deg;
+        --leg-left: 0deg;
+        --leg-right: 0deg;
+        --mouth-opacity: 1;
+        --tired-mouth-opacity: 0;
+        --focus-mouth-opacity: 0;
+        --spark-opacity: 0;
+        --badge-opacity: 0;
+        --jacket: #2f6f9f;
+        --shirt: #f4c55a;
+        --pants: #304f74;
+        --skin: #dfa46f;
+        --accent: #3ea35d;
+        --skirt: #6f5fa8;
+        --nomi-body: #f3d58d;
+        --nomi-belly: #fff6de;
+        --nomi-accent: #62ad6a;
+        --nomi-bowl: #74a8c8;
+        --nomi-sprout: #5aaa68;
+        --nomi-cheek: #df746d;
+        --nomi-hair: #2d241f;
+        --nomi-outfit: #67a979;
+        --nomi-bottom: #355c7a;
         width: min(230px, 82%);
         color: #17211d;
-        filter: drop-shadow(0 18px 18px rgba(23, 33, 29, 0.16));
+        filter: drop-shadow(0 20px 18px rgba(23, 33, 29, 0.14));
         transform-origin: 50% 86%;
         transition:
           filter 260ms ease,
@@ -651,45 +761,56 @@
         overflow: visible;
       }
 
-      .avatar .avatar-shape,
-      .avatar .avatar-limb,
-      .avatar .avatar-head-shape,
-      .avatar .avatar-hair,
-      .avatar .avatar-shoe {
+      .avatar .avatar-line,
+      .avatar .avatar-fill {
         stroke: currentColor;
-        stroke-width: 6;
+        stroke-width: 5.5;
         stroke-linecap: round;
         stroke-linejoin: round;
       }
 
-      .avatar .avatar-torso {
+      .avatar .avatar-body {
+        transform: translateY(var(--avatar-lift));
+        transform-origin: 120px 230px;
+        transition: transform 280ms ease;
+      }
+
+      .avatar .avatar-head-group {
         transform-box: fill-box;
         transform-origin: center bottom;
-        transform: scale(var(--torso-scale-x), var(--torso-scale-y));
-        fill: var(--shirt);
-        transition:
-          fill 280ms ease,
-          transform 280ms ease;
-      }
-
-      .avatar .avatar-arm {
-        transform-box: fill-box;
-        transform-origin: center top;
-        transform: scaleX(var(--arm-scale-x));
-        fill: var(--skin);
+        transform: rotate(var(--head-tilt));
         transition: transform 280ms ease;
       }
 
-      .avatar .avatar-legs {
+      .avatar .avatar-arm-left {
         transform-box: fill-box;
         transform-origin: center top;
-        transform: scaleX(var(--leg-scale-x));
+        transform: none;
         transition: transform 280ms ease;
       }
 
-      .avatar .avatar-head-shape,
-      .avatar .avatar-neck,
-      .avatar .avatar-hand {
+      .avatar .avatar-arm-right {
+        transform-box: fill-box;
+        transform-origin: center top;
+        transform: none;
+        transition: transform 280ms ease;
+      }
+
+      .avatar .avatar-leg-left {
+        transform-box: fill-box;
+        transform-origin: 105px 210px;
+        transform: none;
+        transition: transform 280ms ease;
+      }
+
+      .avatar .avatar-leg-right {
+        transform-box: fill-box;
+        transform-origin: 135px 210px;
+        transform: none;
+        transition: transform 280ms ease;
+      }
+
+      .avatar .avatar-skin {
         fill: var(--skin);
       }
 
@@ -697,57 +818,293 @@
         fill: #2b211d;
       }
 
-      .avatar .avatar-short {
-        fill: var(--shorts);
+      .avatar .avatar-hair-feminine,
+      .avatar .avatar-skirt-feminine {
+        opacity: 0;
+        transition: opacity 220ms ease;
+      }
+
+      .avatar .avatar-jacket {
+        fill: var(--jacket);
+        transition: fill 280ms ease;
+      }
+
+      .avatar .avatar-shirt {
+        fill: var(--shirt);
+        transition: fill 280ms ease;
+      }
+
+      .avatar .avatar-pants {
+        fill: var(--pants);
+        transition: fill 280ms ease;
+      }
+
+      .avatar .avatar-skirt-feminine {
+        fill: var(--skirt);
       }
 
       .avatar .avatar-shoe {
-        fill: #ffffff;
+        fill: #fffdf5;
       }
 
-      .avatar .avatar-cheek {
-        fill: #df7b6b;
-        opacity: 0.42;
+      .avatar .nomi-body {
+        fill: var(--nomi-body);
+        transition: fill 280ms ease;
       }
 
-      .avatar .avatar-eye {
-        fill: currentColor;
+      .avatar .nomi-belly {
+        fill: var(--nomi-belly);
+        transition: fill 280ms ease;
       }
 
-      .avatar .avatar-smile {
-        fill: none;
+      .avatar .nomi-accent {
+        fill: var(--nomi-accent);
+        transition: fill 280ms ease;
+      }
+
+      .avatar .nomi-bowl {
+        fill: var(--nomi-bowl);
+        transition: fill 280ms ease;
+      }
+
+      .avatar .nomi-sprout {
+        fill: var(--nomi-sprout);
+        transition: fill 280ms ease;
+      }
+
+      .avatar .nomi-food {
+        fill: #f1b94e;
+      }
+
+      .avatar .nomi-hair {
+        fill: var(--nomi-hair);
+        transition: fill 280ms ease;
+      }
+
+      .avatar .nomi-outfit {
+        fill: var(--nomi-outfit);
+        transition: fill 280ms ease;
+      }
+
+      .avatar .nomi-bottom {
+        fill: var(--nomi-bottom);
+        transition: fill 280ms ease;
+      }
+
+      .avatar .avatar-eye,
+      .avatar .avatar-brow {
         stroke: currentColor;
-        stroke-width: 5;
+        stroke-width: 4.5;
         stroke-linecap: round;
       }
 
+      .avatar .avatar-cheek {
+        fill: var(--nomi-cheek);
+        opacity: 0.42;
+      }
+
+      .avatar .avatar-smile,
+      .avatar .avatar-tired-mouth,
+      .avatar .avatar-focus-mouth {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 4.8;
+        stroke-linecap: round;
+        transition: opacity 220ms ease;
+      }
+
+      .avatar .avatar-smile {
+        opacity: var(--mouth-opacity);
+      }
+
+      .avatar .avatar-tired-mouth {
+        opacity: var(--tired-mouth-opacity);
+      }
+
+      .avatar .avatar-focus-mouth {
+        opacity: var(--focus-mouth-opacity);
+      }
+
+      .avatar .avatar-spark,
+      .avatar .avatar-badge,
+      .avatar .avatar-aura {
+        opacity: var(--spark-opacity);
+        transition: opacity 260ms ease;
+      }
+
+      .avatar .avatar-badge {
+        opacity: var(--badge-opacity);
+      }
+
       .avatar[data-state="lean"] {
-        --torso-scale-x: 0.9;
-        --torso-scale-y: 1.03;
-        --arm-scale-x: 0.9;
-        --leg-scale-x: 0.9;
-        --shirt: #3ea35d;
-        --shorts: #2f6f9f;
+        --avatar-lift: 0px;
+        --head-tilt: 0deg;
+        --arm-left: 0deg;
+        --arm-right: 0deg;
+        --leg-left: 0deg;
+        --leg-right: 0deg;
+        --mouth-opacity: 1;
+        --tired-mouth-opacity: 0;
+        --focus-mouth-opacity: 0;
+        --spark-opacity: 0;
+        --badge-opacity: 0;
+        --jacket: #2f6f9f;
+        --shirt: #f4c55a;
+        --pants: #304f74;
+        --accent: #3ea35d;
+        --skirt: #6f5fa8;
+        --nomi-body: #f3d58d;
+        --nomi-belly: #fff6de;
+        --nomi-accent: #62ad6a;
+        --nomi-bowl: #74a8c8;
+        --nomi-sprout: #5aaa68;
+        --nomi-cheek: #df746d;
+        --nomi-hair: #2d241f;
+        --nomi-outfit: #67a979;
+        --nomi-bottom: #355c7a;
       }
 
       .avatar[data-state="fit"] {
-        --torso-scale-x: 1.08;
-        --torso-scale-y: 1.02;
-        --arm-scale-x: 1.18;
-        --leg-scale-x: 1.08;
-        --shirt: #2f6f9f;
-        --shorts: #254f73;
-        transform: scale(1.03);
+        --avatar-lift: -7px;
+        --head-tilt: -3deg;
+        --arm-left: 0deg;
+        --arm-right: 0deg;
+        --leg-left: -2deg;
+        --leg-right: 2deg;
+        --mouth-opacity: 1;
+        --tired-mouth-opacity: 0;
+        --focus-mouth-opacity: 0;
+        --spark-opacity: 1;
+        --badge-opacity: 1;
+        --jacket: #2f6f9f;
+        --shirt: #66b56e;
+        --pants: #233f64;
+        --accent: #f1b94e;
+        --skirt: #536fb3;
+        --nomi-body: #f7c96b;
+        --nomi-belly: #fff7d2;
+        --nomi-accent: #55b96f;
+        --nomi-bowl: #4f93bd;
+        --nomi-sprout: #3f9d57;
+        --nomi-cheek: #e66f6b;
+        --nomi-hair: #2d241f;
+        --nomi-outfit: #5cb86d;
+        --nomi-bottom: #2d5579;
+        filter: drop-shadow(0 20px 20px rgba(47, 111, 159, 0.22));
+        transform: translateY(-3px) scale(1.03);
       }
 
       .avatar[data-state="heavy"] {
-        --torso-scale-x: 1.24;
-        --torso-scale-y: 0.97;
-        --arm-scale-x: 1.04;
-        --leg-scale-x: 1.03;
-        --shirt: #c95f49;
-        --shorts: #604269;
-        transform: scale(1.01);
+        --avatar-lift: 9px;
+        --head-tilt: 4deg;
+        --arm-left: 0deg;
+        --arm-right: 0deg;
+        --leg-left: 1deg;
+        --leg-right: -1deg;
+        --mouth-opacity: 0;
+        --tired-mouth-opacity: 1;
+        --focus-mouth-opacity: 0;
+        --spark-opacity: 0;
+        --badge-opacity: 0;
+        --jacket: #7d8790;
+        --shirt: #d7a55f;
+        --pants: #695077;
+        --accent: #7d8790;
+        --skirt: #8f6d8b;
+        --nomi-body: #d4c0a0;
+        --nomi-belly: #f2eadc;
+        --nomi-accent: #8d9b8d;
+        --nomi-bowl: #8aa0aa;
+        --nomi-sprout: #81987c;
+        --nomi-cheek: #c0847c;
+        --nomi-hair: #3d3835;
+        --nomi-outfit: #9a9d84;
+        --nomi-bottom: #6b6470;
+        filter: drop-shadow(0 14px 14px rgba(23, 33, 29, 0.12));
+        transform: translateY(6px) scale(0.99);
+      }
+
+      .avatar[data-style="feminine"] {
+        --jacket: #8c6bb1;
+        --shirt: #f2c2a3;
+        --pants: #405f86;
+        --accent: #d97887;
+        --skirt: #7d65aa;
+        --nomi-body: #f0c7a0;
+        --nomi-accent: #d97887;
+        --nomi-bowl: #8c88c5;
+        --nomi-sprout: #64a86e;
+        --nomi-hair: #332620;
+        --nomi-outfit: #d97887;
+        --nomi-bottom: #7560a8;
+      }
+
+      .avatar[data-style="feminine"][data-state="fit"] {
+        --jacket: #6d78b8;
+        --shirt: #f0c85d;
+        --pants: #314f78;
+        --accent: #d97887;
+        --skirt: #5f6fb6;
+        --nomi-body: #f3bd8f;
+        --nomi-accent: #d97887;
+        --nomi-bowl: #6f82c2;
+        --nomi-outfit: #d97887;
+        --nomi-bottom: #5f6fb6;
+      }
+
+      .avatar[data-style="feminine"][data-state="heavy"] {
+        --jacket: #8b788f;
+        --shirt: #e2b58d;
+        --pants: #665373;
+        --accent: #a87986;
+        --skirt: #8b6f8d;
+        --nomi-body: #d8b69d;
+        --nomi-accent: #a87986;
+        --nomi-bowl: #94859d;
+        --nomi-outfit: #a87986;
+        --nomi-bottom: #76617a;
+      }
+
+      .avatar[data-style="masculine"] {
+        --jacket: #265f7f;
+        --shirt: #e7b64f;
+        --pants: #263f61;
+        --accent: #3ea35d;
+        --nomi-body: #eacb7a;
+        --nomi-accent: #3ea35d;
+        --nomi-bowl: #5f94b8;
+        --nomi-hair: #2b211d;
+        --nomi-outfit: #3ea35d;
+        --nomi-bottom: #315470;
+      }
+
+      .avatar[data-style="masculine"][data-state="fit"] {
+        --jacket: #244e76;
+        --shirt: #65b873;
+        --pants: #203756;
+        --accent: #f1b94e;
+        --nomi-body: #f4c45c;
+        --nomi-accent: #f1b94e;
+        --nomi-bowl: #4b86b1;
+        --nomi-outfit: #4da762;
+        --nomi-bottom: #254760;
+      }
+
+      .avatar[data-style="masculine"][data-state="heavy"] {
+        --jacket: #6f7d83;
+        --shirt: #d5a35d;
+        --pants: #4f4f6e;
+        --accent: #7d8790;
+        --nomi-body: #cfbd99;
+        --nomi-accent: #7d8790;
+        --nomi-bowl: #8496a1;
+        --nomi-outfit: #858f82;
+        --nomi-bottom: #5a6370;
+      }
+
+      .avatar[data-style="feminine"] .avatar-hair-feminine,
+      .avatar[data-style="feminine"] .avatar-skirt-feminine {
+        opacity: 1;
       }
 
       .avatar-status {
@@ -788,6 +1145,35 @@
         padding: 18px;
       }
 
+      .account-status {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+        padding: 10px;
+        border: 1px solid #dde8df;
+        border-radius: 8px;
+        background: #f7faf7;
+      }
+
+      .account-status small {
+        color: var(--muted);
+        line-height: 1.35;
+      }
+
+      .account-status small[data-kind="error"] {
+        color: #a93232;
+      }
+
+      .account-status small[data-kind="success"] {
+        color: #23683d;
+      }
+
+      .account-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
       .log-list {
         display: grid;
         gap: 10px;
@@ -796,7 +1182,7 @@
 
       .log-item {
         display: grid;
-        grid-template-columns: 64px minmax(0, 1fr) auto;
+        grid-template-columns: 64px minmax(0, 1fr) auto auto;
         align-items: start;
         gap: 12px;
         padding: 11px;
@@ -844,6 +1230,32 @@
         color: white;
         background: var(--leaf);
         font-weight: 850;
+      }
+
+      .delete-log {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: #7a4a3f;
+      }
+
+      .delete-log:hover {
+        border-color: #e5c9c2;
+        background: #fff1ee;
+      }
+
+      .delete-log:disabled {
+        cursor: wait;
+        opacity: 0.5;
+      }
+
+      .delete-log svg {
+        width: 17px;
+        height: 17px;
       }
 
       .empty-state {
@@ -901,6 +1313,45 @@
         border: 1px solid #b8c5bb;
         border-radius: 8px;
         padding: 0 12px;
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .segmented {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        padding: 4px;
+        border: 1px solid #cbd6cf;
+        border-radius: 8px;
+        background: #f5f8f5;
+      }
+
+      .segmented button {
+        min-height: 38px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 800;
+      }
+
+      .segmented button.is-selected {
+        background: white;
+        color: var(--ink);
+        box-shadow: 0 5px 14px rgba(23, 33, 29, 0.1);
+      }
+
+      .field-note {
+        display: block;
+        margin-top: -4px;
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.35;
       }
 
       .auth-actions {
@@ -986,6 +1437,10 @@
           grid-template-columns: 1fr;
         }
 
+        .score-strip {
+          margin-top: 8px;
+        }
+
         .avatar-status {
           position: static;
           max-width: none;
@@ -997,7 +1452,7 @@
   <body>
     <div class="site-shell">
       <header class="topbar">
-        <div class="brand" aria-label="PlatePoints">
+        <div class="brand" aria-label="FeedNomi">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <path d="M7 3v18" />
@@ -1008,20 +1463,20 @@
               <path d="M14 8h4" />
             </svg>
           </span>
-          <span>PlatePoints</span>
+          <span>FeedNomi</span>
         </div>
         <nav class="nav-actions" aria-label="Primary">
-          <a class="ghost-btn" href="#score-guide" style="display: inline-flex; align-items: center; text-decoration: none;">Point guide</a>
+          <a class="ghost-btn" href="#score-guide" style="display: inline-flex; align-items: center; text-decoration: none;">Score guide</a>
           <a class="primary-btn" href="#analyzer" style="text-decoration: none;">Analyze food</a>
         </nav>
       </header>
 
-      <section class="hero" aria-label="PlatePoints overview">
+      <section class="hero" aria-label="FeedNomi overview">
         <div class="hero-copy">
-          <p class="eyebrow">Photo in. Nutrition scored. Avatar reacts.</p>
-          <h1>PlatePoints</h1>
+          <p class="eyebrow">Snap a meal. Feed Nomi. Watch them grow.</p>
+          <h1>FeedNomi</h1>
           <p>
-            Snap a meal, get approximate nutrition facts and a food score, then watch your avatar adapt as your food log trends stronger or softer.
+            Snap a meal, get approximate nutrition facts and a food score, then feed Nomi and watch your little companion gain energy.
           </p>
           <div class="hero-actions">
             <a class="primary-btn" href="#analyzer">Start with a photo</a>
@@ -1038,7 +1493,7 @@
               <h2 id="score-title">Simple points, fast intuition.</h2>
             </div>
             <p>
-              High-fiber, nutrient-dense foods earn more. Desserts and fried snacks still log honestly, but they do not move the avatar toward peak form.
+              High-fiber, nutrient-dense foods earn more. Desserts and fried snacks still log honestly, but they feed Nomi differently.
             </p>
           </div>
           <div class="score-strip" aria-label="Sample food point values">
@@ -1051,8 +1506,8 @@
               <div class="food-body"><strong>Grilled chicken</strong><span class="points-pill">20 points</span></div>
             </article>
             <article class="food-card">
-              <div class="food-photo berries" role="img" aria-label="Berries"></div>
-              <div class="food-body"><strong>Berry bowl</strong><span class="points-pill">38 points</span></div>
+              <div class="food-photo berries" role="img" aria-label="Blueberries"></div>
+              <div class="food-body"><strong>Blueberries</strong><span class="points-pill">38 points</span></div>
             </article>
             <article class="food-card">
               <div class="food-photo pizza" role="img" aria-label="Pizza"></div>
@@ -1077,6 +1532,18 @@
             <div class="panel uploader">
               <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Choose or drop a food photo">
                 <img class="preview-image" id="previewImage" alt="" />
+                <svg class="plate-placeholder" viewBox="0 0 320 150" aria-hidden="true">
+                  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="160" cy="78" rx="66" ry="50" stroke-width="8" />
+                    <ellipse cx="160" cy="78" rx="38" ry="28" stroke-width="5" opacity="0.7" />
+                    <path d="M63 34 V124" stroke-width="7" />
+                    <path d="M45 35 V72" stroke-width="5" />
+                    <path d="M55 35 V72" stroke-width="5" />
+                    <path d="M71 35 V72" stroke-width="5" />
+                    <path d="M277 35 C258 56 258 86 276 124" stroke-width="7" />
+                    <path d="M260 35 C281 56 281 86 263 124" stroke-width="5" opacity="0.72" />
+                  </g>
+                </svg>
                 <span class="analysis-badge" id="analysisBadge">Analyzing selected photo</span>
                 <span class="drop-content">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1100,6 +1567,7 @@
 
               <div class="correction-panel" id="correctionPanel" aria-live="polite">
                 <strong>Not quite? Pick the closest match.</strong>
+                <p class="correction-summary" id="correctionSummary">Alternatives appear after analysis.</p>
                 <div class="correction-row" id="correctionOptions"></div>
                 <div class="custom-correct">
                   <input id="customCorrection" type="text" placeholder="Type the actual food, e.g. eggplant parmesan" />
@@ -1112,14 +1580,25 @@
                   <h4>Food identified</h4>
                   <div class="metric"><span>Item</span><strong id="foodName">Awaiting photo</strong></div>
                   <div class="metric"><span>Confidence</span><strong id="confidence">-</strong></div>
-                  <div class="metric"><span>Serving</span><strong id="servingSize">-</strong></div>
+                  <div class="metric"><span>Nutrition basis</span><strong id="servingSize">-</strong></div>
+                  <div class="metric"><span>Portion confidence</span><strong id="portionConfidence">-</strong></div>
                   <div class="metric"><span>Calories</span><strong id="calories">-</strong></div>
                 </article>
                 <article class="result-card">
-                  <h4>Nutrition facts</h4>
+                  <h4>Estimated nutrition</h4>
                   <div class="metric"><span>Protein</span><strong id="protein">-</strong></div>
                   <div class="metric"><span>Fiber</span><strong id="fiber">-</strong></div>
-                  <div class="metric"><span>Added sugar</span><strong id="sugar">-</strong></div>
+                  <div class="metric"><span id="sugarLabel">Sugar</span><strong id="sugar">-</strong></div>
+                  <div class="serving-editor" id="servingEditor" aria-label="Serving size editor">
+                    <label>Serving size</label>
+                    <div class="serving-options">
+                      <button type="button" data-serving-multiplier="0.5">0.5x</button>
+                      <button type="button" data-serving-multiplier="1" class="is-selected">1x</button>
+                      <button type="button" data-serving-multiplier="1.5">1.5x</button>
+                      <button type="button" data-serving-multiplier="2">2x</button>
+                    </div>
+                  </div>
+                  <p class="nutrition-note" id="nutritionBasisNote">Nutrition values will show the serving basis after analysis.</p>
                 </article>
                 <article class="result-card">
                   <h4>Why eat this</h4>
@@ -1128,65 +1607,109 @@
                 <article class="result-card">
                   <h4>Point value</h4>
                   <div class="metric"><span>Meal score</span><strong id="pointValue">0 points</strong></div>
-                  <div class="metric"><span>Avatar effect</span><strong id="avatarEffect">Neutral</strong></div>
+                  <div class="metric"><span>Calorie fit</span><strong id="calorieFit">Profile needed</strong></div>
+                  <div class="metric"><span>Nomi effect</span><strong id="avatarEffect">Neutral</strong></div>
                 </article>
               </div>
 
               <div class="save-row">
                 <span id="saveHint">Analyze a food before saving it to your profile.</span>
-                <button class="primary-btn" id="saveFood" type="button" disabled>Save to profile</button>
+                <button class="primary-btn" id="saveFood" type="button" disabled>Feed Nomi</button>
               </div>
             </div>
 
-            <aside class="profile-panel" aria-label="Profile and avatar">
+            <aside class="profile-panel" aria-label="Profile and Nomi">
               <section class="panel avatar-panel">
                 <div class="avatar-head">
                   <div>
-                    <h3>Your avatar</h3>
+                    <h3>Nomi</h3>
                     <span id="avatarLabel">Balanced beginner</span>
                   </div>
                   <strong id="totalPoints">0 pts</strong>
                 </div>
                 <div class="avatar-stage">
-                  <div class="avatar" id="avatar" data-state="lean" aria-label="Avatar body state">
+                  <div class="avatar" id="avatar" data-state="lean" data-style="neutral" aria-label="Nomi care state">
                     <svg viewBox="0 0 240 300" role="img" aria-hidden="true">
-                      <ellipse cx="120" cy="282" rx="72" ry="12" fill="rgba(23, 33, 29, 0.14)" />
-                      <path class="avatar-limb avatar-arm" d="M76 126 C54 145 48 180 56 214 C60 230 76 228 76 212 C74 184 82 158 96 140 Z" />
-                      <path class="avatar-limb avatar-arm" d="M164 126 C186 145 192 180 184 214 C180 230 164 228 164 212 C166 184 158 158 144 140 Z" />
-                      <circle class="avatar-hand avatar-shape" cx="64" cy="219" r="13" />
-                      <circle class="avatar-hand avatar-shape" cx="176" cy="219" r="13" />
-                      <path class="avatar-neck avatar-shape" d="M101 86 H139 V113 C139 124 101 124 101 113 Z" />
-                      <path class="avatar-shape avatar-torso" d="M78 118 C82 96 98 104 120 104 C142 104 158 96 162 118 C169 154 164 196 151 220 C141 238 99 238 89 220 C76 196 71 154 78 118 Z" />
-                      <g class="avatar-legs">
-                        <path class="avatar-shape avatar-short" d="M86 211 H119 V244 H83 C78 231 78 220 86 211 Z" />
-                        <path class="avatar-shape avatar-short" d="M121 211 H154 C162 220 162 231 157 244 H121 Z" />
-                        <path class="avatar-shape avatar-limb" d="M93 241 C91 258 91 268 93 280 H111 C115 264 116 252 116 241 Z" fill="var(--skin)" />
-                        <path class="avatar-shape avatar-limb" d="M124 241 C124 252 125 264 129 280 H147 C149 268 149 258 147 241 Z" fill="var(--skin)" />
+                      <ellipse cx="120" cy="274" rx="74" ry="13" fill="rgba(23, 33, 29, 0.13)" />
+                      <g class="avatar-aura" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round">
+                        <path d="M47 82 C37 66 39 50 54 38" />
+                        <path d="M191 88 C207 78 212 61 205 45" />
+                        <path d="M37 132 H55" />
+                        <path d="M183 35 H201" />
                       </g>
-                      <path class="avatar-shoe" d="M86 278 H116 C120 286 112 291 96 291 H82 C78 287 80 281 86 278 Z" />
-                      <path class="avatar-shoe" d="M124 278 H154 C160 281 162 287 158 291 H144 C128 291 120 286 124 278 Z" />
-                      <circle class="avatar-head-shape" cx="120" cy="62" r="42" />
-                      <path class="avatar-hair" d="M79 61 C82 29 103 16 128 20 C153 23 169 43 160 68 C144 58 124 49 95 55 C90 56 85 59 79 61 Z" />
-                      <circle class="avatar-eye" cx="105" cy="63" r="4" />
-                      <circle class="avatar-eye" cx="135" cy="63" r="4" />
-                      <circle class="avatar-cheek" cx="96" cy="76" r="8" />
-                      <circle class="avatar-cheek" cx="144" cy="76" r="8" />
-                      <path class="avatar-smile" d="M106 80 C114 89 126 89 134 80" />
-                      <path d="M98 139 C107 150 133 150 142 139" fill="none" stroke="rgba(255,255,255,0.54)" stroke-width="5" stroke-linecap="round" />
+                      <g class="avatar-spark" fill="none" stroke="#f1b94e" stroke-width="4.5" stroke-linecap="round">
+                        <path d="M68 44 L68 25" />
+                        <path d="M58 34 H78" />
+                        <path d="M176 65 L176 48" />
+                        <path d="M167 56 H185" />
+                        <path d="M199 137 L199 123" />
+                        <path d="M192 130 H206" />
+                      </g>
+                      <g class="avatar-body">
+                        <g class="avatar-arm-right">
+                          <path class="avatar-fill nomi-outfit" d="M154 129 C168 139 177 157 179 183 C180 198 173 207 163 207 C154 207 151 198 153 186 C155 169 149 154 138 146 C140 137 146 131 154 129 Z" />
+                          <circle class="avatar-fill nomi-body" cx="163" cy="209" r="9" />
+                        </g>
+                        <g class="avatar-arm-left">
+                          <path class="avatar-fill nomi-outfit" d="M86 129 C72 139 63 157 61 183 C60 198 67 207 77 207 C86 207 89 198 87 186 C85 169 91 154 102 146 C100 137 94 131 86 129 Z" />
+                          <circle class="avatar-fill nomi-body" cx="77" cy="209" r="9" />
+                        </g>
+                        <path class="avatar-fill nomi-bottom" d="M96 205 C106 211 114 213 120 213 C126 213 134 211 144 205 L140 249 H128 L120 220 L112 249 H100 Z" />
+                        <path class="avatar-fill nomi-body" d="M107 101 H133 V126 C133 135 107 135 107 126 Z" />
+                        <path class="avatar-fill nomi-outfit" d="M90 136 C96 121 108 115 120 116 C132 115 144 121 150 136 C155 158 152 187 144 205 C136 214 104 214 96 205 C88 187 85 158 90 136 Z" />
+                        <g class="avatar-head-group">
+                          <path class="avatar-fill nomi-sprout" d="M113 39 C106 27 109 18 120 10 C125 23 123 34 113 39 Z" />
+                          <path class="avatar-fill nomi-sprout" d="M127 42 C135 29 148 24 161 29 C152 41 140 46 127 42 Z" />
+                          <path class="avatar-fill avatar-hair-feminine nomi-hair" d="M80 61 C72 86 75 116 91 134 C101 145 111 139 113 126 C100 116 96 101 98 82 C92 78 86 70 80 61 Z" />
+                          <path class="avatar-fill avatar-hair-feminine nomi-hair" d="M160 61 C168 86 165 116 149 134 C139 145 129 139 127 126 C140 116 144 101 142 82 C148 78 154 70 160 61 Z" />
+                          <path class="avatar-fill nomi-body" d="M78 68 C78 40 96 23 120 23 C144 23 162 40 162 68 C162 96 144 115 120 115 C96 115 78 96 78 68 Z" />
+                          <path class="avatar-fill nomi-hair" d="M79 66 C80 39 99 20 125 21 C151 22 165 42 162 68 C146 59 132 54 112 55 C99 56 89 60 79 66 Z" />
+                          <path class="avatar-fill nomi-hair" d="M89 54 C98 39 116 32 139 35 C127 43 112 47 95 61 Z" />
+                          <path class="avatar-brow" d="M97 65 C102 61 108 61 113 65" fill="none" />
+                          <path class="avatar-brow" d="M127 65 C132 61 138 61 143 65" fill="none" />
+                          <path class="avatar-eye" d="M103 78 H109" fill="none" />
+                          <path class="avatar-eye" d="M132 78 H138" fill="none" />
+                          <circle class="avatar-cheek" cx="94" cy="88" r="7" />
+                          <circle class="avatar-cheek" cx="146" cy="88" r="7" />
+                          <path class="avatar-smile" d="M106 94 C114 102 126 102 134 94" />
+                          <path class="avatar-tired-mouth" d="M108 98 C116 93 124 93 132 98" />
+                          <path class="avatar-focus-mouth" d="M111 96 H129" />
+                        </g>
+                        <g class="avatar-leg-left">
+                          <path class="avatar-fill nomi-body" d="M96 250 C94 260 94 268 96 276 H111 C114 263 115 254 112 250 Z" />
+                          <path class="avatar-fill nomi-belly" d="M87 273 H116 C121 280 113 287 97 287 H82 C79 283 81 277 87 273 Z" />
+                        </g>
+                        <g class="avatar-leg-right">
+                          <path class="avatar-fill nomi-body" d="M128 250 C125 254 126 263 129 276 H144 C146 268 146 260 144 250 Z" />
+                          <path class="avatar-fill nomi-belly" d="M124 273 H153 C159 277 161 283 157 287 H142 C127 287 119 280 124 273 Z" />
+                        </g>
+                        <g class="avatar-badge">
+                          <circle cx="167" cy="107" r="13" fill="#f1b94e" stroke="currentColor" stroke-width="4.5" />
+                          <path d="M161 107 L166 112 L175 101" fill="none" stroke="#17211d" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </g>
+                      </g>
                     </svg>
                   </div>
                   <div class="avatar-status" id="avatarStatus">
-                    Save higher-point meals to build a stronger avatar.
+                    Feed Nomi balanced meals to build energy.
                   </div>
                 </div>
                 <div class="score-meter" aria-label="Avatar progress meter">
                   <div class="meter-track"><div class="meter-fill" id="meterFill"></div></div>
-                  <span id="meterText">0 / 160 weekly points</span>
+                  <span id="meterText">0 points this week</span>
                 </div>
               </section>
 
-              <section class="panel log-panel">
+              <section class="panel log-panel" id="food-log">
                 <h3>Food log</h3>
+                <div class="account-status" aria-live="polite">
+                  <small id="authStatus">Checking account connection...</small>
+                  <div class="account-actions">
+                    <button class="text-btn" id="editProfile" type="button">Edit profile</button>
+                    <button class="text-btn" id="refreshLog" type="button">Refresh log</button>
+                    <button class="text-btn" id="signOut" type="button">Sign out</button>
+                  </div>
+                </div>
                 <div class="log-list" id="logList">
                   <p class="empty-state">No saved meals yet. Your first save will ask for email or Google sign on.</p>
                 </div>
@@ -1219,6 +1742,56 @@
       </div>
     </div>
 
+    <div class="auth-modal" id="setupModal" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+      <div class="auth-card">
+        <h3 id="setupTitle">Quick setup</h3>
+        <p>Help us estimate your daily energy target. We start balanced, and you can tune this later.</p>
+        <div class="field-grid">
+          <div class="auth-field">
+            <label for="profileAge">Age</label>
+            <input id="profileAge" type="number" inputmode="numeric" min="13" max="100" placeholder="34" />
+          </div>
+          <div class="auth-field">
+            <label>Height</label>
+            <div class="field-grid">
+              <input id="profileHeightFeet" type="number" inputmode="numeric" min="3" max="8" placeholder="ft" aria-label="Height feet" />
+              <input id="profileHeightInches" type="number" inputmode="numeric" min="0" max="11" placeholder="in" aria-label="Height inches" />
+            </div>
+          </div>
+        </div>
+        <div class="auth-field">
+          <label>Sex used for calorie estimate</label>
+          <div class="segmented" id="sexEstimate">
+            <button type="button" data-sex="neutral" class="is-selected">Neutral</button>
+            <button type="button" data-sex="female">Female</button>
+            <button type="button" data-sex="male">Male</button>
+          </div>
+          <small class="field-note">This only affects the calorie estimate. Neutral uses a midpoint.</small>
+        </div>
+        <div class="auth-field">
+            <label>Nomi style</label>
+          <div class="segmented" id="avatarStyle">
+            <button type="button" data-avatar-style="neutral" class="is-selected">Neutral</button>
+            <button type="button" data-avatar-style="feminine">Feminine</button>
+            <button type="button" data-avatar-style="masculine">Masculine</button>
+          </div>
+          <small class="field-note">Defaults can follow the calorie estimate, but you can choose any Nomi style.</small>
+        </div>
+        <div class="auth-field">
+          <label for="profileWeight">Estimated starting weight</label>
+          <input id="profileWeight" type="number" inputmode="decimal" min="60" max="700" placeholder="Auto-suggested" />
+          <small class="field-note" id="weightHint">Enter height to suggest a starting weight. Edit if needed.</small>
+        </div>
+        <div class="auth-actions">
+          <button class="primary-btn" id="saveSetup" type="button">Save setup</button>
+        </div>
+        <div class="modal-row">
+          <small id="setupNote">Used for calorie fit later, not shown publicly.</small>
+          <button class="text-btn" id="skipSetup" type="button">Skip for now</button>
+        </div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
       const foods = {
@@ -1247,7 +1820,7 @@
           imagePosition: "30% 72%"
         },
         berries: {
-          name: "Berry bowl",
+          name: "Blueberries",
           serving: "1.25 cups",
           calories: 105,
           protein: "2 g",
@@ -1345,7 +1918,17 @@
       };
 
       const fallbackOrder = ["broccoli", "chicken", "berries", "oatmeal", "pasta", "eggplant_parmesan", "chicken_parmesan", "pizza", "cake", "mixed"];
+      const samplePhotos = {
+        broccoli: "assets/score-broccoli.jpg",
+        chicken: "assets/score-chicken.jpg",
+        berries: "assets/score-blueberries.jpg",
+        pizza: "assets/score-pizza.jpg",
+        cake: "assets/score-cake.jpg"
+      };
       const pendingSaveKey = "platepointsPendingSave";
+      const authReturnHashKey = "platepointsAuthReturnHash";
+      const profileKey = "platepointsProfile";
+      const debugUsda = new URLSearchParams(window.location.search).get("debugUsda") === "1";
       const state = {
         analyzed: null,
         currentPhotoDataUrl: "",
@@ -1356,7 +1939,12 @@
         supabaseConfig: null,
         session: null,
         savingPending: false,
+        usdaCandidates: [],
+        selectedSex: "neutral",
+        selectedAvatarStyle: "neutral",
+        setupMode: "setup",
         user: localStorage.getItem("platepointsUser") || "",
+        profile: JSON.parse(localStorage.getItem("platepointsProfile") || "null"),
         log: JSON.parse(localStorage.getItem("platepointsLog") || "[]")
       };
 
@@ -1367,6 +1955,7 @@
       const previewImage = $("#previewImage");
       const analysisBadge = $("#analysisBadge");
       const authModal = $("#authModal");
+      const setupModal = $("#setupModal");
       const correctionPanel = $("#correctionPanel");
       const correctionOptions = $("#correctionOptions");
       const customCorrection = $("#customCorrection");
@@ -1405,10 +1994,13 @@
         $("#foodName").textContent = message;
         $("#servingSize").textContent = "Scanning image";
         $("#confidence").textContent = "-";
+        $("#portionConfidence").textContent = "Estimating";
         $("#calories").textContent = "-";
         $("#protein").textContent = "-";
         $("#fiber").textContent = "-";
+        $("#sugarLabel").textContent = "Sugar";
         $("#sugar").textContent = "-";
+        $("#nutritionBasisNote").textContent = "Estimating the USDA serving basis from the photo.";
         $("#whyEat").textContent = "Reading the uploaded image and estimating the most likely food category.";
         $("#pointValue").textContent = "Analyzing";
         $("#avatarEffect").textContent = "Pending";
@@ -1416,37 +2008,197 @@
         $("#saveHint").textContent = "Analyzing photo before it can be saved.";
       }
 
-      function analyzeFood(key, note = "") {
+      async function analyzeFood(key, note = "") {
+        if (debugUsda) {
+          $("#saveHint").textContent = `Debug USDA mode: looking up ${foods[key]?.name || key}...`;
+          try {
+            const food = await lookupManualCorrection(key, foods[key]?.name || key);
+            applyNutritionResult(food, "Debug USDA sample lookup.");
+            return;
+          } catch (error) {
+            $("#saveHint").textContent = `Debug USDA lookup failed: ${error.message}`;
+          }
+        }
         const food = { ...foods[key], key, confidence: 1, alternatives: [] };
         applyNutritionResult(food, note || "Sample food selected from the guide.");
       }
 
       function applyNutritionResult(food, note = "") {
+        food = prepareServingEditableFood(food);
         state.analyzed = food;
+        updateServingControls(food.servingMultiplier || 1);
         $("#foodName").textContent = food.name;
         $("#confidence").textContent = food.confidence ? `${Math.round(food.confidence * 100)}%` : "-";
         $("#servingSize").textContent = food.serving;
+        $("#portionConfidence").textContent = food.portionConfidence || portionConfidenceText(food);
         $("#calories").textContent = typeof food.calories === "number" ? `${food.calories} kcal` : food.calories;
         $("#protein").textContent = food.protein;
         $("#fiber").textContent = food.fiber;
+        $("#sugarLabel").textContent = sugarLabelText(food);
         $("#sugar").textContent = food.sugar;
+        $("#nutritionBasisNote").textContent = nutritionBasisText(food);
         $("#whyEat").textContent = formatWhyText(food);
         $("#pointValue").textContent = `${food.points || 0} points`;
+        $("#calorieFit").textContent = calorieFitText(food);
         $("#avatarEffect").textContent = food.effect;
         const loggable = food.loggable !== false;
         $("#saveFood").disabled = !loggable;
         $("#saveHint").textContent = loggable
           ? (state.user ? `Signed in as ${state.user}. Ready to save.` : "Create an account to save this analysis to your profile.")
-          : (food.name === "Analysis unavailable" ? "Connect the vision/database pipeline before saving uploaded food." : "No loggable food detected. Choose another photo.");
-        if (loggable) {
+          : (food.nutritionUnavailable ? "No reliable USDA nutrition match was found, so this result cannot be saved yet." : (food.name === "Analysis unavailable" ? "Connect the vision/database pipeline before saving uploaded food." : "No loggable food detected. Choose another photo."));
+        if (loggable || food.nutritionUnavailable) {
           previewUnsaved(food.points);
           renderCorrections(food);
         } else {
-          setAvatar(getTotalPoints());
+          setAvatar(getWeeklyPoints());
           correctionPanel.classList.remove("is-visible");
           correctionOptions.innerHTML = "";
         }
         setAnalysisBadge("Analysis complete", true);
+      }
+
+      function prepareServingEditableFood(food) {
+        const prepared = { ...food };
+        const base = food.baseNutrition || {
+          serving: food.serving || "estimated serving",
+          calories: numberFromValue(food.calories, 0),
+          protein: numberFromValue(food.protein, 0),
+          fiber: numberFromValue(food.fiber, 0),
+          sugar: numberFromValue(food.sugar, 0),
+          naturalSugar: Number(food.naturalSugar || 0),
+          addedSugar: Number(food.addedSugar || 0),
+          unknownSugar: Number(food.unknownSugar || 0),
+          points: numberFromValue(food.points, 0)
+        };
+        prepared.baseNutrition = base;
+        prepared.servingMultiplier = Number(food.servingMultiplier || 1);
+        return rescaleServing(prepared, prepared.servingMultiplier, false);
+      }
+
+      function rescaleServing(food, multiplier, updateUi = true) {
+        const next = { ...food, servingMultiplier: multiplier };
+        const base = next.baseNutrition || prepareServingEditableFood(food).baseNutrition;
+        next.baseNutrition = base;
+        next.serving = multiplier === 1 ? base.serving : `${formatMultiplier(multiplier)} x ${base.serving}`;
+        next.calories = Math.round(base.calories * multiplier);
+        next.protein = formatGrams(base.protein * multiplier);
+        next.fiber = formatGrams(base.fiber * multiplier);
+        next.sugar = formatGrams(base.sugar * multiplier);
+        next.naturalSugar = roundOne(base.naturalSugar * multiplier);
+        next.addedSugar = roundOne(base.addedSugar * multiplier);
+        next.unknownSugar = roundOne(base.unknownSugar * multiplier);
+        next.points = calculateClientPoints(next);
+        next.effect = effectForPoints(next.points);
+        if (Array.isArray(next.components)) {
+          next.components = next.components.map((component) => ({ ...component }));
+        }
+        if (updateUi) {
+          state.analyzed = next;
+          updateServingControls(multiplier);
+          renderAnalyzedValues(next);
+          previewUnsaved(next.points);
+        }
+        return next;
+      }
+
+      function renderAnalyzedValues(food) {
+        $("#servingSize").textContent = food.serving;
+        $("#calories").textContent = `${food.calories} kcal`;
+        $("#protein").textContent = food.protein;
+        $("#fiber").textContent = food.fiber;
+        $("#sugarLabel").textContent = sugarLabelText(food);
+        $("#sugar").textContent = food.sugar;
+        $("#nutritionBasisNote").textContent = nutritionBasisText(food);
+        $("#pointValue").textContent = `${food.points || 0} points`;
+        $("#calorieFit").textContent = calorieFitText(food);
+        $("#avatarEffect").textContent = food.effect;
+      }
+
+      function updateServingControls(multiplier) {
+        document.querySelectorAll("[data-serving-multiplier]").forEach((button) => {
+          button.classList.toggle("is-selected", Number(button.dataset.servingMultiplier) === multiplier);
+        });
+      }
+
+      function formatMultiplier(value) {
+        return Number.isInteger(value) ? `${value}` : `${value}`;
+      }
+
+      function roundOne(value) {
+        return Math.round((Number(value) || 0) * 10) / 10;
+      }
+
+      function formatGrams(value) {
+        const rounded = roundOne(value);
+        return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} g`;
+      }
+
+      function calculateClientPoints(food) {
+        const protein = numberFromValue(food.protein, 0);
+        const fiber = numberFromValue(food.fiber, 0);
+        const sugar = numberFromValue(food.sugar, 0);
+        const calories = numberFromValue(food.calories, 0);
+        const components = food.components || [];
+        const producePortion = components.reduce((sum, component) => {
+          return sum + (component.role === "fruit_veg" ? Number(component.portion || 0) : 0);
+        }, 0);
+        const hasProduce = producePortion > 0;
+        const naturalSugar = Number(food.naturalSugar || (hasProduce ? sugar : 0));
+        const addedSugar = Number(food.addedSugar || 0);
+        const unknownSugar = Number(food.unknownSugar || Math.max(0, sugar - naturalSugar - addedSugar));
+        const sugarPenalty = addedSugar * 0.8 + unknownSugar * 0.45 + naturalSugar * 0.15;
+        const produceBonus = hasProduce ? Math.min(10, 6 + producePortion * 6) : 0;
+        const score = 18 + protein * 0.4 + fiber * 3 + produceBonus + calorieFitAdjustment(calories) - sugarPenalty - maxCaloriePenalty(calories);
+        return Math.max(1, Math.min(50, Math.round(score)));
+      }
+
+      function maxCaloriePenalty(calories) {
+        const target = getProfileTargets();
+        if (target) {
+          return Math.max(0, calories - target.mealHigh) * 0.025;
+        }
+        return Math.max(0, calories - 350) * 0.025;
+      }
+
+      function calorieFitAdjustment(calories) {
+        const target = getProfileTargets();
+        if (!target) return 0;
+        if (calories >= target.mealLow && calories <= target.mealHigh) return 4;
+        if (calories >= target.lightLow && calories <= target.largeHigh) return 1;
+        if (calories < target.lightLow) return -1;
+        return -6;
+      }
+
+      function calorieFitText(food) {
+        const calories = numberFromValue(food.calories, 0);
+        const target = getProfileTargets();
+        if (!target) return "Set up profile";
+        if (calories >= target.mealLow && calories <= target.mealHigh) {
+          return `On target (${target.mealLow}-${target.mealHigh} kcal)`;
+        }
+        if (calories < target.lightLow) return `Light vs target (${target.mealLow}-${target.mealHigh} kcal)`;
+        if (calories <= target.largeHigh) return `Near target (${target.mealLow}-${target.mealHigh} kcal)`;
+        return `High vs target (${target.mealLow}-${target.mealHigh} kcal)`;
+      }
+
+      function getProfileTargets() {
+        if (!state.profile || state.profile.skipped) return null;
+        const dailyCalories = Number(state.profile.dailyCalories || (state.profile.bmr ? Math.round(state.profile.bmr * 1.35) : 0));
+        if (!dailyCalories) return null;
+        return {
+          dailyCalories,
+          lightLow: Math.round(dailyCalories * 0.08),
+          mealLow: Math.round(dailyCalories * 0.2),
+          mealHigh: Math.round(dailyCalories * 0.35),
+          largeHigh: Math.round(dailyCalories * 0.45)
+        };
+      }
+
+      function effectForPoints(points) {
+        if (points >= 38) return "Strong lean gain";
+        if (points >= 18) return "Balanced shift";
+        if (points >= 8) return "Softness gain";
+        return "Chubby shift";
       }
 
       function formatWhyText(food) {
@@ -1456,39 +2208,82 @@
             .slice(0, 4)
             .map((item) => `${item.name}: ${item.why}.`);
           if (componentReasons.length) {
-            return `${componentReasons.join(" ")} Together, these choices determine the overall PlatePoints score.`;
+            return `${componentReasons.join(" ")} Together, these choices determine the overall FeedNomi score.`;
           }
         }
         return food.why;
       }
 
+      function nutritionBasisText(food) {
+        const serving = food.serving && food.serving !== "-" ? food.serving : "the estimated serving";
+        const source = food.nutritionProvider || food.databaseSource || "";
+        if (food.nutritionUnavailable || source.includes("unavailable")) {
+          return "No reliable USDA nutrition match was found, so calories, macros, points, and saving are disabled for this result.";
+        }
+        const sourceText = source.includes("USDA") ? "USDA FoodData Central" : (source || "the nutrition database");
+        return `Values are estimated for ${serving}. Nutrition data is from ${sourceText}. Include a quarter, credit card, fork, or standard plate in the photo to improve serving-size accuracy.`;
+      }
+
+      function sugarLabelText(food) {
+        const added = Number(food.addedSugar || 0);
+        const natural = Number(food.naturalSugar || 0);
+        if (natural > 0 && added <= 0) return "Natural sugar";
+        if (added > 0 && natural <= 0) return "Added sugar";
+        if (added > 0 && natural > 0) return "Total sugar";
+        return "Sugar";
+      }
+
+      function portionConfidenceText(food) {
+        if (!food.confidence) return "-";
+        if (food.components && food.components.length > 3) return "Low - complex mixed meal";
+        if (food.confidence >= 0.82) return "Medium - clear food, visual serving estimate";
+        if (food.confidence >= 0.58) return "Low-medium - visual serving estimate";
+        return "Low - adjust serving size when available";
+      }
+
       function renderCorrections(food) {
         const options = [];
+        const candidateRows = Array.isArray(food.usdaCandidates) ? food.usdaCandidates : [];
+        const usdaCandidates = (debugUsda || food.nutritionUnavailable) ? candidateRows : [];
+        state.usdaCandidates = usdaCandidates;
+        const currentName = food.name || "this food";
+        const currentConfidence = food.confidence ? `${Math.round(food.confidence * 100)}% confidence` : "unknown confidence";
         if (food.alternatives) {
           options.push(...food.alternatives.map((item) => ({
             key: item.key,
             name: item.name,
-            confidence: item.confidence
+            confidence: item.confidence,
+            source: item.source || "Vision alternative"
           })));
         }
 
-        const usefulDefaults = ["eggplant_parmesan", "chicken_parmesan", "mixed"];
-        usefulDefaults.forEach((key) => {
-          if (foods[key] && food.key !== key && !options.some((item) => item.key === key)) {
-            options.push({ key, name: foods[key].name, confidence: 0 });
-          }
-        });
-
-        if (!options.length) {
+        if (!food || (food.loggable === false && !food.nutritionUnavailable && !usdaCandidates.length)) {
           correctionPanel.classList.remove("is-visible");
           correctionOptions.innerHTML = "";
           return;
         }
 
-        correctionOptions.innerHTML = options.slice(0, 6).map((item) => {
-          const confidence = item.confidence ? ` ${Math.round(item.confidence * 100)}%` : "";
-          return `<button type="button" data-correction="${item.key}" data-label="${escapeHtml(item.name)}">${escapeHtml(item.name)}${confidence}</button>`;
+        $("#correctionSummary").textContent = usdaCandidates.length
+          ? `Current guess: ${currentName} (${currentConfidence}). Choose a USDA nutrition row, or type a different food.`
+          : options.length
+          ? `Current guess: ${currentName} (${currentConfidence}). Choosing a match re-runs nutrition lookup before saving.`
+          : `Current guess: ${currentName} (${currentConfidence}). Type a correction if this is not right.`;
+        const foodOptionHtml = options.slice(0, 6).map((item) => {
+          const confidence = item.source === "Similar dish" ? item.source : (item.confidence ? `${Math.round(item.confidence * 100)}% confidence` : item.source);
+          return `<button type="button" data-correction="${item.key}" data-label="${escapeHtml(item.name)}"><span>${escapeHtml(item.name)}</span><span class="correction-confidence">${escapeHtml(confidence)}</span></button>`;
         }).join("");
+        const usdaOptionHtml = usdaCandidates.length
+          ? `<div class="correction-subhead">Choose nutrition source</div>${usdaCandidates.slice(0, 6).map((item, index) => {
+              const macros = [
+                item.calories != null ? `${Math.round(item.calories)} kcal` : "",
+                item.protein != null ? `${Math.round(item.protein)}g protein` : "",
+                item.fiber != null ? `${Math.round(item.fiber)}g fiber` : ""
+              ].filter(Boolean).join(" · ");
+              const status = item.rejectedReason ? "Needs review" : "Suggested";
+              return `<button type="button" data-usda-index="${index}"><span>${escapeHtml(item.description || "USDA food row")}</span><span class="correction-confidence">${escapeHtml(`${macros ? `${macros} · ` : ""}${status}`)}</span></button>`;
+            }).join("")}`
+          : "";
+        correctionOptions.innerHTML = `${foodOptionHtml}${usdaOptionHtml}`;
         correctionPanel.classList.add("is-visible");
       }
 
@@ -1504,7 +2299,7 @@
         const response = await fetch("/manual-correction", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key, label })
+          body: JSON.stringify({ key, label, debugUsda })
         });
         if (!response.ok) {
           let message = "Manual correction failed.";
@@ -1519,12 +2314,55 @@
         return response.json();
       }
 
+      async function selectUsdaCandidate(index) {
+        const candidate = state.usdaCandidates[index];
+        if (!candidate || !state.analyzed) return;
+        const label = state.analyzed.correctionLabel || state.analyzed.name || candidate.description || "Selected food";
+        $("#saveFood").disabled = true;
+        $("#saveHint").textContent = `Applying USDA row: ${candidate.description || "selected row"}...`;
+        const response = await fetch("/select-usda", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: state.analyzed.key || normalizeFoodName(label),
+            label,
+            role: state.analyzed.components && state.analyzed.components[0] ? state.analyzed.components[0].role : "",
+            nutrientRole: state.analyzed.components && state.analyzed.components[0] ? state.analyzed.components[0].nutrientRole : "",
+            candidate
+          })
+        });
+        if (!response.ok) {
+          let message = "USDA row could not be applied.";
+          try {
+            const payload = await response.json();
+            message = payload.error || payload.details || message;
+          } catch (error) {
+            message = response.statusText || message;
+          }
+          throw new Error(message);
+        }
+        const selected = await response.json();
+        selected.corrected = true;
+        selected.correctionLabel = label;
+        applyNutritionResult(selected, "USDA nutrition row selected by user.");
+        $("#saveHint").textContent = `Using USDA row: ${candidate.description || "selected row"}. Save it when ready.`;
+      }
+
       async function applyCorrection(key, label = "") {
         const correctionLabel = label || (foods[key] ? foods[key].name : key);
+        const previous = state.analyzed ? {
+          name: state.analyzed.name,
+          key: state.analyzed.key || "",
+          confidence: state.analyzed.confidence || 0
+        } : null;
         $("#saveFood").disabled = true;
         $("#saveHint").textContent = `Looking up ${correctionLabel}...`;
         try {
           const corrected = await lookupManualCorrection(key, correctionLabel);
+          corrected.corrected = true;
+          corrected.correctedFrom = previous;
+          corrected.correctionLabel = correctionLabel;
+          corrected.why = `${corrected.why || ""} This result was corrected by the user and nutrition was looked up again.`.trim();
           applyNutritionResult(corrected, "Corrected by user after photo analysis.");
           $("#saveHint").textContent = corrected.loggable === false
             ? "Could not look up that correction."
@@ -1591,7 +2429,8 @@
             sourceFormat: file.type || file.name.split(".").pop() || "image",
             converted,
             signals,
-            imageDataUrl
+            imageDataUrl,
+            debugUsda
           })
         });
 
@@ -1616,6 +2455,18 @@
           image.onerror = () => reject(new Error("This browser could not decode the image."));
           image.src = dataUrl;
         });
+      }
+
+      async function imageUrlToDataUrl(url, maxSize = 760) {
+        if (!url) return "";
+        const image = await loadImage(url);
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL("image/jpeg", 0.78);
       }
 
       function getPhotoSignals(image) {
@@ -1843,73 +2694,104 @@
       }
 
       function previewUnsaved(points) {
-        const total = getTotalPoints() + points;
-        setAvatar(total, true);
+        const weeklyTotal = getWeeklyPoints() + points;
+        setAvatar(weeklyTotal, true);
+        $("#totalPoints").textContent = `${getTotalPoints()} pts`;
       }
 
       function getTotalPoints() {
         return state.log.reduce((sum, item) => sum + item.points, 0);
       }
 
-      function setAvatar(total, preview = false) {
+      function getWeeklyPoints() {
+        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        return state.log.reduce((sum, item) => {
+          const timestamp = Date.parse(item.savedAt || item.created_at || "");
+          if (!Number.isFinite(timestamp) || timestamp < weekAgo) return sum;
+          return sum + Number(item.points || 0);
+        }, 0);
+      }
+
+      function setAvatar(weeklyTotal, preview = false) {
         const avatar = $("#avatar");
-        const bounded = Math.min(total, 160);
+        applyAvatarStyle(state.profile?.avatarStyle || avatarStyleFromSex(state.profile?.sex || state.selectedSex));
+        const bounded = Math.min(weeklyTotal, 160);
         const percent = Math.max(7, Math.round((bounded / 160) * 100));
         $("#meterFill").style.width = `${percent}%`;
-        $("#meterText").textContent = `${bounded} / 160 weekly points${preview ? " with current plate" : ""}`;
-        $("#totalPoints").textContent = `${total} pts`;
+        $("#meterText").textContent = `${weeklyTotal} points this week${preview ? " with current plate" : ""}`;
+        $("#totalPoints").textContent = `${getTotalPoints()} pts`;
 
-        if (total < 12) {
+        if (weeklyTotal < 12) {
           avatar.dataset.state = "heavy";
-          $("#avatarLabel").textContent = "Soft start";
+          $("#avatarLabel").textContent = "Resting Nomi";
           $("#avatarStatus").textContent = preview
-            ? "This plate would keep the avatar in treat-mode."
-            : "Low-scoring meals make the avatar look softer.";
-        } else if (total < 80) {
+            ? "This meal keeps Nomi in a low-energy zone."
+            : "Feed Nomi a few balanced meals to wake them up.";
+        } else if (weeklyTotal < 80) {
           avatar.dataset.state = "lean";
-          $("#avatarLabel").textContent = "Balanced beginner";
+          $("#avatarLabel").textContent = "Balanced Nomi";
           $("#avatarStatus").textContent = preview
-            ? "This plate nudges the avatar toward a leaner look."
-            : "Keep logging balanced meals to build momentum.";
+            ? "This meal gives Nomi a little momentum."
+            : "Keep feeding Nomi balanced meals to build momentum.";
         } else {
           avatar.dataset.state = "fit";
-          $("#avatarLabel").textContent = "Fit streak";
+          $("#avatarLabel").textContent = "Energized Nomi";
           $("#avatarStatus").textContent = preview
-            ? "Nice. This plate would add visible strength."
-            : "High-point meals have built a visibly stronger avatar.";
+            ? "Nice. This meal powers Nomi up."
+            : "Balanced meals have Nomi glowing this week.";
         }
+      }
+
+      function setAuthStatus(message, kind = "info") {
+        const status = $("#authStatus");
+        status.textContent = message;
+        status.dataset.kind = kind;
       }
 
       function renderLog() {
         const logList = $("#logList");
         if (!state.log.length) {
-          logList.innerHTML = '<p class="empty-state">No saved meals yet. Your first save will ask for email or Google sign on.</p>';
+          logList.innerHTML = `<p class="empty-state">${state.session ? "No saved meals for this account yet." : "No saved meals yet. Your first save will ask for email or Google sign on."}</p>`;
         } else {
           logList.innerHTML = state.log
-            .map(
-              (item) => `
+            .map((item, index) => {
+              const deleteId = item.id ? escapeHtml(item.id) : "";
+              const photo = item.photo ? `<img class="log-thumb" src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name)}" />` : '<div class="log-thumb" aria-hidden="true"></div>';
+              return `
                 <div class="log-item">
-                  ${item.photo ? `<img class="log-thumb" src="${item.photo}" alt="${item.name}" />` : '<div class="log-thumb" aria-hidden="true"></div>'}
+                  ${photo}
                   <div>
-                    <strong>${item.name}</strong>
-                    <span>${item.serving}</span>
+                    <strong>${escapeHtml(item.name)}</strong>
+                    <span>${escapeHtml(item.serving)}</span>
                     <div class="log-metrics">
-                      <span>${item.calories} kcal</span>
-                      <span>${item.protein || "-"}</span>
-                      <span>${item.fiber || "-"}</span>
-                      <span>${item.sugar || "-"}</span>
+                      <span>${escapeHtml(item.calories)} kcal</span>
+                      <span>${escapeHtml(item.protein || "-")}</span>
+                      <span>${escapeHtml(item.fiber || "-")}</span>
+                      <span>${escapeHtml(item.sugar || "-")}</span>
                     </div>
                   </div>
-                  <span class="point-badge">${item.points}</span>
+                  <span class="point-badge">${escapeHtml(item.points)}</span>
+                  <button class="delete-log" type="button" data-delete-id="${deleteId}" data-delete-index="${index}" aria-label="Delete ${escapeHtml(item.name)}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M6 6l1 15h10l1-15" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                  </button>
                 </div>
-              `
-            )
+              `;
+            })
             .join("");
         }
-        setAvatar(getTotalPoints());
+        setAvatar(getWeeklyPoints());
       }
 
       function normalizeLogRow(row) {
+        const nutrition = row.nutrition || {};
+        const rawPhoto = row.photo_url || row.photo || "";
+        const photoIsPublicUrl = isPublicPhotoUrl(rawPhoto);
         return {
           id: row.id,
           name: row.name || row.identified_food || "Saved meal",
@@ -1920,18 +2802,170 @@
           sugar: row.sugar || "-",
           points: Number(row.points || 0),
           confidence: row.confidence || 0,
-          photo: row.photo_url || row.photo || "",
-          savedAt: row.created_at || row.savedAt || new Date().toISOString()
+          photo: photoIsPublicUrl ? rawPhoto : "",
+          photoPath: photoIsPublicUrl ? "" : rawPhoto,
+          savedAt: row.created_at || row.savedAt || new Date().toISOString(),
+          nutrition,
+          sourceMatch: nutrition.sourceMatch || row.sourceMatch || "",
+          portionConfidence: nutrition.portionConfidence || row.portionConfidence || "",
+          servingMultiplier: nutrition.servingMultiplier || row.servingMultiplier || 1,
+          corrected: Boolean(nutrition.corrected || row.corrected),
+          correctedFrom: nutrition.correctedFrom || row.correctedFrom || null,
+          correctionLabel: nutrition.correctionLabel || row.correctionLabel || "",
+          calorieFit: nutrition.calorieFit || row.calorieFit || "",
+          dailyCalorieTarget: nutrition.dailyCalorieTarget || row.dailyCalorieTarget || null
         };
+      }
+
+      function numberFromValue(value, fallback = 0) {
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+        const parsed = Number.parseFloat(String(value || "").replace(/,/g, ""));
+        return Number.isFinite(parsed) ? parsed : fallback;
+      }
+
+      function parseHeightToInches(value = "") {
+        const text = String(value).trim().toLowerCase();
+        if (!text) return 0;
+        const feetMatch = text.match(/(\d+)\s*(?:'|ft|feet)\s*(\d+)?/);
+        if (feetMatch) {
+          return Number(feetMatch[1]) * 12 + Number(feetMatch[2] || 0);
+        }
+        const inchMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:in|inches|")/);
+        if (inchMatch) return Number(inchMatch[1]);
+        const cmMatch = text.match(/(\d+(?:\.\d+)?)\s*cm/);
+        if (cmMatch) return Number(cmMatch[1]) / 2.54;
+        const numeric = Number.parseFloat(text);
+        if (!Number.isFinite(numeric)) return 0;
+        return numeric > 95 ? numeric / 2.54 : numeric;
+      }
+
+      function getHeightInches() {
+        const feet = Number.parseInt($("#profileHeightFeet").value, 10) || 0;
+        const inches = Number.parseInt($("#profileHeightInches").value, 10) || 0;
+        return feet * 12 + inches;
+      }
+
+      function avatarStyleFromSex(sex) {
+        if (sex === "female") return "feminine";
+        if (sex === "male") return "masculine";
+        return "neutral";
+      }
+
+      function applyAvatarStyle(style = "neutral") {
+        const allowed = ["neutral", "feminine", "masculine"];
+        const nextStyle = allowed.includes(style) ? style : "neutral";
+        state.selectedAvatarStyle = nextStyle;
+        $("#avatar").dataset.style = nextStyle;
+        document.querySelectorAll("#avatarStyle [data-avatar-style]").forEach((item) => {
+          item.classList.toggle("is-selected", item.dataset.avatarStyle === nextStyle);
+        });
+      }
+
+      function suggestWeightFromHeight(heightInches) {
+        if (!heightInches) return 0;
+        const heightMeters = heightInches * 0.0254;
+        const pounds = 23.5 * heightMeters * heightMeters * 2.20462;
+        return Math.round(pounds / 5) * 5;
+      }
+
+      function updateWeightSuggestion() {
+        const heightInches = getHeightInches();
+        const suggested = suggestWeightFromHeight(heightInches);
+        if (!suggested) {
+          $("#weightHint").textContent = "Enter height to suggest a starting weight. Edit if needed.";
+          return;
+        }
+        if (!$("#profileWeight").value) $("#profileWeight").value = suggested;
+        $("#weightHint").textContent = `Suggested from height: ${suggested} lb. Edit if needed.`;
+      }
+
+      function shouldShowSetup() {
+        return Boolean(state.user) && !state.profile;
+      }
+
+      function openSetupIfNeeded() {
+        if (shouldShowSetup()) openProfileSetup("setup");
+      }
+
+      function openProfileSetup(mode = "edit") {
+        state.setupMode = mode;
+        populateProfileFields();
+        $("#setupTitle").textContent = mode === "setup" ? "Quick setup" : "Edit profile";
+        $("#saveSetup").textContent = mode === "setup" ? "Save setup" : "Update profile";
+        $("#skipSetup").textContent = mode === "setup" ? "Skip for now" : "Close";
+        $("#setupNote").textContent = state.profile && !state.profile.skipped
+          ? `Current estimate: ${getProfileTargets()?.dailyCalories || state.profile.dailyCalories || "unknown"} calories/day.`
+          : "Used for calorie fit later, not shown publicly.";
+        setupModal.classList.add("is-open");
+      }
+
+      function populateProfileFields() {
+        const profile = state.profile && !state.profile.skipped ? state.profile : null;
+        $("#profileAge").value = profile?.age || "";
+        const height = Number(profile?.heightInches || 0);
+        $("#profileHeightFeet").value = height ? Math.floor(height / 12) : "";
+        $("#profileHeightInches").value = height ? height % 12 : "";
+        $("#profileWeight").value = profile?.weightLb || "";
+        state.selectedSex = profile?.sex || "neutral";
+        document.querySelectorAll("#sexEstimate [data-sex]").forEach((item) => {
+          item.classList.toggle("is-selected", item.dataset.sex === state.selectedSex);
+        });
+        applyAvatarStyle(profile?.avatarStyle || avatarStyleFromSex(state.selectedSex));
+        updateWeightSuggestion();
+      }
+
+      function estimateBmr(profile) {
+        const heightCm = profile.heightInches * 2.54;
+        const weightKg = profile.weightLb / 2.20462;
+        const base = 10 * weightKg + 6.25 * heightCm - 5 * profile.age;
+        if (profile.sex === "female") return Math.round(base - 161);
+        if (profile.sex === "male") return Math.round(base + 5);
+        return Math.round((base - 161 + base + 5) / 2);
+      }
+
+      function estimateDailyCalories(profile) {
+        const bmr = profile.bmr || estimateBmr(profile);
+        return Math.round(bmr * 1.35);
+      }
+
+      function saveProfileSetup() {
+        const age = Number.parseInt($("#profileAge").value, 10);
+        const heightInches = getHeightInches();
+        const weightLb = Number.parseFloat($("#profileWeight").value);
+        if (!age || age < 13 || !heightInches || !weightLb) {
+          $("#setupNote").textContent = "Add age, height, and weight to continue.";
+          return;
+        }
+        const bmr = estimateBmr({ age, sex: state.selectedSex, heightInches, weightLb });
+        const dailyCalories = estimateDailyCalories({ age, sex: state.selectedSex, heightInches, weightLb, bmr });
+        state.profile = {
+          age,
+          sex: state.selectedSex,
+          avatarStyle: state.selectedAvatarStyle,
+          heightInches: Math.round(heightInches),
+          weightLb: Math.round(weightLb),
+          goal: "balanced",
+          activity: "not_sure",
+          bmr,
+          dailyCalories,
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(profileKey, JSON.stringify(state.profile));
+        setupModal.classList.remove("is-open");
+        $("#saveHint").textContent = `Profile updated. Current estimate: ${state.profile.dailyCalories} calories/day.`;
+        setAuthStatus(`Profile updated. Calorie fit uses ${state.profile.dailyCalories} calories/day.`, "success");
+        if (state.analyzed) rescaleServing(state.analyzed, state.analyzed.servingMultiplier || 1);
       }
 
       async function initSupabase() {
         try {
+          setAuthStatus("Checking account connection...");
           const response = await fetch("/app-config");
           const config = await response.json();
           state.supabaseConfig = config;
           if (!config.supabaseUrl || !config.supabaseAnonKey || !window.supabase) {
             $("#authNote").textContent = "Prototype sign on stores this session locally.";
+            setAuthStatus(state.user ? `Local prototype session: ${state.user}` : "Local prototype mode. Meals save in this browser.");
             renderLog();
             return;
           }
@@ -1940,13 +2974,37 @@
           const { data } = await state.supabase.auth.getSession();
           await setSupabaseSession(data.session);
           state.supabase.auth.onAuthStateChange((_event, session) => {
-            setSupabaseSession(session);
+            void setSupabaseSession(session);
           });
           $("#authNote").textContent = "Use email magic link or Google to save meals across devices.";
         } catch (error) {
           $("#authNote").textContent = "Auth service unavailable. Local prototype mode is active.";
+          setAuthStatus("Auth service unavailable. Local prototype mode is active.", "error");
           renderLog();
         }
+      }
+
+      function authReturnUrl(hash = "#analyzer") {
+        const params = new URLSearchParams(window.location.search);
+        params.delete("authReturn");
+        const query = params.toString();
+        return `${window.location.pathname}${query ? `?${query}` : ""}${hash}`;
+      }
+
+      function getAuthReturnTarget() {
+        const params = new URLSearchParams(window.location.search);
+        const queryTarget = params.get("authReturn");
+        const storedTarget = localStorage.getItem(authReturnHashKey);
+        if (queryTarget === "food-log" || storedTarget === "#food-log") return "#food-log";
+        if (queryTarget === "analyzer" || storedTarget === "#analyzer") return "#analyzer";
+        return "";
+      }
+
+      function restoreAuthReturnLocation(preferredTarget = "") {
+        const target = preferredTarget || getAuthReturnTarget();
+        if (!target) return;
+        localStorage.removeItem(authReturnHashKey);
+        history.replaceState(null, "", authReturnUrl(target));
       }
 
       async function setSupabaseSession(session) {
@@ -1955,17 +3013,25 @@
           if (state.supabase) {
             state.user = "";
             state.log = [];
+            setAuthStatus("Not signed in. Save a plate to create or connect an account.");
           } else {
             state.user = localStorage.getItem("platepointsUser") || "";
+            setAuthStatus(state.user ? `Local prototype session: ${state.user}` : "Local prototype mode. Meals save in this browser.");
           }
           renderLog();
           return;
         }
         state.user = session.user.email || "Signed-in user";
         localStorage.setItem("platepointsUser", state.user);
+        setAuthStatus(`Signed in as ${state.user}. Loading food log...`);
         authModal.classList.remove("is-open");
         await loadRemoteLog();
-        await savePendingFoodAfterAuth();
+        const savedPending = await savePendingFoodAfterAuth();
+        restoreAuthReturnLocation(savedPending ? "#food-log" : "");
+        openSetupIfNeeded();
+        if (!localStorage.getItem(pendingSaveKey) && !state.log.length) {
+          $("#saveHint").textContent = "Signed in. No pending meal was found to save.";
+        }
       }
 
       async function loadRemoteLog() {
@@ -1973,18 +3039,23 @@
           renderLog();
           return;
         }
+        setAuthStatus(`Signed in as ${state.user}. Loading food log...`);
         const table = state.supabaseConfig.foodLogTable || "food_logs";
         const { data, error } = await state.supabase
           .from(table)
           .select("*")
+          .eq("user_id", state.session.user.id)
           .order("created_at", { ascending: false })
           .limit(30);
         if (error) {
           $("#saveHint").textContent = `Food log could not load: ${error.message}`;
+          setAuthStatus(`Food log could not load: ${error.message}`, "error");
           renderLog();
           return;
         }
         state.log = (data || []).map(normalizeLogRow);
+        await hydrateSignedPhotoUrls(state.log);
+        setAuthStatus(`Signed in as ${state.user}. ${state.log.length} saved meal${state.log.length === 1 ? "" : "s"} loaded.`, "success");
         renderLog();
       }
 
@@ -1996,6 +3067,27 @@
         const bytes = new Uint8Array(binary.length);
         for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
         return new Blob([bytes], { type: mime });
+      }
+
+      function compactPhotoDataUrl(dataUrl, maxSize = 760) {
+        return new Promise((resolve) => {
+          if (!dataUrl) {
+            resolve("");
+            return;
+          }
+          const image = new Image();
+          image.onload = () => {
+            const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(image.width * scale));
+            canvas.height = Math.max(1, Math.round(image.height * scale));
+            const context = canvas.getContext("2d");
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL("image/jpeg", 0.72));
+          };
+          image.onerror = () => resolve("");
+          image.src = dataUrl;
+        });
       }
 
       async function uploadCurrentPhoto() {
@@ -2010,11 +3102,32 @@
           upsert: false
         });
         if (error) throw error;
-        const { data } = state.supabase.storage.from(bucket).getPublicUrl(path);
-        return data.publicUrl || "";
+        return path;
       }
 
-      function storePendingSave() {
+      function isPublicPhotoUrl(value = "") {
+        return /^https?:\/\//i.test(String(value));
+      }
+
+      async function hydrateSignedPhotoUrls(entries) {
+        if (!state.supabase || !state.session || !entries.length) return;
+        const bucket = state.supabaseConfig.photoBucket || "food-photos";
+        await Promise.all(entries.map(async (entry) => {
+          if (!entry.photoPath || isPublicPhotoUrl(entry.photoPath)) return;
+          const { data, error } = await state.supabase.storage
+            .from(bucket)
+            .createSignedUrl(entry.photoPath, 60 * 60);
+          if (!error && data?.signedUrl) entry.photo = data.signedUrl;
+        }));
+      }
+
+      async function deleteStoredPhoto(entry) {
+        if (!state.supabase || !state.session || !entry?.photoPath || isPublicPhotoUrl(entry.photoPath)) return;
+        const bucket = state.supabaseConfig.photoBucket || "food-photos";
+        await state.supabase.storage.from(bucket).remove([entry.photoPath]);
+      }
+
+      async function storePendingSave() {
         if (!state.analyzed || state.analyzed.loggable === false) return false;
         const pending = {
           analyzed: state.analyzed,
@@ -2024,15 +3137,21 @@
 
         try {
           localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
-          if (state.currentPhotoDataUrl && state.currentPhotoDataUrl.length < 900000) {
-            pending.photo = state.currentPhotoDataUrl;
+          if (state.currentPhotoDataUrl) {
+            const compactPhoto = state.currentPhotoDataUrl.length < 900000
+              ? state.currentPhotoDataUrl
+              : await compactPhotoDataUrl(state.currentPhotoDataUrl);
+            if (compactPhoto && compactPhoto.length < 900000) pending.photo = compactPhoto;
             localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
           }
+          localStorage.setItem(authReturnHashKey, "#analyzer");
+          $("#authNote").textContent = `Pending meal saved for sign in: ${state.analyzed.name}.`;
           return true;
         } catch (error) {
           pending.photo = "";
           try {
             localStorage.setItem(pendingSaveKey, JSON.stringify(pending));
+            $("#authNote").textContent = `Pending meal saved without photo: ${state.analyzed.name}.`;
             return true;
           } catch (innerError) {
             $("#saveHint").textContent = "Could not preserve this meal through sign in. Try signing in first, then save.";
@@ -2042,15 +3161,15 @@
       }
 
       async function savePendingFoodAfterAuth() {
-        if (!state.supabase || !state.session || state.savingPending) return;
+        if (!state.supabase || !state.session || state.savingPending) return false;
         const raw = localStorage.getItem(pendingSaveKey);
-        if (!raw) return;
+        if (!raw) return false;
 
         try {
           const pending = JSON.parse(raw);
           if (!pending.analyzed) {
             localStorage.removeItem(pendingSaveKey);
-            return;
+            return false;
           }
           state.savingPending = true;
           state.analyzed = pending.analyzed;
@@ -2060,12 +3179,75 @@
           if (saved) {
             localStorage.removeItem(pendingSaveKey);
             $("#saveHint").textContent = "Signed in and saved your pending food log.";
+            return true;
           }
         } catch (error) {
           $("#saveHint").textContent = `Pending save failed: ${error.message}`;
         } finally {
           state.savingPending = false;
         }
+        return false;
+      }
+
+      async function refreshFoodLog() {
+        if (state.supabase && state.session) {
+          await loadRemoteLog();
+          return;
+        }
+        renderLog();
+        setAuthStatus(state.user ? `Local prototype session: ${state.user}` : "Not signed in. Save a plate to create or connect an account.");
+      }
+
+      async function deleteLogEntry(button) {
+        const index = Number(button.dataset.deleteIndex);
+        const entry = state.log[index];
+        if (!entry) return;
+        const name = entry.name || "this meal";
+        const confirmed = window.confirm(`Delete ${name} from your food log?`);
+        if (!confirmed) return;
+
+        button.disabled = true;
+        setAuthStatus(`Deleting ${name}...`);
+        try {
+          if (state.supabase && state.session) {
+            if (!entry.id) throw new Error("This saved meal is missing a database id.");
+            const table = state.supabaseConfig.foodLogTable || "food_logs";
+            const { error } = await state.supabase
+              .from(table)
+              .delete()
+              .eq("id", entry.id)
+              .eq("user_id", state.session.user.id);
+            if (error) throw error;
+            await deleteStoredPhoto(entry);
+            await loadRemoteLog();
+          } else {
+            state.log.splice(index, 1);
+            localStorage.setItem("platepointsLog", JSON.stringify(state.log));
+            renderLog();
+          }
+          setAuthStatus(`Deleted ${name}.`, "success");
+        } catch (error) {
+          button.disabled = false;
+          const message = error.message || "Delete failed";
+          setAuthStatus(`Delete failed: ${message}`, "error");
+          $("#saveHint").textContent = `Delete failed: ${message}`;
+        }
+      }
+
+      async function signOut() {
+        if (state.supabase && state.session) {
+          const { error } = await state.supabase.auth.signOut();
+          if (error) {
+            setAuthStatus(`Sign out failed: ${error.message}`, "error");
+            return;
+          }
+        }
+        state.session = null;
+        state.user = "";
+        if (state.supabase) state.log = [];
+        localStorage.removeItem("platepointsUser");
+        setAuthStatus("Signed out. Save a plate to sign in again.");
+        renderLog();
       }
 
       function resetAnalyzer() {
@@ -2080,6 +3262,7 @@
         analysisBadge.classList.remove("is-visible", "is-done");
         correctionPanel.classList.remove("is-visible");
         correctionOptions.innerHTML = "";
+        $("#correctionSummary").textContent = "Alternatives appear after analysis.";
         customCorrection.value = "";
         $("#dropTitle").textContent = "Take or upload a food photo";
         $("#dropHelp").textContent = "Choose from your photo library or take a new picture. JPEG, PNG, WebP, HEIC, and HEIF are accepted.";
@@ -2087,40 +3270,65 @@
         $("#foodName").textContent = "Awaiting photo";
         $("#confidence").textContent = "-";
         $("#servingSize").textContent = "-";
+        $("#portionConfidence").textContent = "-";
+        updateServingControls(1);
         $("#calories").textContent = "-";
         $("#protein").textContent = "-";
         $("#fiber").textContent = "-";
+        $("#sugarLabel").textContent = "Sugar";
         $("#sugar").textContent = "-";
+        $("#nutritionBasisNote").textContent = "Nutrition values will show the serving basis after analysis.";
         $("#whyEat").textContent = "Upload a plate to get an evidence-style eating reason.";
         $("#pointValue").textContent = "0 points";
+        $("#calorieFit").textContent = state.profile && !state.profile.skipped ? "Awaiting meal" : "Profile needed";
         $("#avatarEffect").textContent = "Neutral";
         $("#saveFood").disabled = true;
         $("#saveHint").textContent = "Saved to your food log. Upload another plate when ready.";
-        setAvatar(getTotalPoints());
+        setAvatar(getWeeklyPoints());
       }
 
       async function saveCurrentFood() {
         if (!state.analyzed || state.analyzed.loggable === false) return false;
         if ((state.supabase && !state.session) || (!state.supabase && !state.user)) {
-          storePendingSave();
+          await storePendingSave();
           authModal.classList.add("is-open");
           $("#email").focus();
           return false;
         }
         $("#saveFood").disabled = true;
         $("#saveHint").textContent = "Saving food log...";
+        setAuthStatus(state.supabase ? "Saving to your account..." : "Saving in local prototype mode...");
         try {
+          const nutritionMeta = {
+            components: state.analyzed.components || [],
+            why: state.analyzed.why,
+            effect: state.analyzed.effect,
+            servingMultiplier: state.analyzed.servingMultiplier || 1,
+            baseNutrition: state.analyzed.baseNutrition || null,
+            sourceMatch: state.analyzed.sourceMatch || "",
+            portionConfidence: state.analyzed.portionConfidence || "",
+            corrected: Boolean(state.analyzed.corrected),
+            correctedFrom: state.analyzed.correctedFrom || null,
+            correctionLabel: state.analyzed.correctionLabel || "",
+            calorieFit: calorieFitText(state.analyzed),
+            dailyCalorieTarget: getProfileTargets()?.dailyCalories || null,
+            pipeline: state.analyzed.pipeline || {}
+          };
           const entry = {
             name: state.analyzed.name,
             serving: state.analyzed.serving,
-            calories: state.analyzed.calories,
+            calories: numberFromValue(state.analyzed.calories, 0),
             protein: state.analyzed.protein,
             fiber: state.analyzed.fiber,
             sugar: state.analyzed.sugar,
-            points: state.analyzed.points,
-            confidence: state.analyzed.confidence,
+            points: numberFromValue(state.analyzed.points, 0),
+            confidence: numberFromValue(state.analyzed.confidence, 0),
             photo: state.currentPhotoDataUrl,
-            savedAt: new Date().toISOString()
+            savedAt: new Date().toISOString(),
+            nutrition: nutritionMeta,
+            sourceMatch: nutritionMeta.sourceMatch,
+            portionConfidence: nutritionMeta.portionConfidence,
+            servingMultiplier: nutritionMeta.servingMultiplier
           };
 
           if (state.supabase && state.session) {
@@ -2131,7 +3339,7 @@
               $("#saveHint").textContent = "Photo upload failed, saving food log without the image...";
             }
             const table = state.supabaseConfig.foodLogTable || "food_logs";
-            const { error } = await state.supabase.from(table).insert({
+            const { data, error } = await state.supabase.from(table).insert({
               user_id: state.session.user.id,
               name: entry.name,
               serving: entry.serving,
@@ -2142,14 +3350,14 @@
               points: entry.points,
               confidence: entry.confidence,
               photo_url: photoUrl,
-              nutrition: {
-                components: state.analyzed.components || [],
-                why: state.analyzed.why,
-                effect: state.analyzed.effect,
-                pipeline: state.analyzed.pipeline || {}
-              }
-            });
+              nutrition: nutritionMeta
+            }).select("*").single();
             if (error) throw error;
+            if (data) {
+              state.log.unshift(normalizeLogRow(data));
+              state.log = state.log.slice(0, 30);
+              renderLog();
+            }
             await loadRemoteLog();
           } else {
             state.log.unshift(entry);
@@ -2157,11 +3365,15 @@
             localStorage.setItem("platepointsLog", JSON.stringify(state.log));
             renderLog();
           }
+          setAuthStatus(state.supabase && state.session ? `Saved to ${state.user}'s food log.` : "Saved in this browser.", "success");
           resetAnalyzer();
           return true;
         } catch (error) {
           $("#saveFood").disabled = false;
-          $("#saveHint").textContent = `Save failed: ${error.message}`;
+          const message = error.message || error.details || error.hint || "Unknown database error";
+          $("#saveHint").textContent = `Save failed: ${message}`;
+          setAuthStatus(`Save failed: ${message}`, "error");
+          $("#logList").innerHTML = `<p class="empty-state">Save failed: ${escapeHtml(message)}</p>`;
           return false;
         }
       }
@@ -2170,6 +3382,7 @@
         state.user = user || "Google user";
         localStorage.setItem("platepointsUser", state.user);
         authModal.classList.remove("is-open");
+        openSetupIfNeeded();
         $("#saveHint").textContent = `Signed in as ${state.user}. Saving current food.`;
         await saveCurrentFood();
       }
@@ -2184,14 +3397,15 @@
           await completeSignup(value);
           return;
         }
-        if (state.analyzed && !storePendingSave()) return;
+        if (state.analyzed && !(await storePendingSave())) return;
         const { error } = await state.supabase.auth.signInWithOtp({
           email: value,
-          options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` }
+          options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}?authReturn=analyzer#analyzer` }
         });
         $("#authNote").textContent = error
           ? `Magic link failed: ${error.message}`
           : "Check your email for a magic link, then return here to save.";
+        setAuthStatus(error ? `Magic link failed: ${error.message}` : "Magic link sent. Pending meal will save after sign in.", error ? "error" : "info");
       }
 
       async function signInWithGoogle() {
@@ -2199,12 +3413,17 @@
           await completeSignup("google.profile@example.com");
           return;
         }
-        if (state.analyzed && !storePendingSave()) return;
+        if (state.analyzed && !(await storePendingSave())) return;
         const { error } = await state.supabase.auth.signInWithOAuth({
           provider: "google",
-          options: { redirectTo: `${window.location.origin}${window.location.pathname}` }
+          options: { redirectTo: `${window.location.origin}${window.location.pathname}?authReturn=analyzer#analyzer` }
         });
-        if (error) $("#authNote").textContent = `Google sign in failed: ${error.message}`;
+        if (error) {
+          $("#authNote").textContent = `Google sign in failed: ${error.message}`;
+          setAuthStatus(`Google sign in failed: ${error.message}`, "error");
+        } else {
+          setAuthStatus("Redirecting to Google. Pending meal will save after sign in.");
+        }
       }
 
       foodImage.addEventListener("change", (event) => {
@@ -2246,22 +3465,43 @@
       });
 
       document.querySelectorAll("[data-sample]").forEach((button) => {
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
           const key = button.dataset.sample;
+          const samplePhoto = samplePhotos[key] || "";
+          state.currentPhotoDataUrl = "";
+          foodImage.value = "";
           dropZone.classList.remove("has-image");
           previewImage.removeAttribute("src");
+          previewImage.alt = "";
           analysisBadge.classList.remove("is-visible", "is-done");
           $("#dropTitle").textContent = "Sample food selected";
           $("#dropHelp").textContent = "Choose an image to replace this sample with your own photo.";
           chooseImageBtn.textContent = "Choose image";
           dropZone.classList.add("has-preview");
-          dropZone.style.backgroundImage = `linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12)), url("assets/food-spread.png")`;
-          dropZone.style.backgroundPosition = foods[key].imagePosition;
+          dropZone.style.backgroundImage = `linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12)), url("${samplePhoto || "assets/food-spread.png"}")`;
+          dropZone.style.backgroundPosition = "center";
+          dropZone.style.backgroundSize = "cover";
+          if (samplePhoto) {
+            try {
+              state.currentPhotoDataUrl = await imageUrlToDataUrl(samplePhoto);
+            } catch (error) {
+              state.currentPhotoDataUrl = "";
+            }
+          }
           analyzeFood(key);
         });
       });
 
-      correctionOptions.addEventListener("click", (event) => {
+      correctionOptions.addEventListener("click", async (event) => {
+        const usdaButton = event.target.closest("[data-usda-index]");
+        if (usdaButton) {
+          try {
+            await selectUsdaCandidate(Number(usdaButton.dataset.usdaIndex));
+          } catch (error) {
+            $("#saveHint").textContent = `USDA row failed: ${error.message}`;
+          }
+          return;
+        }
         const button = event.target.closest("[data-correction]");
         if (!button) return;
         applyCorrection(button.dataset.correction, button.dataset.label || button.textContent.trim());
@@ -2272,15 +3512,78 @@
         if (!value) return;
         applyCorrection(normalizeFoodName(value), value);
       });
+      customCorrection.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        const value = customCorrection.value.trim();
+        if (!value) return;
+        applyCorrection(normalizeFoodName(value), value);
+      });
 
       $("#saveFood").addEventListener("click", () => saveCurrentFood());
+      $("#editProfile").addEventListener("click", () => openProfileSetup("edit"));
+      $("#refreshLog").addEventListener("click", () => refreshFoodLog());
+      $("#signOut").addEventListener("click", () => signOut());
+      $("#logList").addEventListener("click", (event) => {
+        const button = event.target.closest(".delete-log");
+        if (!button) return;
+        deleteLogEntry(button);
+      });
+      $("#servingEditor").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-serving-multiplier]");
+        if (!button || !state.analyzed || state.analyzed.loggable === false) return;
+        const multiplier = Number(button.dataset.servingMultiplier);
+        if (!Number.isFinite(multiplier)) return;
+        rescaleServing(state.analyzed, multiplier);
+      });
       $("#closeModal").addEventListener("click", () => authModal.classList.remove("is-open"));
       $("#emailSignup").addEventListener("click", () => signInWithEmail());
       $("#googleSignup").addEventListener("click", () => signInWithGoogle());
       authModal.addEventListener("click", (event) => {
         if (event.target === authModal) authModal.classList.remove("is-open");
       });
+      $("#sexEstimate").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-sex]");
+        if (!button) return;
+        state.selectedSex = button.dataset.sex;
+        document.querySelectorAll("#sexEstimate [data-sex]").forEach((item) => {
+          item.classList.toggle("is-selected", item === button);
+        });
+        applyAvatarStyle(avatarStyleFromSex(state.selectedSex));
+      });
+      $("#avatarStyle").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-avatar-style]");
+        if (!button) return;
+        applyAvatarStyle(button.dataset.avatarStyle);
+      });
+      $("#profileHeightFeet").addEventListener("input", updateWeightSuggestion);
+      $("#profileHeightInches").addEventListener("input", updateWeightSuggestion);
+      $("#saveSetup").addEventListener("click", saveProfileSetup);
+      $("#skipSetup").addEventListener("click", () => {
+        if (state.setupMode === "edit") {
+          setupModal.classList.remove("is-open");
+          $("#setupNote").textContent = "Profile changes were not saved.";
+          return;
+        }
+        state.profile = {
+          skipped: true,
+          sex: "neutral",
+          avatarStyle: state.selectedAvatarStyle || "neutral",
+          goal: "balanced",
+          activity: "not_sure",
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(profileKey, JSON.stringify(state.profile));
+        setupModal.classList.remove("is-open");
+        $("#saveHint").textContent = "Setup skipped. Calorie fit will use a low-confidence default later.";
+        setAuthStatus("Profile setup skipped. Calorie fit needs height and weight.", "info");
+        if (state.analyzed) rescaleServing(state.analyzed, state.analyzed.servingMultiplier || 1);
+      });
+      setupModal.addEventListener("click", (event) => {
+        if (event.target === setupModal) setupModal.classList.remove("is-open");
+      });
 
+      restoreAuthReturnLocation();
       renderLog();
       initSupabase();
     </script>
