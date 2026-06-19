@@ -2999,12 +2999,9 @@
         $("#weightHint").textContent = `Suggested from height: ${suggested} lb. Edit if needed.`;
       }
 
-      function shouldShowSetup() {
-        return Boolean(state.user) && !state.profile;
-      }
-
-      function openSetupIfNeeded() {
-        if (shouldShowSetup()) openProfileSetup("setup");
+      function profileSetupHint() {
+        if (!state.user || state.profile) return "";
+        return " Add profile details later to personalize calorie fit.";
       }
 
       function openProfileSetup(mode = "edit") {
@@ -3194,11 +3191,10 @@
         const restoredPending = !savedPending && restorePendingFoodForRetry();
         if (!savedPending) await loadRemoteLog();
         restoreAuthReturnLocation(savedPending ? "#food-log" : "#analyzer");
-        openSetupIfNeeded();
         if (restoredPending) {
           $("#saveHint").textContent = "Signed in. Your pending meal is still here; save it again to add it to your food log.";
         } else if (!getStoredPendingSave() && !state.log.length) {
-          $("#saveHint").textContent = "Signed in. No pending meal was found to save.";
+          $("#saveHint").textContent = `Signed in. No pending meal was found to save.${profileSetupHint()}`;
         }
       }
 
@@ -3575,7 +3571,6 @@
         state.user = user || "Google user";
         localStorage.setItem("platepointsUser", state.user);
         authModal.classList.remove("is-open");
-        openSetupIfNeeded();
         $("#saveHint").textContent = `Signed in as ${state.user}. Saving current food.`;
         await saveCurrentFood();
       }
