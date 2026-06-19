@@ -1707,7 +1707,6 @@
                   <div class="account-actions">
                     <button class="text-btn" id="editProfile" type="button">Edit profile</button>
                     <button class="text-btn" id="refreshLog" type="button">Refresh log</button>
-                    <button class="text-btn" id="signIn" type="button">Sign in</button>
                     <button class="text-btn" id="signOut" type="button">Sign out</button>
                   </div>
                 </div>
@@ -2751,7 +2750,6 @@
 
       function updateAccountActions() {
         const signedIn = Boolean(state.supabase ? state.session : state.user);
-        $("#signIn").style.display = signedIn ? "none" : "inline-flex";
         $("#signOut").style.display = signedIn ? "inline-flex" : "none";
         $("#editProfile").style.display = signedIn ? "inline-flex" : "none";
         $("#refreshLog").style.display = signedIn ? "inline-flex" : "none";
@@ -2772,7 +2770,9 @@
       function renderLog() {
         const logList = $("#logList");
         if (!state.log.length) {
-          logList.innerHTML = `<p class="empty-state">${state.session ? "No saved meals for this account yet." : "No saved meals yet. Your first save will ask for email or Google sign on."}</p>`;
+          logList.innerHTML = state.session
+            ? `<p class="empty-state">No saved meals for this account yet.</p>`
+            : `<p class="empty-state">No saved meals yet. Scan a plate and we will ask before saving, or <button class="text-btn" type="button" data-auth-open>sign in</button> to see your food log.</p>`;
         } else {
           logList.innerHTML = state.log
             .map((item, index) => {
@@ -3549,9 +3549,13 @@
       $("#saveFood").addEventListener("click", () => saveCurrentFood());
       $("#editProfile").addEventListener("click", () => openProfileSetup("edit"));
       $("#refreshLog").addEventListener("click", () => refreshFoodLog());
-      $("#signIn").addEventListener("click", () => openAuthModal("signin"));
       $("#signOut").addEventListener("click", () => signOut());
       $("#logList").addEventListener("click", (event) => {
+        const authButton = event.target.closest("[data-auth-open]");
+        if (authButton) {
+          openAuthModal("signin");
+          return;
+        }
         const button = event.target.closest(".delete-log");
         if (!button) return;
         deleteLogEntry(button);
