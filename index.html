@@ -3578,20 +3578,34 @@
           $("#authNote").textContent = "Enter an email address to continue.";
           return;
         }
-        if (!state.supabase) {
-          await completeSignup(value);
-          return;
+        const button = $("#emailSignup");
+        button.disabled = true;
+        $("#authNote").textContent = "Sending magic link...";
+        setAuthStatus("Sending magic link...");
+        try {
+          if (!state.supabase) {
+            await completeSignup(value);
+            return;
+          }
+          if (state.analyzed) {
+            $("#authNote").textContent = "Saving this meal before sending your magic link...";
+            if (!(await storePendingSave())) return;
+          }
+          rememberAuthReturn("#analyzer");
+          const { error } = await state.supabase.auth.signInWithOtp({
+            email: value,
+            options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}?authReturn=analyzer#analyzer` }
+          });
+          if (error) throw error;
+          $("#authNote").textContent = "Check your email for a magic link, then return here to save.";
+          setAuthStatus("Magic link sent. Pending meal will save after sign in.", "info");
+        } catch (error) {
+          const message = error.message || "Email sign-in failed";
+          $("#authNote").textContent = `Magic link failed: ${message}`;
+          setAuthStatus(`Magic link failed: ${message}`, "error");
+        } finally {
+          button.disabled = false;
         }
-        if (state.analyzed && !(await storePendingSave())) return;
-        rememberAuthReturn("#analyzer");
-        const { error } = await state.supabase.auth.signInWithOtp({
-          email: value,
-          options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}?authReturn=analyzer#analyzer` }
-        });
-        $("#authNote").textContent = error
-          ? `Magic link failed: ${error.message}`
-          : "Check your email for a magic link, then return here to save.";
-        setAuthStatus(error ? `Magic link failed: ${error.message}` : "Magic link sent. Pending meal will save after sign in.", error ? "error" : "info");
       }
 
       async function signInWithGoogle() {
