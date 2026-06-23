@@ -1028,6 +1028,22 @@
         transform: translateY(6px) scale(0.99);
       }
 
+      .avatar[data-state="weak"] {
+        --avatar-lift: 14px;
+        --head-tilt: 7deg;
+        --arm-left: -4deg;
+        --arm-right: 4deg;
+        --leg-left: 2deg;
+        --leg-right: -2deg;
+        --mouth-opacity: 0;
+        --tired-mouth-opacity: 1;
+        --focus-mouth-opacity: 0;
+        --spark-opacity: 0;
+        --badge-opacity: 0;
+        filter: grayscale(0.18) drop-shadow(0 10px 12px rgba(23, 33, 29, 0.1));
+        transform: translateY(10px) scale(0.96);
+      }
+
       .avatar[data-style="feminine"] {
         --jacket: #8c6bb1;
         --shirt: #f2c2a3;
@@ -1106,6 +1122,23 @@
         --nomi-bottom: #5a6370;
       }
 
+      .avatar[data-state="weak"] {
+        --jacket: #6f7780;
+        --shirt: #c7b386;
+        --pants: #68616e;
+        --accent: #7f8a7d;
+        --skirt: #867180;
+        --nomi-body: #cdbb9e;
+        --nomi-belly: #eee5d8;
+        --nomi-accent: #7f8a7d;
+        --nomi-bowl: #84949c;
+        --nomi-sprout: #778a74;
+        --nomi-cheek: #b78379;
+        --nomi-hair: #3f3a36;
+        --nomi-outfit: #8f947f;
+        --nomi-bottom: #65606a;
+      }
+
       .avatar[data-style="feminine"] .avatar-hair-feminine,
       .avatar[data-style="feminine"] .avatar-skirt-feminine {
         opacity: 1;
@@ -1182,6 +1215,33 @@
         display: grid;
         gap: 10px;
         margin-top: 14px;
+      }
+
+      .weekly-recap {
+        display: none;
+        gap: 10px;
+        margin-top: 12px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fffdf7;
+      }
+
+      .weekly-recap.is-visible {
+        display: grid;
+      }
+
+      .weekly-recap img {
+        width: 100%;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #eef3ed;
+      }
+
+      .recap-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
       }
 
       .log-item {
@@ -1704,8 +1764,17 @@
                   <div class="account-actions">
                     <button class="text-btn" id="editProfile" type="button">Edit profile</button>
                     <button class="text-btn" id="refreshLog" type="button">Refresh log</button>
+                    <button class="text-btn" id="weeklyRecap" type="button">Weekly recap</button>
                     <button class="text-btn" id="signOut" type="button">Sign out</button>
                   </div>
+                </div>
+                <div class="weekly-recap" id="weeklyRecapPanel" aria-live="polite">
+                  <img id="weeklyRecapImage" alt="FeedNomi weekly food collage" />
+                  <div class="recap-actions">
+                    <button class="text-btn" id="downloadRecap" type="button">Download recap</button>
+                    <button class="text-btn" id="shareRecap" type="button">Share</button>
+                  </div>
+                  <small id="weeklyRecapNote">Your recap is private until you download or share it.</small>
                 </div>
                 <div class="log-list" id="logList">
                   <p class="empty-state">No saved meals yet. Your first save will ask for email or Google sign-in.</p>
@@ -2808,13 +2877,35 @@
         }, 0);
       }
 
+      function getLastFedAt() {
+        return state.log.reduce((latest, item) => {
+          const timestamp = Date.parse(item.savedAt || item.created_at || "");
+          if (!Number.isFinite(timestamp)) return latest;
+          return Math.max(latest, timestamp);
+        }, 0);
+      }
+
+      function getLastFedState() {
+        const lastFedAt = getLastFedAt();
+        if (!lastFedAt) return { level: "new", hours: Infinity, text: "Nomi has not been fed yet." };
+        const hours = Math.max(0, (Date.now() - lastFedAt) / (60 * 60 * 1000));
+        if (hours < 24) return { level: "fed", hours, text: "Nomi ate today." };
+        const days = Math.max(1, Math.floor(hours / 24));
+        if (hours < 48) return { level: "hungry", hours, text: `Last fed ${days} day ago.` };
+        if (hours < 72) return { level: "weak", hours, text: `Last fed ${days} days ago.` };
+        return { level: "waiting", hours, text: `Last fed ${days} days ago.` };
+      }
+
       function setAvatar(weeklyTotal, preview = false) {
         const avatar = $("#avatar");
         applyAvatarStyle(state.profile?.avatarStyle || avatarStyleFromSex(state.profile?.sex || state.selectedSex));
         const bounded = Math.min(weeklyTotal, 160);
         const percent = Math.max(7, Math.round((bounded / 160) * 100));
+        const lastFed = getLastFedState();
         $("#meterFill").style.width = `${percent}%`;
-        $("#meterText").textContent = `${weeklyTotal} points this week${preview ? " with current plate" : ""}`;
+        $("#meterText").textContent = preview
+          ? `${weeklyTotal} points this week with current plate`
+          : `${weeklyTotal} points this week - ${lastFed.text}`;
         $("#totalPoints").textContent = `${getTotalPoints()} pts`;
 
         if (weeklyTotal < 12) {
@@ -2836,6 +2927,20 @@
             ? "Nice. This meal powers Nomi up."
             : "Balanced meals have Nomi glowing this week.";
         }
+
+        if (!preview && lastFed.level !== "fed" && lastFed.level !== "new") {
+          avatar.dataset.state = "weak";
+          if (lastFed.level === "hungry") {
+            $("#avatarLabel").textContent = "Hungry Nomi";
+            $("#avatarStatus").textContent = "Nomi has not eaten in 24 hours. Feed Nomi when you log your next meal.";
+          } else if (lastFed.level === "weak") {
+            $("#avatarLabel").textContent = "Low-energy Nomi";
+            $("#avatarStatus").textContent = "Nomi is getting weak after two days without a logged meal.";
+          } else {
+            $("#avatarLabel").textContent = "Waiting-for-care Nomi";
+            $("#avatarStatus").textContent = "Nomi is waiting for care. Log a meal to perk her back up.";
+          }
+        }
       }
 
       function setAuthStatus(message, kind = "info") {
@@ -2849,6 +2954,172 @@
         $("#signOut").style.display = signedIn ? "inline-flex" : "none";
         $("#editProfile").style.display = signedIn ? "inline-flex" : "none";
         $("#refreshLog").style.display = signedIn ? "inline-flex" : "none";
+        $("#weeklyRecap").style.display = signedIn ? "inline-flex" : "none";
+      }
+
+      function getWeeklyMeals() {
+        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        return state.log
+          .filter((item) => {
+            const timestamp = Date.parse(item.savedAt || item.created_at || "");
+            return Number.isFinite(timestamp) && timestamp >= weekAgo;
+          })
+          .sort((a, b) => Date.parse(b.savedAt || b.created_at || "") - Date.parse(a.savedAt || a.created_at || ""));
+      }
+
+      function loadRecapImage(src) {
+        return new Promise(async (resolve) => {
+          if (!src) {
+            resolve(null);
+            return;
+          }
+          try {
+            const response = await fetch(src);
+            if (response.ok) {
+              const blob = await response.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              const fetchedImage = new Image();
+              fetchedImage.onload = () => resolve({ image: fetchedImage, objectUrl });
+              fetchedImage.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve(null);
+              };
+              fetchedImage.src = objectUrl;
+              return;
+            }
+          } catch (error) {
+            // Some signed URLs can display in an img tag but not be fetched for canvas export.
+          }
+          const image = new Image();
+          image.crossOrigin = "anonymous";
+          image.onload = () => resolve({ image, objectUrl: "" });
+          image.onerror = () => resolve(null);
+          image.src = src;
+        });
+      }
+
+      function drawCoverImage(context, image, x, y, width, height) {
+        const imageRatio = image.width / Math.max(1, image.height);
+        const targetRatio = width / Math.max(1, height);
+        let sourceWidth = image.width;
+        let sourceHeight = image.height;
+        let sourceX = 0;
+        let sourceY = 0;
+        if (imageRatio > targetRatio) {
+          sourceWidth = image.height * targetRatio;
+          sourceX = (image.width - sourceWidth) / 2;
+        } else {
+          sourceHeight = image.width / targetRatio;
+          sourceY = (image.height - sourceHeight) / 2;
+        }
+        context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
+      }
+
+      function drawWrappedText(context, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+        const words = String(text || "").split(/\s+/).filter(Boolean);
+        let line = "";
+        let lines = 0;
+        words.forEach((word) => {
+          const testLine = line ? `${line} ${word}` : word;
+          if (context.measureText(testLine).width > maxWidth && line) {
+            if (lines < maxLines) context.fillText(line, x, y + lines * lineHeight);
+            line = word;
+            lines += 1;
+          } else {
+            line = testLine;
+          }
+        });
+        if (line && lines < maxLines) context.fillText(line, x, y + lines * lineHeight);
+      }
+
+      function recapMood(points) {
+        if (points >= 80) return "Energized Nomi";
+        if (points >= 24) return "Balanced Nomi";
+        return "Hungry Nomi";
+      }
+
+      async function createWeeklyRecap() {
+        const meals = getWeeklyMeals();
+        const panel = $("#weeklyRecapPanel");
+        const note = $("#weeklyRecapNote");
+        if (!meals.length) {
+          panel.classList.add("is-visible");
+          $("#weeklyRecapImage").removeAttribute("src");
+          note.textContent = "No saved meals from the last 7 days yet.";
+          return "";
+        }
+
+        $("#weeklyRecap").disabled = true;
+        note.textContent = "Building your private weekly recap...";
+        panel.classList.add("is-visible");
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 1080;
+        canvas.height = 1080;
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#fbfaf4";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "#17211d";
+        context.font = "800 64px system-ui, sans-serif";
+        context.fillText("FeedNomi Weekly", 64, 94);
+        context.font = "500 30px system-ui, sans-serif";
+        context.fillStyle = "#5d6964";
+        const points = meals.reduce((sum, item) => sum + Number(item.points || 0), 0);
+        context.fillText(`${meals.length} meal${meals.length === 1 ? "" : "s"} - ${points} points - ${recapMood(points)}`, 66, 140);
+
+        const visibleMeals = meals.slice(0, 9);
+        const loadedImages = await Promise.all(visibleMeals.map((meal) => loadRecapImage(meal.photo)));
+        const gap = 14;
+        const startX = 64;
+        const startY = 188;
+        const tile = Math.floor((canvas.width - startX * 2 - gap * 2) / 3);
+        visibleMeals.forEach((meal, index) => {
+          const col = index % 3;
+          const row = Math.floor(index / 3);
+          const x = startX + col * (tile + gap);
+          const y = startY + row * (tile + gap);
+          context.fillStyle = "#e8eee9";
+          context.fillRect(x, y, tile, tile);
+          const loaded = loadedImages[index];
+          if (loaded?.image) drawCoverImage(context, loaded.image, x, y, tile, tile);
+          context.fillStyle = "rgba(23, 33, 29, 0.76)";
+          context.fillRect(x, y + tile - 58, tile, 58);
+          context.fillStyle = "#ffffff";
+          context.font = "700 24px system-ui, sans-serif";
+          drawWrappedText(context, meal.name, x + 16, y + tile - 31, tile - 32, 24, 1);
+        });
+
+        const bestMeal = meals.reduce((best, meal) => Number(meal.points || 0) > Number(best.points || 0) ? meal : best, meals[0]);
+        context.fillStyle = "#17211d";
+        context.font = "800 34px system-ui, sans-serif";
+        context.fillText("Best bite", 64, 1016);
+        context.font = "600 28px system-ui, sans-serif";
+        context.fillStyle = "#33423b";
+        drawWrappedText(context, `${bestMeal.name} - ${bestMeal.points} points`, 226, 1016, 790, 32, 1);
+
+        let dataUrl = "";
+        try {
+          dataUrl = canvas.toDataURL("image/png");
+        } catch (error) {
+          note.textContent = "Your recap preview was created, but browser photo permissions blocked export. Try refreshing the food log and creating it again.";
+          $("#weeklyRecap").disabled = false;
+          loadedImages.forEach((loaded) => {
+            if (loaded?.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
+          });
+          return "";
+        }
+        $("#weeklyRecapImage").src = dataUrl;
+        $("#downloadRecap").dataset.recapUrl = dataUrl;
+        $("#shareRecap").dataset.recapUrl = dataUrl;
+        loadedImages.forEach((loaded) => {
+          if (loaded?.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
+        });
+        const missingPhotos = loadedImages.filter((loaded, index) => visibleMeals[index].photo && !loaded).length;
+        note.textContent = missingPhotos
+          ? `Private recap created. ${missingPhotos} photo${missingPhotos === 1 ? "" : "s"} could not be added, but the meal names are included.`
+          : "Private recap created. Download or share when ready.";
+        $("#weeklyRecap").disabled = false;
+        return dataUrl;
       }
 
       function openAuthModal(reason = "signin") {
@@ -3383,6 +3654,45 @@
         setAuthStatus(state.user ? `Local prototype session: ${state.user}` : "Not signed in. Save a plate to create or connect an account.");
       }
 
+      function downloadRecap() {
+        const dataUrl = $("#downloadRecap").dataset.recapUrl;
+        if (!dataUrl) {
+          $("#weeklyRecapNote").textContent = "Create a weekly recap first.";
+          return;
+        }
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = "feednomi-weekly-recap.png";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+
+      async function shareRecap() {
+        const dataUrl = $("#shareRecap").dataset.recapUrl;
+        if (!dataUrl) {
+          $("#weeklyRecapNote").textContent = "Create a weekly recap first.";
+          return;
+        }
+        try {
+          const blob = dataUrlToBlob(dataUrl);
+          const file = blob ? new File([blob], "feednomi-weekly-recap.png", { type: "image/png" }) : null;
+          if (navigator.canShare && file && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              title: "FeedNomi Weekly",
+              text: "My FeedNomi weekly food recap",
+              files: [file]
+            });
+            $("#weeklyRecapNote").textContent = "Recap shared.";
+            return;
+          }
+          downloadRecap();
+          $("#weeklyRecapNote").textContent = "Sharing is not available here, so the recap was downloaded.";
+        } catch (error) {
+          $("#weeklyRecapNote").textContent = `Share failed: ${error.message || "try downloading instead"}.`;
+        }
+      }
+
       async function deleteLogEntry(button) {
         const index = Number(button.dataset.deleteIndex);
         const entry = state.log[index];
@@ -3724,6 +4034,9 @@
       $("#saveFood").addEventListener("click", () => saveCurrentFood());
       $("#editProfile").addEventListener("click", () => openProfileSetup("edit"));
       $("#refreshLog").addEventListener("click", () => refreshFoodLog());
+      $("#weeklyRecap").addEventListener("click", () => createWeeklyRecap());
+      $("#downloadRecap").addEventListener("click", () => downloadRecap());
+      $("#shareRecap").addEventListener("click", () => shareRecap());
       $("#signOut").addEventListener("click", () => signOut());
       $("#logList").addEventListener("click", (event) => {
         const authButton = event.target.closest("[data-auth-open]");
