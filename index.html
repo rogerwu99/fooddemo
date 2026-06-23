@@ -3140,6 +3140,10 @@
         return true;
       }
 
+      function recapPhotoKey(meal) {
+        return meal.photoPath || meal.photo || meal.id || "";
+      }
+
       function recapFoodFamily(name = "", color = null) {
         const text = String(name).toLowerCase();
         if (text.includes("blueberr") || text.includes("berr")) return { key: "fruit", rank: 20, label: "fruit" };
@@ -3227,9 +3231,14 @@
           })
           .filter((item) => isUsableRecapPhoto(item.loaded, item.color, item.fingerprint));
         const selected = [];
+        const usedPhotoKeys = new Set();
         candidates.forEach((candidate) => {
-          const duplicate = selected.some((item) => fingerprintDistance(item.fingerprint, candidate.fingerprint) <= 7);
-          if (!duplicate && selected.length < 9) selected.push(candidate);
+          const photoKey = recapPhotoKey(candidate.meal);
+          const duplicate = photoKey && usedPhotoKeys.has(photoKey);
+          if (!duplicate && selected.length < 9) {
+            selected.push(candidate);
+            if (photoKey) usedPhotoKeys.add(photoKey);
+          }
         });
         if (selected.length < 9) {
           candidates.forEach((candidate) => {
@@ -3302,7 +3311,7 @@
         const duplicateCount = Math.max(0, candidates.length - selected.length);
         const cleanupNote = [
           skippedCount ? `${skippedCount} blank or missing photo${skippedCount === 1 ? "" : "s"} skipped` : "",
-          duplicateCount ? `${duplicateCount} duplicate-looking photo${duplicateCount === 1 ? "" : "s"} skipped` : ""
+          duplicateCount ? `${duplicateCount} exact duplicate photo${duplicateCount === 1 ? "" : "s"} skipped` : ""
         ].filter(Boolean).join("; ");
         note.textContent = cleanupNote
           ? `Private recap created. ${cleanupNote}.`
