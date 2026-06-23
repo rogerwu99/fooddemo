@@ -3032,6 +3032,67 @@
         if (line && lines < maxLines) context.fillText(line, x, y + lines * lineHeight);
       }
 
+      function fitText(context, text, maxWidth) {
+        const value = String(text || "");
+        if (context.measureText(value).width <= maxWidth) return value;
+        let trimmed = value;
+        while (trimmed.length > 3 && context.measureText(`${trimmed}...`).width > maxWidth) {
+          trimmed = trimmed.slice(0, -1);
+        }
+        return `${trimmed.trim()}...`;
+      }
+
+      function rgbToHue(red, green, blue) {
+        const r = red / 255;
+        const g = green / 255;
+        const b = blue / 255;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const delta = max - min;
+        if (!delta) return 0;
+        let hue = 0;
+        if (max === r) hue = ((g - b) / delta) % 6;
+        else if (max === g) hue = (b - r) / delta + 2;
+        else hue = (r - g) / delta + 4;
+        return (Math.round(hue * 60) + 360) % 360;
+      }
+
+      function imageColorProfile(image) {
+        if (!image) return { hue: 999, saturation: 0, lightness: 0.9 };
+        const canvas = document.createElement("canvas");
+        canvas.width = 24;
+        canvas.height = 24;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        let red = 0;
+        let green = 0;
+        let blue = 0;
+        let count = 0;
+        for (let index = 0; index < pixels.length; index += 4) {
+          const r = pixels[index];
+          const g = pixels[index + 1];
+          const b = pixels[index + 2];
+          const brightness = (r + g + b) / 3;
+          if (brightness > 242 || brightness < 18) continue;
+          red += r;
+          green += g;
+          blue += b;
+          count += 1;
+        }
+        if (!count) return { hue: 999, saturation: 0, lightness: 0.9 };
+        red /= count;
+        green /= count;
+        blue /= count;
+        const max = Math.max(red, green, blue) / 255;
+        const min = Math.min(red, green, blue) / 255;
+        return {
+          hue: rgbToHue(red, green, blue),
+          saturation: max - min,
+          lightness: (max + min) / 2
+        };
+      }
+
       function recapMood(points) {
         if (points >= 80) return "Energized Nomi";
         if (points >= 24) return "Balanced Nomi";
@@ -3059,43 +3120,56 @@
         const context = canvas.getContext("2d");
         context.fillStyle = "#fbfaf4";
         context.fillRect(0, 0, canvas.width, canvas.height);
-        context.fillStyle = "#17211d";
-        context.font = "800 64px system-ui, sans-serif";
-        context.fillText("FeedNomi Weekly", 64, 94);
-        context.font = "500 30px system-ui, sans-serif";
-        context.fillStyle = "#5d6964";
         const points = meals.reduce((sum, item) => sum + Number(item.points || 0), 0);
-        context.fillText(`${meals.length} meal${meals.length === 1 ? "" : "s"} - ${points} points - ${recapMood(points)}`, 66, 140);
+        const bestMeal = meals.reduce((best, meal) => Number(meal.points || 0) > Number(best.points || 0) ? meal : best, meals[0]);
 
         const visibleMeals = meals.slice(0, 9);
         const loadedImages = await Promise.all(visibleMeals.map((meal) => loadRecapImage(meal.photo)));
+        const tiles = visibleMeals
+          .map((meal, index) => ({
+            meal,
+            loaded: loadedImages[index],
+            color: imageColorProfile(loadedImages[index]?.image)
+          }))
+          .sort((a, b) => (
+            a.color.hue - b.color.hue ||
+            b.color.saturation - a.color.saturation ||
+            a.color.lightness - b.color.lightness
+          ));
+
+        context.fillStyle = "#17211d";
+        context.font = "800 58px system-ui, sans-serif";
+        context.fillText("FeedNomi Weekly", 64, 78);
+        context.font = "500 27px system-ui, sans-serif";
+        context.fillStyle = "#5d6964";
+        context.fillText(`${meals.length} meal${meals.length === 1 ? "" : "s"} - ${points} points - ${recapMood(points)}`, 66, 120);
+        context.font = "700 25px system-ui, sans-serif";
+        context.fillStyle = "#2f6f9f";
+        context.fillText(fitText(context, `Best bite: ${bestMeal.name} (${bestMeal.points} pts)`, 880), 66, 155);
+
         const gap = 14;
-        const startX = 64;
-        const startY = 188;
-        const tile = Math.floor((canvas.width - startX * 2 - gap * 2) / 3);
-        visibleMeals.forEach((meal, index) => {
+        const tile = 292;
+        const startX = Math.round((canvas.width - tile * 3 - gap * 2) / 2);
+        const startY = 184;
+        tiles.forEach((tileItem, index) => {
           const col = index % 3;
           const row = Math.floor(index / 3);
           const x = startX + col * (tile + gap);
           const y = startY + row * (tile + gap);
           context.fillStyle = "#e8eee9";
           context.fillRect(x, y, tile, tile);
-          const loaded = loadedImages[index];
+          const loaded = tileItem.loaded;
           if (loaded?.image) drawCoverImage(context, loaded.image, x, y, tile, tile);
-          context.fillStyle = "rgba(23, 33, 29, 0.76)";
-          context.fillRect(x, y + tile - 58, tile, 58);
-          context.fillStyle = "#ffffff";
-          context.font = "700 24px system-ui, sans-serif";
-          drawWrappedText(context, meal.name, x + 16, y + tile - 31, tile - 32, 24, 1);
+          context.strokeStyle = "rgba(23, 33, 29, 0.12)";
+          context.lineWidth = 4;
+          context.strokeRect(x + 2, y + 2, tile - 4, tile - 4);
         });
 
-        const bestMeal = meals.reduce((best, meal) => Number(meal.points || 0) > Number(best.points || 0) ? meal : best, meals[0]);
-        context.fillStyle = "#17211d";
-        context.font = "800 34px system-ui, sans-serif";
-        context.fillText("Best bite", 64, 1016);
-        context.font = "600 28px system-ui, sans-serif";
+        context.fillStyle = "rgba(251, 250, 244, 0.94)";
+        context.fillRect(64, 1024, 952, 42);
         context.fillStyle = "#33423b";
-        drawWrappedText(context, `${bestMeal.name} - ${bestMeal.points} points`, 226, 1016, 790, 32, 1);
+        context.font = "600 22px system-ui, sans-serif";
+        context.fillText(fitText(context, "Color-sorted from this week's saved meals", 900), 82, 1053);
 
         let dataUrl = "";
         try {
