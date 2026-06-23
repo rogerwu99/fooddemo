@@ -3058,10 +3058,10 @@
       }
 
       function imageColorProfile(image) {
-        if (!image) return { hue: 999, saturation: 0, lightness: 0.9 };
+        if (!image) return { hue: 999, saturation: 0, lightness: 0.9, dominantBand: 9, dominantShare: 0 };
         const canvas = document.createElement("canvas");
-        canvas.width = 24;
-        canvas.height = 24;
+        canvas.width = 36;
+        canvas.height = 36;
         const context = canvas.getContext("2d", { willReadFrequently: true });
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
         const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -3069,41 +3069,57 @@
         let green = 0;
         let blue = 0;
         let count = 0;
+        const bands = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 8: 0 };
         for (let index = 0; index < pixels.length; index += 4) {
           const r = pixels[index];
           const g = pixels[index + 1];
           const b = pixels[index + 2];
           const brightness = (r + g + b) / 3;
-          if (brightness > 242 || brightness < 18) continue;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const saturation = (max - min) / 255;
+          if (brightness > 242 || brightness < 18 || saturation < 0.06) continue;
+          const hue = rgbToHue(r, g, b);
+          const band = recapColorBand({ hue, saturation, lightness: brightness / 255 });
+          if (bands[band] !== undefined) bands[band] += 1;
           red += r;
           green += g;
           blue += b;
           count += 1;
         }
-        if (!count) return { hue: 999, saturation: 0, lightness: 0.9 };
+        if (!count) return { hue: 999, saturation: 0, lightness: 0.9, dominantBand: 9, dominantShare: 0 };
         red /= count;
         green /= count;
         blue /= count;
         const max = Math.max(red, green, blue) / 255;
         const min = Math.min(red, green, blue) / 255;
+        const dominant = Object.entries(bands).sort((a, b) => b[1] - a[1])[0] || ["9", 0];
         return {
           hue: rgbToHue(red, green, blue),
           saturation: max - min,
-          lightness: (max + min) / 2
+          lightness: (max + min) / 2,
+          dominantBand: Number(dominant[0]),
+          dominantShare: dominant[1] / Math.max(1, count)
         };
       }
 
-      function recapFoodFamily(name = "") {
+      function recapFoodFamily(name = "", color = null) {
         const text = String(name).toLowerCase();
+        if (text.includes("blueberr") || text.includes("berr")) return { key: "fruit", rank: 20, label: "fruit" };
+        if (text.includes("banana bread") || text.includes("biscotti") || text.includes("toast")) return { key: "grain", rank: 30, label: "grains" };
         const families = [
           { key: "greens", rank: 10, label: "greens", terms: ["salad", "lettuce", "broccoli", "spinach", "kale", "asparagus", "greens", "vegetable"] },
-          { key: "fruit", rank: 20, label: "fruit", terms: ["blueberr", "berr", "banana", "apple", "fruit", "grape", "orange", "mango"] },
+          { key: "fruit", rank: 20, label: "fruit", terms: ["banana", "apple", "fruit", "grape", "orange", "mango"] },
           { key: "grain", rank: 30, label: "grains", terms: ["oatmeal", "oat", "rice", "bread", "biscotti", "toast", "bagel", "cereal"] },
           { key: "pasta", rank: 40, label: "pasta", terms: ["pasta", "spaghetti", "noodle", "cacio", "macaroni", "ravioli"] },
           { key: "protein", rank: 50, label: "protein", terms: ["chicken", "fish", "salmon", "steak", "beef", "egg", "falafel", "tofu", "shrimp"] },
           { key: "dessert", rank: 60, label: "treats", terms: ["cake", "cookie", "brownie", "dessert", "ice cream", "pastry"] }
         ];
-        return families.find((family) => family.terms.some((term) => text.includes(term))) || { key: "other", rank: 90, label: "other" };
+        const family = families.find((item) => item.terms.some((term) => text.includes(term))) || { key: "other", rank: 90, label: "other" };
+        if ((family.key === "grain" || family.key === "other") && [2, 3].includes(color?.dominantBand) && color.dominantShare > 0.18) {
+          return { key: "fruit", rank: 20, label: "fruit" };
+        }
+        return family;
       }
 
       function recapColorBand(color) {
@@ -3153,7 +3169,7 @@
         const tiles = visibleMeals
           .map((meal, index) => {
             const color = imageColorProfile(loadedImages[index]?.image);
-            const family = recapFoodFamily(meal.name);
+            const family = recapFoodFamily(meal.name, color);
             return {
               meal,
               loaded: loadedImages[index],
@@ -3178,7 +3194,7 @@
         context.fillText("FeedNomi Weekly", 64, 78);
         context.font = "500 27px system-ui, sans-serif";
         context.fillStyle = "#5d6964";
-        context.fillText(`${meals.length} meal${meals.length === 1 ? "" : "s"} - ${points} points - ${recapMood(points)}`, 66, 120);
+        context.fillText(`${visibleMeals.length} of ${meals.length} meals shown - ${points} points - ${recapMood(points)}`, 66, 120);
         context.font = "700 25px system-ui, sans-serif";
         context.fillStyle = "#2f6f9f";
         context.fillText(fitText(context, `Best bite: ${bestMeal.name} (${bestMeal.points} pts)`, 880), 66, 155);
@@ -3205,7 +3221,7 @@
         context.fillRect(64, 1024, 952, 42);
         context.fillStyle = "#33423b";
         context.font = "600 22px system-ui, sans-serif";
-        context.fillText(fitText(context, `Grouped by ${familyLabels.join(", ")} - color-sorted inside each group`, 900), 82, 1053);
+        context.fillText(fitText(context, `Showing recent meals grouped by ${familyLabels.join(", ")} - color-sorted inside each group`, 900), 82, 1053);
 
         let dataUrl = "";
         try {
