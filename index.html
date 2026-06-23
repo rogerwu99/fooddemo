@@ -3093,6 +3093,31 @@
         };
       }
 
+      function recapFoodFamily(name = "") {
+        const text = String(name).toLowerCase();
+        const families = [
+          { key: "greens", rank: 10, label: "greens", terms: ["salad", "lettuce", "broccoli", "spinach", "kale", "asparagus", "greens", "vegetable"] },
+          { key: "fruit", rank: 20, label: "fruit", terms: ["blueberr", "berr", "banana", "apple", "fruit", "grape", "orange", "mango"] },
+          { key: "grain", rank: 30, label: "grains", terms: ["oatmeal", "oat", "rice", "bread", "biscotti", "toast", "bagel", "cereal"] },
+          { key: "pasta", rank: 40, label: "pasta", terms: ["pasta", "spaghetti", "noodle", "cacio", "macaroni", "ravioli"] },
+          { key: "protein", rank: 50, label: "protein", terms: ["chicken", "fish", "salmon", "steak", "beef", "egg", "falafel", "tofu", "shrimp"] },
+          { key: "dessert", rank: 60, label: "treats", terms: ["cake", "cookie", "brownie", "dessert", "ice cream", "pastry"] }
+        ];
+        return families.find((family) => family.terms.some((term) => text.includes(term))) || { key: "other", rank: 90, label: "other" };
+      }
+
+      function recapColorBand(color) {
+        if (!color || color.hue === 999) return 9;
+        if (color.saturation < 0.08) return 8;
+        const hue = color.hue;
+        if (hue >= 70 && hue <= 165) return 1;
+        if (hue > 165 && hue <= 250) return 2;
+        if (hue > 250 && hue <= 315) return 3;
+        if (hue > 315 || hue <= 24) return 4;
+        if (hue > 24 && hue < 70) return 5;
+        return 9;
+      }
+
       function recapMood(points) {
         if (points >= 80) return "Energized Nomi";
         if (points >= 24) return "Balanced Nomi";
@@ -3126,16 +3151,27 @@
         const visibleMeals = meals.slice(0, 9);
         const loadedImages = await Promise.all(visibleMeals.map((meal) => loadRecapImage(meal.photo)));
         const tiles = visibleMeals
-          .map((meal, index) => ({
-            meal,
-            loaded: loadedImages[index],
-            color: imageColorProfile(loadedImages[index]?.image)
-          }))
+          .map((meal, index) => {
+            const color = imageColorProfile(loadedImages[index]?.image);
+            const family = recapFoodFamily(meal.name);
+            return {
+              meal,
+              loaded: loadedImages[index],
+              color,
+              family,
+              colorBand: recapColorBand(color),
+              originalIndex: index
+            };
+          })
           .sort((a, b) => (
+            a.family.rank - b.family.rank ||
+            a.colorBand - b.colorBand ||
             a.color.hue - b.color.hue ||
             b.color.saturation - a.color.saturation ||
-            a.color.lightness - b.color.lightness
+            a.color.lightness - b.color.lightness ||
+            a.originalIndex - b.originalIndex
           ));
+        const familyLabels = [...new Set(tiles.map((item) => item.family.label))].slice(0, 4);
 
         context.fillStyle = "#17211d";
         context.font = "800 58px system-ui, sans-serif";
@@ -3169,7 +3205,7 @@
         context.fillRect(64, 1024, 952, 42);
         context.fillStyle = "#33423b";
         context.font = "600 22px system-ui, sans-serif";
-        context.fillText(fitText(context, "Color-sorted from this week's saved meals", 900), 82, 1053);
+        context.fillText(fitText(context, `Grouped by ${familyLabels.join(", ")} - color-sorted inside each group`, 900), 82, 1053);
 
         let dataUrl = "";
         try {
