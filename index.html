@@ -2967,6 +2967,15 @@
           .sort((a, b) => Date.parse(b.savedAt || b.created_at || "") - Date.parse(a.savedAt || a.created_at || ""));
       }
 
+      async function blobHash(blob) {
+        if (!window.crypto?.subtle || !blob) return "";
+        const buffer = await blob.arrayBuffer();
+        const digest = await window.crypto.subtle.digest("SHA-256", buffer);
+        return Array.from(new Uint8Array(digest))
+          .map((byte) => byte.toString(16).padStart(2, "0"))
+          .join("");
+      }
+
       function loadRecapImage(src) {
         return new Promise(async (resolve) => {
           if (!src) {
@@ -2977,9 +2986,10 @@
             const response = await fetch(src);
             if (response.ok) {
               const blob = await response.blob();
+              const contentHash = await blobHash(blob);
               const objectUrl = URL.createObjectURL(blob);
               const fetchedImage = new Image();
-              fetchedImage.onload = () => resolve({ image: fetchedImage, objectUrl });
+              fetchedImage.onload = () => resolve({ image: fetchedImage, objectUrl, contentHash });
               fetchedImage.onerror = () => {
                 URL.revokeObjectURL(objectUrl);
                 resolve(null);
@@ -3125,15 +3135,6 @@
         return values.map((value) => value > average ? "1" : "0").join("");
       }
 
-      function fingerprintDistance(left, right) {
-        if (!left || !right || left.length !== right.length) return Infinity;
-        let distance = 0;
-        for (let index = 0; index < left.length; index += 1) {
-          if (left[index] !== right[index]) distance += 1;
-        }
-        return distance;
-      }
-
       function isUsableRecapPhoto(loaded, color, fingerprint) {
         if (!loaded?.image || !fingerprint) return false;
         if (color.hue === 999 || color.dominantShare < 0.08) return false;
@@ -3218,6 +3219,7 @@
           .map((meal, index) => {
             const color = imageColorProfile(loadedImages[index]?.image);
             const fingerprint = imageFingerprint(loadedImages[index]?.image);
+            const exactImageKey = loadedImages[index]?.contentHash || recapPhotoKey(meal);
             const family = recapFoodFamily(meal.name, color);
             return {
               meal,
@@ -3226,27 +3228,29 @@
               family,
               colorBand: recapColorBand(color),
               fingerprint,
+              exactImageKey,
               originalIndex: index
             };
           })
           .filter((item) => isUsableRecapPhoto(item.loaded, item.color, item.fingerprint));
         const selected = [];
-        const usedPhotoKeys = new Set();
-        const usedFingerprints = new Set();
+        const usedExactImageKeys = new Set();
+        let exactDuplicateCount = 0;
         candidates.forEach((candidate) => {
-          const photoKey = recapPhotoKey(candidate.meal);
-          const duplicate =
-            (photoKey && usedPhotoKeys.has(photoKey)) ||
-            (candidate.fingerprint && usedFingerprints.has(candidate.fingerprint));
+          const duplicate = candidate.exactImageKey && usedExactImageKeys.has(candidate.exactImageKey);
+          if (duplicate) exactDuplicateCount += 1;
           if (!duplicate && selected.length < 9) {
             selected.push(candidate);
-            if (photoKey) usedPhotoKeys.add(photoKey);
-            if (candidate.fingerprint) usedFingerprints.add(candidate.fingerprint);
+            if (candidate.exactImageKey) usedExactImageKeys.add(candidate.exactImageKey);
           }
         });
         if (selected.length < 9) {
           candidates.forEach((candidate) => {
-            if (!selected.includes(candidate) && selected.length < 9) selected.push(candidate);
+            const duplicate = candidate.exactImageKey && usedExactImageKeys.has(candidate.exactImageKey);
+            if (!duplicate && !selected.includes(candidate) && selected.length < 9) {
+              selected.push(candidate);
+              if (candidate.exactImageKey) usedExactImageKeys.add(candidate.exactImageKey);
+            }
           });
         }
         const tiles = selected
@@ -3312,10 +3316,9 @@
           if (loaded?.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
         });
         const skippedCount = candidateMeals.length - candidates.length;
-        const duplicateCount = Math.max(0, candidates.length - selected.length);
         const cleanupNote = [
           skippedCount ? `${skippedCount} blank or missing photo${skippedCount === 1 ? "" : "s"} skipped` : "",
-          duplicateCount ? `${duplicateCount} exact duplicate photo${duplicateCount === 1 ? "" : "s"} skipped` : ""
+          exactDuplicateCount ? `${exactDuplicateCount} exact duplicate photo${exactDuplicateCount === 1 ? "" : "s"} skipped` : ""
         ].filter(Boolean).join("; ");
         note.textContent = cleanupNote
           ? `Private recap created. ${cleanupNote}.`
