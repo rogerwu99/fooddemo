@@ -3068,7 +3068,7 @@
       }
 
       function imageColorProfile(image) {
-        if (!image) return { hue: 999, saturation: 0, lightness: 0.9, dominantBand: 9, dominantShare: 0 };
+        if (!image) return { hue: 999, saturation: 0, lightness: 0.9, dominantBand: 9, dominantShare: 0, bandShares: {} };
         const canvas = document.createElement("canvas");
         canvas.width = 36;
         canvas.height = 36;
@@ -3097,19 +3097,21 @@
           blue += b;
           count += 1;
         }
-        if (!count) return { hue: 999, saturation: 0, lightness: 0.9, dominantBand: 9, dominantShare: 0 };
+        if (!count) return { hue: 999, saturation: 0, lightness: 0.9, dominantBand: 9, dominantShare: 0, bandShares: {} };
         red /= count;
         green /= count;
         blue /= count;
         const max = Math.max(red, green, blue) / 255;
         const min = Math.min(red, green, blue) / 255;
         const dominant = Object.entries(bands).sort((a, b) => b[1] - a[1])[0] || ["9", 0];
+        const bandShares = Object.fromEntries(Object.entries(bands).map(([band, value]) => [band, value / Math.max(1, count)]));
         return {
           hue: rgbToHue(red, green, blue),
           saturation: max - min,
           lightness: (max + min) / 2,
           dominantBand: Number(dominant[0]),
-          dominantShare: dominant[1] / Math.max(1, count)
+          dominantShare: dominant[1] / Math.max(1, count),
+          bandShares
         };
       }
 
@@ -3158,15 +3160,22 @@
           { key: "dessert", rank: 60, label: "treats", terms: ["cake", "cookie", "brownie", "dessert", "ice cream", "pastry"] }
         ];
         const family = families.find((item) => item.terms.some((term) => text.includes(term))) || { key: "other", rank: 90, label: "other" };
-        if ((family.key === "grain" || family.key === "other") && [2, 3].includes(color?.dominantBand) && color.dominantShare > 0.18) {
+        const bluePurpleShare = (color?.bandShares?.[2] || 0) + (color?.bandShares?.[3] || 0);
+        if ((family.key === "grain" || family.key === "other") && bluePurpleShare > 0.16 && color?.saturation > 0.12) {
           return { key: "fruit", rank: 20, label: "fruit" };
         }
         return family;
       }
 
-      function recapRepresentationKey(candidate) {
+      function isBerryLikeRecapCandidate(candidate) {
         const name = String(candidate.meal?.name || "").toLowerCase();
-        if (name.includes("blueberr") || name.includes("berr")) return "fruit:berries";
+        const bluePurpleShare = (candidate.color?.bandShares?.[2] || 0) + (candidate.color?.bandShares?.[3] || 0);
+        if (name.includes("blueberr") || name.includes("berr")) return true;
+        return ["fruit", "grain", "other"].includes(candidate.family.key) && bluePurpleShare > 0.16 && candidate.color.saturation > 0.12;
+      }
+
+      function recapRepresentationKey(candidate) {
+        if (isBerryLikeRecapCandidate(candidate)) return "fruit:berries";
         return `${candidate.family.key}:${candidate.colorBand}`;
       }
 
