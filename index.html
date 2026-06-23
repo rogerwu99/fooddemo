@@ -3232,12 +3232,16 @@
           .filter((item) => isUsableRecapPhoto(item.loaded, item.color, item.fingerprint));
         const selected = [];
         const usedPhotoKeys = new Set();
+        const usedFingerprints = new Set();
         candidates.forEach((candidate) => {
           const photoKey = recapPhotoKey(candidate.meal);
-          const duplicate = photoKey && usedPhotoKeys.has(photoKey);
+          const duplicate =
+            (photoKey && usedPhotoKeys.has(photoKey)) ||
+            (candidate.fingerprint && usedFingerprints.has(candidate.fingerprint));
           if (!duplicate && selected.length < 9) {
             selected.push(candidate);
             if (photoKey) usedPhotoKeys.add(photoKey);
+            if (candidate.fingerprint) usedFingerprints.add(candidate.fingerprint);
           }
         });
         if (selected.length < 9) {
