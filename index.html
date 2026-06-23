@@ -3164,6 +3164,84 @@
         return family;
       }
 
+      function recapRepresentationKey(candidate) {
+        const name = String(candidate.meal?.name || "").toLowerCase();
+        if (name.includes("blueberr") || name.includes("berr")) return "fruit:berries";
+        return `${candidate.family.key}:${candidate.colorBand}`;
+      }
+
+      function uniqueRecapCandidates(candidates) {
+        const unique = [];
+        const usedExactImageKeys = new Set();
+        let exactDuplicateCount = 0;
+        candidates.forEach((candidate) => {
+          const duplicate = candidate.exactImageKey && usedExactImageKeys.has(candidate.exactImageKey);
+          if (duplicate) {
+            exactDuplicateCount += 1;
+            return;
+          }
+          unique.push(candidate);
+          if (candidate.exactImageKey) usedExactImageKeys.add(candidate.exactImageKey);
+        });
+        return { unique, exactDuplicateCount };
+      }
+
+      function chooseRecapTiles(candidates, limit = 9) {
+        if (candidates.length <= limit) return candidates;
+        const total = candidates.length;
+        const groups = [...candidates.reduce((map, candidate) => {
+          const key = recapRepresentationKey(candidate);
+          if (!map.has(key)) {
+            map.set(key, {
+              key,
+              items: [],
+              target: 0,
+              remainder: 0,
+              rank: candidate.family.rank,
+              calories: 0
+            });
+          }
+          const group = map.get(key);
+          group.items.push(candidate);
+          group.rank = Math.min(group.rank, candidate.family.rank);
+          group.calories += mealCalories(candidate.meal);
+          return map;
+        }, new Map()).values()];
+
+        groups.forEach((group) => {
+          const exactShare = (group.items.length / total) * limit;
+          group.target = Math.max(1, Math.floor(exactShare));
+          group.remainder = exactShare - Math.floor(exactShare);
+          group.items.sort((a, b) => (
+            mealCalories(b.meal) - mealCalories(a.meal) ||
+            Date.parse(b.meal.savedAt || b.meal.created_at || "") - Date.parse(a.meal.savedAt || a.meal.created_at || "")
+          ));
+        });
+
+        while (groups.reduce((sum, group) => sum + group.target, 0) > limit) {
+          const group = groups
+            .filter((item) => item.target > 0)
+            .sort((a, b) => a.items.length - b.items.length || a.remainder - b.remainder || a.calories - b.calories)[0];
+          if (!group) break;
+          group.target -= 1;
+        }
+        while (groups.reduce((sum, group) => sum + group.target, 0) < limit) {
+          const group = groups
+            .filter((item) => item.target < item.items.length)
+            .sort((a, b) => b.remainder - a.remainder || b.items.length - a.items.length || b.calories - a.calories)[0];
+          if (!group) break;
+          group.target += 1;
+        }
+
+        const selected = groups.flatMap((group) => group.items.slice(0, group.target));
+        if (selected.length < limit) {
+          candidates.forEach((candidate) => {
+            if (!selected.includes(candidate) && selected.length < limit) selected.push(candidate);
+          });
+        }
+        return selected.slice(0, limit);
+      }
+
       function recapColorBand(color) {
         if (!color || color.hue === 999) return 9;
         if (color.saturation < 0.08) return 8;
@@ -3211,9 +3289,8 @@
         const bestMeal = meals.reduce((best, meal) => Number(meal.points || 0) > Number(best.points || 0) ? meal : best, meals[0]);
         const biggestMeal = meals.reduce((biggest, meal) => mealCalories(meal) > mealCalories(biggest) ? meal : biggest, meals[0]);
 
-        const rankedMeals = [...meals]
-          .sort((a, b) => mealCalories(b) - mealCalories(a) || Date.parse(b.savedAt || b.created_at || "") - Date.parse(a.savedAt || a.created_at || ""))
-        const candidateMeals = rankedMeals.slice(0, Math.min(18, rankedMeals.length));
+        const candidateMeals = [...meals]
+          .sort((a, b) => Date.parse(b.savedAt || b.created_at || "") - Date.parse(a.savedAt || a.created_at || ""));
         const loadedImages = await Promise.all(candidateMeals.map((meal) => loadRecapImage(meal.photo)));
         const candidates = candidateMeals
           .map((meal, index) => {
@@ -3233,26 +3310,8 @@
             };
           })
           .filter((item) => isUsableRecapPhoto(item.loaded, item.color, item.fingerprint));
-        const selected = [];
-        const usedExactImageKeys = new Set();
-        let exactDuplicateCount = 0;
-        candidates.forEach((candidate) => {
-          const duplicate = candidate.exactImageKey && usedExactImageKeys.has(candidate.exactImageKey);
-          if (duplicate) exactDuplicateCount += 1;
-          if (!duplicate && selected.length < 9) {
-            selected.push(candidate);
-            if (candidate.exactImageKey) usedExactImageKeys.add(candidate.exactImageKey);
-          }
-        });
-        if (selected.length < 9) {
-          candidates.forEach((candidate) => {
-            const duplicate = candidate.exactImageKey && usedExactImageKeys.has(candidate.exactImageKey);
-            if (!duplicate && !selected.includes(candidate) && selected.length < 9) {
-              selected.push(candidate);
-              if (candidate.exactImageKey) usedExactImageKeys.add(candidate.exactImageKey);
-            }
-          });
-        }
+        const { unique: uniqueCandidates, exactDuplicateCount } = uniqueRecapCandidates(candidates);
+        const selected = chooseRecapTiles(uniqueCandidates, 9);
         const tiles = selected
           .sort((a, b) => (
             a.family.rank - b.family.rank ||
@@ -3269,7 +3328,7 @@
         context.fillText("Nomi Is What You Ate", 64, 78);
         context.font = "500 27px system-ui, sans-serif";
         context.fillStyle = "#5d6964";
-        context.fillText(`${tiles.length} biggest bites of ${meals.length} meals - ${points} points - ${recapMood(points)}`, 66, 120);
+        context.fillText(`${tiles.length} weekly bites from ${meals.length} meals - ${points} points - ${recapMood(points)}`, 66, 120);
         context.font = "700 25px system-ui, sans-serif";
         context.fillStyle = "#2f6f9f";
         context.fillText(fitText(context, `Top fuel: ${biggestMeal.name} (${mealCalories(biggestMeal)} kcal) - Best score: ${bestMeal.name} (${bestMeal.points} pts)`, 880), 66, 155);
@@ -3296,7 +3355,7 @@
         context.fillRect(64, 1024, 952, 42);
         context.fillStyle = "#33423b";
         context.font = "600 22px system-ui, sans-serif";
-        context.fillText(fitText(context, `Showing the week's most caloric meals, grouped by ${familyLabels.join(", ")}`, 900), 82, 1053);
+        context.fillText(fitText(context, `Showing the week's recurring mix, grouped by ${familyLabels.join(", ")}`, 900), 82, 1053);
 
         let dataUrl = "";
         try {
