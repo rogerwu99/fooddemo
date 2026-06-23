@@ -3203,9 +3203,8 @@
         });
       }
 
-      function chooseRecurringRecapTiles(candidates, limit = 3) {
+      function chooseRecurringRecapTiles(candidates, limit = 9) {
         if (candidates.length <= limit) return candidates;
-        const total = candidates.length;
         const groups = [...candidates.reduce((map, candidate) => {
           const key = recapRepresentationKey(candidate);
           if (!map.has(key)) {
@@ -3226,37 +3225,21 @@
         }, new Map()).values()];
 
         groups.forEach((group) => {
-          const exactShare = (group.items.length / total) * limit;
-          group.target = Math.max(1, Math.floor(exactShare));
-          group.remainder = exactShare - Math.floor(exactShare);
           group.items.sort((a, b) => (
             mealCalories(b.meal) - mealCalories(a.meal) ||
             Date.parse(b.meal.savedAt || b.meal.created_at || "") - Date.parse(a.meal.savedAt || a.meal.created_at || "")
           ));
         });
 
-        while (groups.reduce((sum, group) => sum + group.target, 0) > limit) {
-          const group = groups
-            .filter((item) => item.target > 0)
-            .sort((a, b) => a.items.length - b.items.length || a.remainder - b.remainder || a.calories - b.calories)[0];
-          if (!group) break;
-          group.target -= 1;
-        }
-        while (groups.reduce((sum, group) => sum + group.target, 0) < limit) {
-          const group = groups
-            .filter((item) => item.target < item.items.length)
-            .sort((a, b) => b.remainder - a.remainder || b.items.length - a.items.length || b.calories - a.calories)[0];
-          if (!group) break;
-          group.target += 1;
-        }
-
-        const selected = groups.flatMap((group) => group.items.slice(0, group.target));
-        if (selected.length < limit) {
-          candidates.forEach((candidate) => {
-            if (!selected.includes(candidate) && selected.length < limit) selected.push(candidate);
-          });
-        }
-        return selected.slice(0, limit);
+        return groups
+          .filter((group) => group.items.length > 1)
+          .sort((a, b) => (
+            b.items.length - a.items.length ||
+            b.calories - a.calories ||
+            a.rank - b.rank
+          ))
+          .flatMap((group) => group.items)
+          .slice(0, limit);
       }
 
       function chooseRecapTiles(candidates, limit = 9) {
@@ -3265,7 +3248,7 @@
           mealCalories(b.meal) - mealCalories(a.meal) ||
           Date.parse(b.meal.savedAt || b.meal.created_at || "") - Date.parse(a.meal.savedAt || a.meal.created_at || "")
         ));
-        const repeatBites = chooseRecurringRecapTiles(candidates, 3);
+        const repeatBites = chooseRecurringRecapTiles(candidates, 9);
         const bestScores = [...candidates].sort((a, b) => (
           Number(b.meal.points || 0) - Number(a.meal.points || 0) ||
           mealCalories(b.meal) - mealCalories(a.meal)
