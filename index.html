@@ -3103,6 +3103,43 @@
         };
       }
 
+      function imageFingerprint(image) {
+        if (!image) return null;
+        const canvas = document.createElement("canvas");
+        canvas.width = 8;
+        canvas.height = 8;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        const values = [];
+        let min = 255;
+        let max = 0;
+        for (let index = 0; index < pixels.length; index += 4) {
+          const brightness = Math.round((pixels[index] + pixels[index + 1] + pixels[index + 2]) / 3);
+          values.push(brightness);
+          min = Math.min(min, brightness);
+          max = Math.max(max, brightness);
+        }
+        if (max - min < 18) return null;
+        const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+        return values.map((value) => value > average ? "1" : "0").join("");
+      }
+
+      function fingerprintDistance(left, right) {
+        if (!left || !right || left.length !== right.length) return Infinity;
+        let distance = 0;
+        for (let index = 0; index < left.length; index += 1) {
+          if (left[index] !== right[index]) distance += 1;
+        }
+        return distance;
+      }
+
+      function isUsableRecapPhoto(loaded, color, fingerprint) {
+        if (!loaded?.image || !fingerprint) return false;
+        if (color.hue === 999 || color.dominantShare < 0.08) return false;
+        return true;
+      }
+
       function recapFoodFamily(name = "", color = null) {
         const text = String(name).toLowerCase();
         if (text.includes("blueberr") || text.includes("berr")) return { key: "fruit", rank: 20, label: "fruit" };
@@ -3169,13 +3206,14 @@
         const bestMeal = meals.reduce((best, meal) => Number(meal.points || 0) > Number(best.points || 0) ? meal : best, meals[0]);
         const biggestMeal = meals.reduce((biggest, meal) => mealCalories(meal) > mealCalories(biggest) ? meal : biggest, meals[0]);
 
-        const visibleMeals = [...meals]
+        const rankedMeals = [...meals]
           .sort((a, b) => mealCalories(b) - mealCalories(a) || Date.parse(b.savedAt || b.created_at || "") - Date.parse(a.savedAt || a.created_at || ""))
-          .slice(0, 9);
-        const loadedImages = await Promise.all(visibleMeals.map((meal) => loadRecapImage(meal.photo)));
-        const tiles = visibleMeals
+        const candidateMeals = rankedMeals.slice(0, Math.min(18, rankedMeals.length));
+        const loadedImages = await Promise.all(candidateMeals.map((meal) => loadRecapImage(meal.photo)));
+        const candidates = candidateMeals
           .map((meal, index) => {
             const color = imageColorProfile(loadedImages[index]?.image);
+            const fingerprint = imageFingerprint(loadedImages[index]?.image);
             const family = recapFoodFamily(meal.name, color);
             return {
               meal,
@@ -3183,9 +3221,22 @@
               color,
               family,
               colorBand: recapColorBand(color),
+              fingerprint,
               originalIndex: index
             };
           })
+          .filter((item) => isUsableRecapPhoto(item.loaded, item.color, item.fingerprint));
+        const selected = [];
+        candidates.forEach((candidate) => {
+          const duplicate = selected.some((item) => fingerprintDistance(item.fingerprint, candidate.fingerprint) <= 7);
+          if (!duplicate && selected.length < 9) selected.push(candidate);
+        });
+        if (selected.length < 9) {
+          candidates.forEach((candidate) => {
+            if (!selected.includes(candidate) && selected.length < 9) selected.push(candidate);
+          });
+        }
+        const tiles = selected
           .sort((a, b) => (
             a.family.rank - b.family.rank ||
             a.colorBand - b.colorBand ||
@@ -3201,7 +3252,7 @@
         context.fillText("Nomi Is What You Ate", 64, 78);
         context.font = "500 27px system-ui, sans-serif";
         context.fillStyle = "#5d6964";
-        context.fillText(`${visibleMeals.length} biggest bites of ${meals.length} meals - ${points} points - ${recapMood(points)}`, 66, 120);
+        context.fillText(`${tiles.length} biggest bites of ${meals.length} meals - ${points} points - ${recapMood(points)}`, 66, 120);
         context.font = "700 25px system-ui, sans-serif";
         context.fillStyle = "#2f6f9f";
         context.fillText(fitText(context, `Top fuel: ${biggestMeal.name} (${mealCalories(biggestMeal)} kcal) - Best score: ${bestMeal.name} (${bestMeal.points} pts)`, 880), 66, 155);
@@ -3247,9 +3298,14 @@
         loadedImages.forEach((loaded) => {
           if (loaded?.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
         });
-        const missingPhotos = loadedImages.filter((loaded, index) => visibleMeals[index].photo && !loaded).length;
-        note.textContent = missingPhotos
-          ? `Private recap created. ${missingPhotos} photo${missingPhotos === 1 ? "" : "s"} could not be added, but the meal names are included.`
+        const skippedCount = candidateMeals.length - candidates.length;
+        const duplicateCount = Math.max(0, candidates.length - selected.length);
+        const cleanupNote = [
+          skippedCount ? `${skippedCount} blank or missing photo${skippedCount === 1 ? "" : "s"} skipped` : "",
+          duplicateCount ? `${duplicateCount} duplicate-looking photo${duplicateCount === 1 ? "" : "s"} skipped` : ""
+        ].filter(Boolean).join("; ");
+        note.textContent = cleanupNote
+          ? `Private recap created. ${cleanupNote}.`
           : "Private recap created. Download or share when ready.";
         $("#weeklyRecap").disabled = false;
         return dataUrl;
