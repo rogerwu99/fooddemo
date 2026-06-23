@@ -3170,6 +3170,14 @@
         return `${candidate.family.key}:${candidate.colorBand}`;
       }
 
+      function recapRoleRank(role = "") {
+        if (role === "top fuel") return 10;
+        if (role === "repeat bite") return 20;
+        if (role === "best score") return 30;
+        if (role === "wildcard") return 40;
+        return 50;
+      }
+
       function uniqueRecapCandidates(candidates) {
         const unique = [];
         const usedExactImageKeys = new Set();
@@ -3186,7 +3194,16 @@
         return { unique, exactDuplicateCount };
       }
 
-      function chooseRecapTiles(candidates, limit = 9) {
+      function addRecapPicks(selected, pool, count, role) {
+        pool.forEach((candidate) => {
+          if (selected.length >= 9 || count <= 0 || selected.includes(candidate)) return;
+          candidate.recapRole = candidate.recapRole || role;
+          selected.push(candidate);
+          count -= 1;
+        });
+      }
+
+      function chooseRecurringRecapTiles(candidates, limit = 3) {
         if (candidates.length <= limit) return candidates;
         const total = candidates.length;
         const groups = [...candidates.reduce((map, candidate) => {
@@ -3239,6 +3256,33 @@
             if (!selected.includes(candidate) && selected.length < limit) selected.push(candidate);
           });
         }
+        return selected.slice(0, limit);
+      }
+
+      function chooseRecapTiles(candidates, limit = 9) {
+        const selected = [];
+        const topFuel = [...candidates].sort((a, b) => (
+          mealCalories(b.meal) - mealCalories(a.meal) ||
+          Date.parse(b.meal.savedAt || b.meal.created_at || "") - Date.parse(a.meal.savedAt || a.meal.created_at || "")
+        ));
+        const repeatBites = chooseRecurringRecapTiles(candidates, 3);
+        const bestScores = [...candidates].sort((a, b) => (
+          Number(b.meal.points || 0) - Number(a.meal.points || 0) ||
+          mealCalories(b.meal) - mealCalories(a.meal)
+        ));
+        const colorfulWildcard = [...candidates].sort((a, b) => (
+          b.color.saturation - a.color.saturation ||
+          b.color.dominantShare - a.color.dominantShare ||
+          Date.parse(b.meal.savedAt || b.meal.created_at || "") - Date.parse(a.meal.savedAt || a.meal.created_at || "")
+        ));
+
+        addRecapPicks(selected, topFuel, 3, "top fuel");
+        addRecapPicks(selected, repeatBites, 3, "repeat bite");
+        addRecapPicks(selected, bestScores, 2, "best score");
+        addRecapPicks(selected, colorfulWildcard, 1, "wildcard");
+        addRecapPicks(selected, topFuel, limit - selected.length, "extra fuel");
+        addRecapPicks(selected, candidates, limit - selected.length, "weekly bite");
+
         return selected.slice(0, limit);
       }
 
@@ -3314,6 +3358,7 @@
         const selected = chooseRecapTiles(uniqueCandidates, 9);
         const tiles = selected
           .sort((a, b) => (
+            recapRoleRank(a.recapRole) - recapRoleRank(b.recapRole) ||
             a.family.rank - b.family.rank ||
             a.colorBand - b.colorBand ||
             a.color.hue - b.color.hue ||
@@ -3355,7 +3400,7 @@
         context.fillRect(64, 1024, 952, 42);
         context.fillStyle = "#33423b";
         context.font = "600 22px system-ui, sans-serif";
-        context.fillText(fitText(context, `Showing the week's recurring mix, grouped by ${familyLabels.join(", ")}`, 900), 82, 1053);
+        context.fillText(fitText(context, `Top fuel, repeat bites, and best Nomi scores - grouped by ${familyLabels.join(", ")}`, 900), 82, 1053);
 
         let dataUrl = "";
         try {
