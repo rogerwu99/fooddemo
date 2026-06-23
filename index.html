@@ -3187,6 +3187,14 @@
         return 50;
       }
 
+      function recapRoleLabel(role = "") {
+        if (role === "repeat bite") return "Repeat bite";
+        if (role === "top fuel") return "Top fuel";
+        if (role === "best score") return "Best score";
+        if (role === "wildcard") return "Wildcard";
+        return "";
+      }
+
       function uniqueRecapCandidates(candidates) {
         const unique = [];
         const usedExactImageKeys = new Set();
@@ -3212,7 +3220,7 @@
         });
       }
 
-      function chooseRecurringRecapTiles(candidates, limit = 9) {
+      function chooseRecurringRecapTiles(candidates, limit = 3) {
         if (candidates.length <= limit) return candidates;
         const groups = [...candidates.reduce((map, candidate) => {
           const key = recapRepresentationKey(candidate);
@@ -3240,15 +3248,14 @@
           ));
         });
 
-        return groups
+        const topGroup = groups
           .filter((group) => group.items.length > 1)
           .sort((a, b) => (
             b.items.length - a.items.length ||
             b.calories - a.calories ||
             a.rank - b.rank
-          ))
-          .flatMap((group) => group.items)
-          .slice(0, limit);
+          ))[0];
+        return topGroup ? topGroup.items.slice(0, limit) : [];
       }
 
       function chooseRecapTiles(candidates, limit = 9) {
@@ -3257,7 +3264,7 @@
           mealCalories(b.meal) - mealCalories(a.meal) ||
           Date.parse(b.meal.savedAt || b.meal.created_at || "") - Date.parse(a.meal.savedAt || a.meal.created_at || "")
         ));
-        const repeatBites = chooseRecurringRecapTiles(candidates, 9);
+        const repeatBites = chooseRecurringRecapTiles(candidates, 3);
         const bestScores = [...candidates].sort((a, b) => (
           Number(b.meal.points || 0) - Number(a.meal.points || 0) ||
           mealCalories(b.meal) - mealCalories(a.meal)
@@ -3386,6 +3393,14 @@
           context.strokeStyle = "rgba(23, 33, 29, 0.12)";
           context.lineWidth = 4;
           context.strokeRect(x + 2, y + 2, tile - 4, tile - 4);
+          const roleLabel = recapRoleLabel(tileItem.recapRole);
+          if (roleLabel) {
+            context.fillStyle = "rgba(23, 33, 29, 0.78)";
+            context.fillRect(x, y + tile - 42, tile, 42);
+            context.fillStyle = "#fbfaf4";
+            context.font = "800 18px system-ui, sans-serif";
+            context.fillText(roleLabel, x + 16, y + tile - 15);
+          }
         });
 
         context.fillStyle = "rgba(251, 250, 244, 0.94)";
