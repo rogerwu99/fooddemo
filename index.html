@@ -3161,7 +3161,7 @@
         ];
         const family = families.find((item) => item.terms.some((term) => text.includes(term))) || { key: "other", rank: 90, label: "other" };
         const bluePurpleShare = (color?.bandShares?.[2] || 0) + (color?.bandShares?.[3] || 0);
-        if ((family.key === "grain" || family.key === "other") && bluePurpleShare > 0.16 && color?.saturation > 0.12) {
+        if ((family.key === "grain" || family.key === "other") && bluePurpleShare > 0.08 && color?.saturation > 0.08) {
           return { key: "fruit", rank: 20, label: "fruit" };
         }
         return family;
@@ -3171,7 +3171,7 @@
         const name = String(candidate.meal?.name || "").toLowerCase();
         const bluePurpleShare = (candidate.color?.bandShares?.[2] || 0) + (candidate.color?.bandShares?.[3] || 0);
         if (name.includes("blueberr") || name.includes("berr")) return true;
-        return ["fruit", "grain", "other"].includes(candidate.family.key) && bluePurpleShare > 0.16 && candidate.color.saturation > 0.12;
+        return ["fruit", "grain", "other"].includes(candidate.family.key) && bluePurpleShare > 0.08 && candidate.color.saturation > 0.08;
       }
 
       function recapRepresentationKey(candidate) {
@@ -3180,8 +3180,8 @@
       }
 
       function recapRoleRank(role = "") {
-        if (role === "top fuel") return 10;
-        if (role === "repeat bite") return 20;
+        if (role === "repeat bite") return 10;
+        if (role === "top fuel") return 20;
         if (role === "best score") return 30;
         if (role === "wildcard") return 40;
         return 50;
@@ -3268,8 +3268,8 @@
           Date.parse(b.meal.savedAt || b.meal.created_at || "") - Date.parse(a.meal.savedAt || a.meal.created_at || "")
         ));
 
-        addRecapPicks(selected, topFuel, 3, "top fuel");
         addRecapPicks(selected, repeatBites, 3, "repeat bite");
+        addRecapPicks(selected, topFuel, 3, "top fuel");
         addRecapPicks(selected, bestScores, 2, "best score");
         addRecapPicks(selected, colorfulWildcard, 1, "wildcard");
         addRecapPicks(selected, topFuel, limit - selected.length, "extra fuel");
