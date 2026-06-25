@@ -1261,6 +1261,12 @@
         gap: 8px;
       }
 
+      .calendar-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
       .log-list {
         display: grid;
         gap: 10px;
@@ -1823,10 +1829,15 @@
                   </label>
                   <div class="reminder-prompt" id="reminderPrompt">
                     <strong>Keep Nomi cared for?</strong>
-                    <p>Get a gentle email if Nomi has not eaten in 24 hours.</p>
+                    <p>Get a gentle email if Nomi has not eaten in 24 hours, or add a daily noon calendar reminder.</p>
                     <div class="reminder-prompt-actions">
                       <button class="primary-btn" id="enableReminders" type="button">Turn on reminders</button>
                       <button class="text-btn" id="dismissReminders" type="button">Not now</button>
+                    </div>
+                    <div class="calendar-actions" aria-label="Calendar reminder options">
+                      <button class="text-btn" type="button" data-calendar-provider="google">Google Calendar</button>
+                      <button class="text-btn" type="button" data-calendar-provider="apple">Apple Calendar</button>
+                      <button class="text-btn" type="button" data-calendar-provider="outlook">Outlook</button>
                     </div>
                   </div>
                 </div>
@@ -3938,6 +3949,111 @@
           .eq("user_id", state.session.user.id);
       }
 
+      function nextLocalNoon() {
+        const start = new Date();
+        start.setDate(start.getDate() + 1);
+        start.setHours(12, 0, 0, 0);
+        const end = new Date(start);
+        end.setMinutes(end.getMinutes() + 15);
+        return { start, end };
+      }
+
+      function padDatePart(value) {
+        return String(value).padStart(2, "0");
+      }
+
+      function localCalendarStamp(date) {
+        return [
+          date.getFullYear(),
+          padDatePart(date.getMonth() + 1),
+          padDatePart(date.getDate())
+        ].join("") + "T" + [
+          padDatePart(date.getHours()),
+          padDatePart(date.getMinutes()),
+          padDatePart(date.getSeconds())
+        ].join("");
+      }
+
+      function isoWithoutMilliseconds(date) {
+        return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+      }
+
+      function utcCalendarStamp(date) {
+        return isoWithoutMilliseconds(date).replace(/[-:]/g, "");
+      }
+
+      function escapeIcsText(value) {
+        return String(value || "")
+          .replace(/\\/g, "\\\\")
+          .replace(/\n/g, "\\n")
+          .replace(/,/g, "\\,")
+          .replace(/;/g, "\\;");
+      }
+
+      function calendarDetails() {
+        return {
+          title: "Feed Nomi",
+          description: `Snap your next meal in FeedNomi if Nomi has not eaten. ${window.location.origin}${window.location.pathname}#analyzer`,
+          location: "FeedNomi",
+          url: `${window.location.origin}${window.location.pathname}#analyzer`
+        };
+      }
+
+      function openCalendarReminder(provider) {
+        const { start, end } = nextLocalNoon();
+        const details = calendarDetails();
+        if (provider === "google") {
+          const params = new URLSearchParams({
+            action: "TEMPLATE",
+            text: details.title,
+            details: details.description,
+            location: details.location,
+            dates: `${localCalendarStamp(start)}/${localCalendarStamp(end)}`,
+            recur: "RRULE:FREQ=DAILY"
+          });
+          window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, "_blank", "noopener");
+          return;
+        }
+        if (provider === "outlook") {
+          const params = new URLSearchParams({
+            path: "/calendar/action/compose",
+            rru: "addevent",
+            subject: details.title,
+            body: details.description,
+            location: details.location,
+            startdt: isoWithoutMilliseconds(start),
+            enddt: isoWithoutMilliseconds(end)
+          });
+          window.open(`https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`, "_blank", "noopener");
+          return;
+        }
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+        const ics = [
+          "BEGIN:VCALENDAR",
+          "VERSION:2.0",
+          "PRODID:-//FeedNomi//Nomi Reminder//EN",
+          "CALSCALE:GREGORIAN",
+          "BEGIN:VEVENT",
+          `UID:feed-nomi-${Date.now()}@feednomi.com`,
+          `DTSTAMP:${utcCalendarStamp(new Date())}`,
+          `DTSTART;TZID=${timezone}:${localCalendarStamp(start)}`,
+          `DTEND;TZID=${timezone}:${localCalendarStamp(end)}`,
+          "RRULE:FREQ=DAILY",
+          `SUMMARY:${escapeIcsText(details.title)}`,
+          `DESCRIPTION:${escapeIcsText(details.description)}`,
+          `LOCATION:${escapeIcsText(details.location)}`,
+          "END:VEVENT",
+          "END:VCALENDAR"
+        ].join("\r\n");
+        const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "feed-nomi-reminder.ics";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
       function dataUrlToBlob(dataUrl) {
         if (!dataUrl || !dataUrl.includes(",")) return null;
         const [meta, base64] = dataUrl.split(",");
@@ -4493,6 +4609,12 @@
         void saveReminderSettings(true);
       });
       $("#dismissReminders").addEventListener("click", () => {
+        void saveReminderSettings(false);
+      });
+      document.querySelector(".calendar-actions").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-calendar-provider]");
+        if (!button) return;
+        openCalendarReminder(button.dataset.calendarProvider);
         void saveReminderSettings(false);
       });
       $("#logList").addEventListener("click", (event) => {
