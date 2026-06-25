@@ -1230,6 +1230,37 @@
         accent-color: var(--accent);
       }
 
+      .reminder-prompt {
+        display: none;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid #d7e7dc;
+        border-radius: 8px;
+        background: #fffdf7;
+      }
+
+      .reminder-prompt.is-visible {
+        display: grid;
+      }
+
+      .reminder-prompt strong {
+        color: var(--ink);
+        font-size: 0.95rem;
+      }
+
+      .reminder-prompt p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.35;
+      }
+
+      .reminder-prompt-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
       .log-list {
         display: grid;
         gap: 10px;
@@ -1790,6 +1821,14 @@
                     <input id="emailReminders" type="checkbox" />
                     <span>Email me when Nomi has not eaten in 24 hours.</span>
                   </label>
+                  <div class="reminder-prompt" id="reminderPrompt">
+                    <strong>Keep Nomi cared for?</strong>
+                    <p>Get a gentle email if Nomi has not eaten in 24 hours.</p>
+                    <div class="reminder-prompt-actions">
+                      <button class="primary-btn" id="enableReminders" type="button">Turn on reminders</button>
+                      <button class="text-btn" id="dismissReminders" type="button">Not now</button>
+                    </div>
+                  </div>
                 </div>
                 <div class="weekly-recap" id="weeklyRecapPanel" aria-live="polite">
                   <img id="weeklyRecapImage" alt="FeedNomi weekly food collage" />
@@ -2034,7 +2073,7 @@
         selectedSex: "neutral",
         selectedAvatarStyle: "neutral",
         setupMode: "setup",
-        reminderSettings: { enabled: false, loaded: false },
+        reminderSettings: { enabled: false, loaded: false, hasChoice: false },
         user: localStorage.getItem("platepointsUser") || "",
         profile: JSON.parse(localStorage.getItem("platepointsProfile") || "null"),
         log: JSON.parse(localStorage.getItem("platepointsLog") || "[]")
@@ -2975,11 +3014,14 @@
 
       function updateAccountActions() {
         const signedIn = Boolean(state.supabase ? state.session : state.user);
+        const canUseReminders = signedIn && Boolean(state.supabase);
+        const showReminderPrompt = canUseReminders && state.reminderSettings.loaded && !state.reminderSettings.hasChoice;
         $("#signOut").style.display = signedIn ? "inline-flex" : "none";
         $("#editProfile").style.display = signedIn ? "inline-flex" : "none";
         $("#refreshLog").style.display = signedIn ? "inline-flex" : "none";
         $("#weeklyRecap").style.display = signedIn ? "inline-flex" : "none";
-        $("#reminderSetting").classList.toggle("is-visible", signedIn && Boolean(state.supabase));
+        $("#reminderSetting").classList.toggle("is-visible", canUseReminders && !showReminderPrompt);
+        $("#reminderPrompt").classList.toggle("is-visible", showReminderPrompt);
         $("#emailReminders").checked = Boolean(state.reminderSettings.enabled);
       }
 
@@ -3783,7 +3825,7 @@
           if (state.supabase) {
             state.user = "";
             state.log = [];
-            state.reminderSettings = { enabled: false, loaded: false };
+            state.reminderSettings = { enabled: false, loaded: false, hasChoice: false };
             setAuthStatus("Not signed in. Save a plate to create or connect an account.");
           } else {
             state.user = localStorage.getItem("platepointsUser") || "";
@@ -3836,7 +3878,7 @@
       }
 
       async function loadReminderSettings() {
-        state.reminderSettings = { enabled: false, loaded: false };
+        state.reminderSettings = { enabled: false, loaded: false, hasChoice: false };
         if (!state.supabase || !state.session) {
           updateAccountActions();
           return;
@@ -3852,14 +3894,18 @@
         } else {
           state.reminderSettings = {
             enabled: Boolean(data?.reminders_enabled),
-            loaded: true
+            loaded: true,
+            hasChoice: Boolean(data)
           };
         }
         updateAccountActions();
       }
 
       async function saveReminderSettings(enabled) {
+        const previousSettings = { ...state.reminderSettings };
         state.reminderSettings.enabled = enabled;
+        state.reminderSettings.loaded = true;
+        state.reminderSettings.hasChoice = true;
         updateAccountActions();
         if (!state.supabase || !state.session) return;
         const table = state.supabaseConfig.notificationSettingsTable || "notification_settings";
@@ -3872,7 +3918,7 @@
             updated_at: new Date().toISOString()
           }, { onConflict: "user_id" });
         if (error) {
-          state.reminderSettings.enabled = !enabled;
+          state.reminderSettings = previousSettings;
           updateAccountActions();
           setAuthStatus(`Reminder setting could not save: ${error.message}`, "error");
           return;
@@ -4442,6 +4488,12 @@
       $("#signOut").addEventListener("click", () => signOut());
       $("#emailReminders").addEventListener("change", (event) => {
         void saveReminderSettings(event.target.checked);
+      });
+      $("#enableReminders").addEventListener("click", () => {
+        void saveReminderSettings(true);
+      });
+      $("#dismissReminders").addEventListener("click", () => {
+        void saveReminderSettings(false);
       });
       $("#logList").addEventListener("click", (event) => {
         const authButton = event.target.closest("[data-auth-open]");
