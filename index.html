@@ -1211,6 +1211,25 @@
         gap: 8px;
       }
 
+      .reminder-setting {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.35;
+      }
+
+      .reminder-setting.is-visible {
+        display: flex;
+      }
+
+      .reminder-setting input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+      }
+
       .log-list {
         display: grid;
         gap: 10px;
@@ -1767,6 +1786,10 @@
                     <button class="text-btn" id="weeklyRecap" type="button">Weekly recap</button>
                     <button class="text-btn" id="signOut" type="button">Sign out</button>
                   </div>
+                  <label class="reminder-setting" id="reminderSetting">
+                    <input id="emailReminders" type="checkbox" />
+                    <span>Email me when Nomi has not eaten in 24 hours.</span>
+                  </label>
                 </div>
                 <div class="weekly-recap" id="weeklyRecapPanel" aria-live="polite">
                   <img id="weeklyRecapImage" alt="FeedNomi weekly food collage" />
@@ -2011,6 +2034,7 @@
         selectedSex: "neutral",
         selectedAvatarStyle: "neutral",
         setupMode: "setup",
+        reminderSettings: { enabled: false, loaded: false },
         user: localStorage.getItem("platepointsUser") || "",
         profile: JSON.parse(localStorage.getItem("platepointsProfile") || "null"),
         log: JSON.parse(localStorage.getItem("platepointsLog") || "[]")
@@ -2955,6 +2979,8 @@
         $("#editProfile").style.display = signedIn ? "inline-flex" : "none";
         $("#refreshLog").style.display = signedIn ? "inline-flex" : "none";
         $("#weeklyRecap").style.display = signedIn ? "inline-flex" : "none";
+        $("#reminderSetting").classList.toggle("is-visible", signedIn && Boolean(state.supabase));
+        $("#emailReminders").checked = Boolean(state.reminderSettings.enabled);
       }
 
       function getWeeklyMeals() {
@@ -3757,6 +3783,7 @@
           if (state.supabase) {
             state.user = "";
             state.log = [];
+            state.reminderSettings = { enabled: false, loaded: false };
             setAuthStatus("Not signed in. Save a plate to create or connect an account.");
           } else {
             state.user = localStorage.getItem("platepointsUser") || "";
@@ -3774,6 +3801,7 @@
         const savedPending = await savePendingFoodAfterAuth();
         const restoredPending = !savedPending && restorePendingFoodForRetry();
         if (!savedPending) await loadRemoteLog();
+        await loadReminderSettings();
         restoreAuthReturnLocation(savedPending ? "#food-log" : "#analyzer");
         if (restoredPending) {
           $("#saveHint").textContent = "Signed in. Your pending meal is still here; save it again to add it to your food log.";
@@ -3805,6 +3833,63 @@
         await hydrateSignedPhotoUrls(state.log);
         setAuthStatus(`Signed in as ${state.user}. ${state.log.length} saved meal${state.log.length === 1 ? "" : "s"} loaded.`, "success");
         renderLog();
+      }
+
+      async function loadReminderSettings() {
+        state.reminderSettings = { enabled: false, loaded: false };
+        if (!state.supabase || !state.session) {
+          updateAccountActions();
+          return;
+        }
+        const table = state.supabaseConfig.notificationSettingsTable || "notification_settings";
+        const { data, error } = await state.supabase
+          .from(table)
+          .select("reminders_enabled")
+          .eq("user_id", state.session.user.id)
+          .maybeSingle();
+        if (error) {
+          setAuthStatus(`Reminder settings could not load: ${error.message}`, "error");
+        } else {
+          state.reminderSettings = {
+            enabled: Boolean(data?.reminders_enabled),
+            loaded: true
+          };
+        }
+        updateAccountActions();
+      }
+
+      async function saveReminderSettings(enabled) {
+        state.reminderSettings.enabled = enabled;
+        updateAccountActions();
+        if (!state.supabase || !state.session) return;
+        const table = state.supabaseConfig.notificationSettingsTable || "notification_settings";
+        const { error } = await state.supabase
+          .from(table)
+          .upsert({
+            user_id: state.session.user.id,
+            email: state.session.user.email || state.user || "",
+            reminders_enabled: enabled,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "user_id" });
+        if (error) {
+          state.reminderSettings.enabled = !enabled;
+          updateAccountActions();
+          setAuthStatus(`Reminder setting could not save: ${error.message}`, "error");
+          return;
+        }
+        setAuthStatus(enabled ? "Nomi reminder emails are on." : "Nomi reminder emails are off.", "success");
+      }
+
+      async function resetReminderStreakAfterMeal() {
+        if (!state.supabase || !state.session || !state.reminderSettings.enabled) return;
+        const table = state.supabaseConfig.notificationSettingsTable || "notification_settings";
+        await state.supabase
+          .from(table)
+          .update({
+            reminder_streak: 0,
+            updated_at: new Date().toISOString()
+          })
+          .eq("user_id", state.session.user.id);
       }
 
       function dataUrlToBlob(dataUrl) {
@@ -4171,6 +4256,7 @@
               renderLog();
             }
             await loadRemoteLog();
+            await resetReminderStreakAfterMeal();
           } else {
             state.log.unshift(entry);
             state.log = state.log.slice(0, 8);
@@ -4354,6 +4440,9 @@
       $("#downloadRecap").addEventListener("click", () => downloadRecap());
       $("#shareRecap").addEventListener("click", () => shareRecap());
       $("#signOut").addEventListener("click", () => signOut());
+      $("#emailReminders").addEventListener("change", (event) => {
+        void saveReminderSettings(event.target.checked);
+      });
       $("#logList").addEventListener("click", (event) => {
         const authButton = event.target.closest("[data-auth-open]");
         if (authButton) {

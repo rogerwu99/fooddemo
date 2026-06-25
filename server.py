@@ -1900,6 +1900,7 @@ class FeedNomiHandler(SimpleHTTPRequestHandler):
                     "supabaseUrl": public_supabase_url(),
                     "supabaseAnonKey": os.environ.get("SUPABASE_ANON_KEY", "").strip(),
                     "foodLogTable": os.environ.get("SUPABASE_FOOD_LOG_TABLE", "food_logs").strip(),
+                    "notificationSettingsTable": os.environ.get("SUPABASE_NOTIFICATION_SETTINGS_TABLE", "notification_settings").strip(),
                     "photoBucket": os.environ.get("SUPABASE_PHOTO_BUCKET", "food-photos").strip(),
                 }
             )
