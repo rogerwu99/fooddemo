@@ -3803,6 +3803,16 @@
         localStorage.setItem(authReturnHashKey, target);
       }
 
+      function currentAuthReturnTarget(hasPendingMeal = false) {
+        if (hasPendingMeal) return "#food-log";
+        if (window.location.hash === "#food-log") return "#food-log";
+        return "#analyzer";
+      }
+
+      function authRedirectParam(target = "#analyzer") {
+        return target === "#food-log" ? "food-log" : "analyzer";
+      }
+
       function setStoredPendingSave(payload) {
         const value = JSON.stringify(payload);
         localStorage.setItem(pendingSavePrimaryKey, value);
@@ -4466,18 +4476,21 @@
             await completeSignup(value);
             return;
           }
-          if (state.analyzed) {
+          const hasPendingMeal = Boolean(state.analyzed);
+          if (hasPendingMeal) {
             $("#authNote").textContent = "Saving this meal before sending your magic link...";
             if (!(await storePendingSave())) return;
           }
-          rememberAuthReturn("#analyzer");
+          const returnTarget = currentAuthReturnTarget(hasPendingMeal);
+          rememberAuthReturn(returnTarget);
+          const redirectParam = authRedirectParam(returnTarget);
           const { error } = await state.supabase.auth.signInWithOtp({
             email: value,
-            options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}?authReturn=analyzer#analyzer` }
+            options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}?authReturn=${redirectParam}${returnTarget}` }
           });
           if (error) throw error;
-          $("#authNote").textContent = "Check your email for a magic link, then return here to save.";
-          setAuthStatus("Magic link sent. Pending meal will save after sign in.", "info");
+          $("#authNote").textContent = "Check your email for a magic link. FeedNomi will finish sign-in when the link opens.";
+          setAuthStatus(hasPendingMeal ? "Magic link sent. Pending meal will save after sign in." : "Magic link sent. Open it to sign in.", "info");
         } catch (error) {
           const message = error.message || "Email sign-in failed";
           $("#authNote").textContent = `Magic link failed: ${message}`;
@@ -4492,11 +4505,14 @@
           await completeSignup("google.profile@example.com");
           return;
         }
-        if (state.analyzed && !(await storePendingSave())) return;
-        rememberAuthReturn("#analyzer");
+        const hasPendingMeal = Boolean(state.analyzed);
+        if (hasPendingMeal && !(await storePendingSave())) return;
+        const returnTarget = currentAuthReturnTarget(hasPendingMeal);
+        rememberAuthReturn(returnTarget);
+        const redirectParam = authRedirectParam(returnTarget);
         const { error } = await state.supabase.auth.signInWithOAuth({
           provider: "google",
-          options: { redirectTo: `${window.location.origin}${window.location.pathname}?authReturn=analyzer#analyzer` }
+          options: { redirectTo: `${window.location.origin}${window.location.pathname}?authReturn=${redirectParam}${returnTarget}` }
         });
         if (error) {
           $("#authNote").textContent = `Google sign in failed: ${error.message}`;
