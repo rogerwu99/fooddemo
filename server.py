@@ -1147,14 +1147,19 @@ def with_portion_weight(food, force_full_serving=False):
         portion = float(food.get("portion", 1))
     except (TypeError, ValueError):
         portion = 1
-    if force_full_serving:
-        portion = 1
 
     role = food.get("role") or infer_component_role(
         food.get("key", "mixed"),
         food.get("name", ""),
         food.get("serving", ""),
     )
+    serving_text = str(food.get("serving", "") or "").lower()
+    has_explicit_serving = any(
+        token in serving_text
+        for token in ["cup", "oz", "ounce", "slice", "cutlet", "entree", "portion", "plate"]
+    )
+    if force_full_serving or (has_explicit_serving and role in {"base", "protein", "prepared", "dessert", "fruit_veg"}):
+        portion = 1
     role_caps = {
         "sweetener": 0.16,
         "condiment": 0.16,
