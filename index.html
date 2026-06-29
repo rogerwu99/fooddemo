@@ -1483,6 +1483,24 @@
         gap: 10px;
       }
 
+      .auth-divider {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+
+      .auth-divider::before,
+      .auth-divider::after {
+        height: 1px;
+        content: "";
+        background: #dce5de;
+      }
+
       .google-btn {
         display: flex;
         align-items: center;
@@ -1494,6 +1512,25 @@
         background: white;
         color: var(--ink);
         font-weight: 800;
+      }
+
+      .google-btn.is-primary {
+        min-height: 48px;
+        border-color: var(--ink);
+        box-shadow: 0 10px 24px rgba(23, 33, 29, 0.12);
+      }
+
+      .google-mark {
+        display: grid;
+        width: 22px;
+        height: 22px;
+        place-items: center;
+        border: 1px solid #d9e1db;
+        border-radius: 50%;
+        background: white;
+        color: var(--blue);
+        font-size: 0.86rem;
+        font-weight: 900;
       }
 
       .modal-row {
@@ -1866,17 +1903,19 @@
     <div class="auth-modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
       <div class="auth-card">
         <h3 id="authTitle">Create your profile</h3>
-        <p>We need an account before saving your photo-based nutrition result to a profile.</p>
-        <div class="auth-field">
-          <label for="email">Email address</label>
-          <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
-        </div>
+        <p>Save meals, sync your food log, and keep Nomi fed across devices.</p>
         <div class="auth-actions">
-          <button class="primary-btn" id="emailSignup" type="button">Continue with email</button>
-          <button class="google-btn" id="googleSignup" type="button">
-            <span aria-hidden="true">G</span>
+          <button class="google-btn is-primary" id="googleSignup" type="button">
+            <span class="google-mark" aria-hidden="true">G</span>
             Continue with Google
           </button>
+          <div class="auth-divider">or</div>
+          <div class="auth-field">
+            <label for="email">Email address</label>
+            <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+            <small class="field-note">Magic links work best when opened in this same browser.</small>
+          </div>
+          <button class="ghost-btn" id="emailSignup" type="button">Send magic link</button>
         </div>
         <div class="modal-row">
           <small id="authNote">Prototype sign-in stores this session locally.</small>
@@ -3525,13 +3564,13 @@
       function openAuthModal(reason = "signin") {
         $("#authTitle").textContent = reason === "save" ? "Create your profile" : "Sign in";
         authModal.querySelector("p").textContent = reason === "save"
-          ? "We need an account before saving your photo-based nutrition result to a profile."
-          : "Sign in with email or Google to view and save your food log.";
+          ? "Save meals, sync your food log, and keep Nomi fed across devices."
+          : "Sign in with Google or email to view and save your food log.";
         $("#authNote").textContent = state.supabase
-          ? "Use email magic link or Google to save meals across devices."
+          ? "Use Google or email magic link to save meals across devices."
           : "Prototype sign-in stores this session locally.";
         authModal.classList.add("is-open");
-        $("#email").focus();
+        $("#googleSignup").focus();
       }
 
       function renderLog() {
@@ -3763,7 +3802,7 @@
           state.supabase.auth.onAuthStateChange((_event, session) => {
             void setSupabaseSession(session);
           });
-          $("#authNote").textContent = "Use email magic link or Google to save meals across devices.";
+          $("#authNote").textContent = "Use Google or email magic link to save meals across devices.";
         } catch (error) {
           $("#authNote").textContent = "Auth service unavailable. Local prototype mode is active.";
           setAuthStatus("Auth service unavailable. Local prototype mode is active.", "error");
