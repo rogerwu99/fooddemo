@@ -495,6 +495,10 @@
         margin-top: 16px;
       }
 
+      .sample-row.is-hidden {
+        display: none;
+      }
+
       .sample-row button {
         border: 1px solid var(--line);
         border-radius: 999px;
@@ -1671,7 +1675,7 @@
               </div>
               <input class="file-input" id="foodImage" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,.heic,.heif,image/heic,image/heif" />
 
-              <div class="sample-row" aria-label="Analyze sample foods">
+              <div class="sample-row" id="sampleFoodRow" aria-label="Analyze sample foods">
                 <button type="button" data-sample="broccoli">Try broccoli</button>
                 <button type="button" data-sample="chicken">Try grilled chicken</button>
                 <button type="button" data-sample="cake">Try cake</button>
@@ -3031,6 +3035,7 @@
         $("#editProfile").style.display = signedIn ? "inline-flex" : "none";
         $("#refreshLog").style.display = signedIn ? "inline-flex" : "none";
         $("#weeklyRecap").style.display = signedIn ? "inline-flex" : "none";
+        $("#sampleFoodRow").classList.toggle("is-hidden", signedIn);
         $("#reminderSetting").classList.toggle("is-visible", canUseReminders && !showReminderPrompt);
         $("#reminderPrompt").classList.toggle("is-visible", showReminderPrompt);
         $("#emailReminders").checked = Boolean(state.reminderSettings.enabled);
