@@ -392,11 +392,15 @@ def enrich_component_with_nutrition(component, include_candidates=False):
     )
     component_food["key"] = component["key"]
     component_food["name"] = component.get("label") or component_food["name"]
+    component_food["role"] = role
+    component_food["nutrient_role"] = nutrient_role
+    component_food = scale_usda_component_to_estimated_serving(
+        component_food,
+        component.get("serving_estimate") or component_food.get("serving", ""),
+    )
     component_food["serving"] = component.get("serving_estimate") or component_food["serving"]
     component_food["confidence"] = component.get("confidence", 0.5)
     component_food["portion"] = component.get("portion", 1)
-    component_food["role"] = role
-    component_food["nutrient_role"] = nutrient_role
     return component_food
 
 
@@ -1068,7 +1072,7 @@ def combine_components(component_foods, dish_name=""):
             "usdaCandidates": unavailable_components[0].get("usdaCandidates", []),
         }
 
-    weighted_components = [with_portion_weight(food) for food in component_foods]
+    weighted_components = [with_portion_weight(food, force_full_serving=len(component_foods) == 1) for food in component_foods]
     calories = sum(food["weightedCalories"] for food in weighted_components)
     protein = sum(food["weightedProtein"] for food in weighted_components)
     fiber = sum(food["weightedFiber"] for food in weighted_components)
@@ -1137,11 +1141,13 @@ def portion_confidence_label(avg_confidence, component_count):
     return "Low - adjust serving size when available"
 
 
-def with_portion_weight(food):
+def with_portion_weight(food, force_full_serving=False):
     weighted = dict(food)
     try:
         portion = float(food.get("portion", 1))
     except (TypeError, ValueError):
+        portion = 1
+    if force_full_serving:
         portion = 1
 
     role = food.get("role") or infer_component_role(
@@ -1288,6 +1294,88 @@ def parse_grams(value):
         return 0.0
 
 
+def estimated_serving_grams(serving="", role="", key="", name=""):
+    text = f"{serving} {role} {key} {name}".lower()
+    number_match = re.search(r"(\d+(?:\.\d+)?)", text)
+    amount = float(number_match.group(1)) if number_match else 1.0
+    if "1/2" in text:
+        amount = 0.5
+    elif "1.5" in text or "1 1/2" in text:
+        amount = 1.5
+
+    if "oz" in text or "ounce" in text:
+        return amount * 28.35
+    if "tablespoon" in text or "tbsp" in text:
+        return amount * 20
+    if "teaspoon" in text or "tsp" in text:
+        return amount * 7
+    if "cup" in text:
+        if "oat" in text or "porridge" in text:
+            return amount * 234
+        if "berr" in text:
+            return amount * 148
+        if "broccoli" in text or "vegetable" in text or "salad" in text:
+            return amount * 90
+        if "pasta" in text or "spaghetti" in text or "noodle" in text or "rice" in text:
+            return amount * 140
+        if "eggplant" in text or "parmesan" in text or "parm" in text:
+            return amount * 220
+        return amount * 160
+    if "slice" in text:
+        if "pizza" in text:
+            return 125
+        if "cake" in text:
+            return 110
+        return 60
+    if "cutlet" in text:
+        return 150
+    if "entree" in text or "portion" in text or "plate" in text:
+        if "protein" in text or text_has_term(text, PROTEIN_FOOD_TERMS):
+            return 170
+        if "pasta" in text or "spaghetti" in text or "noodle" in text:
+            return 280
+        return 240
+    return 100
+
+
+def scale_grams_string(value, factor):
+    grams = parse_grams(value)
+    return f"{grams * factor:.0f} g"
+
+
+def scale_usda_component_to_estimated_serving(food, serving_estimate=""):
+    if food.get("nutritionUnavailable") or food.get("databaseSource") != "USDA FoodData Central":
+        return food
+    if food.get("usdaScaledToServing"):
+        return food
+    basis_grams = float(food.get("usdaNutrientBasisGrams") or 0)
+    if not basis_grams:
+        return food
+    target_grams = estimated_serving_grams(
+        serving_estimate or food.get("serving", ""),
+        food.get("role", ""),
+        food.get("key", ""),
+        food.get("name", ""),
+    )
+    factor = max(0.25, min(4.0, target_grams / basis_grams))
+    if abs(factor - 1) < 0.05:
+        return food
+    scaled = dict(food)
+    scaled["calories"] = round(float(food.get("calories", 0)) * factor)
+    scaled["protein"] = scale_grams_string(food.get("protein", "0 g"), factor)
+    scaled["fiber"] = scale_grams_string(food.get("fiber", "0 g"), factor)
+    scaled["sugar"] = scale_grams_string(food.get("sugar", "0 g"), factor)
+    scaled["nutritionBasis"] = f"{serving_estimate or food.get('serving', 'estimated serving')} scaled from USDA 100 g values"
+    scaled["databaseNotes"] = dedupe(
+        (food.get("databaseNotes") or [])
+        + [f"Scaled USDA 100 g nutrients to the estimated serving ({round(target_grams)} g)."]
+    )
+    scaled["usdaScaledToServing"] = True
+    scaled["points"] = calculate_points(scaled)
+    scaled["effect"] = effect_for_points(scaled["points"])
+    return scaled
+
+
 def dedupe(items):
     seen = set()
     result = []
@@ -1375,16 +1463,20 @@ def apply_usda_match(base, match, query, selected_by_user=False):
         base["fiber"] = f"{fiber:.0f} g"
     if sugar is not None:
         base["sugar"] = f"{sugar:.0f} g"
+    data_type = match.get("dataType", "USDA")
     usda_serving = match.get("servingSizeUnit") and match.get("servingSize") and (
         f"{match.get('servingSize')} {match.get('servingSizeUnit')}"
     )
+    per_100g_record = data_type in {"Foundation", "SR Legacy", "Survey (FNDDS)"}
     base["serving"] = usda_serving or base["serving"]
-    base["nutritionBasis"] = usda_serving or "USDA database amount (serving not specified)"
+    base["nutritionBasis"] = "USDA 100 g database amount" if per_100g_record else (usda_serving or "USDA database amount (serving not specified)")
+    if per_100g_record:
+        base["usdaNutrientBasisGrams"] = 100
     base["databaseSource"] = "USDA FoodData Central"
-    base["sourceMatch"] = f"{match.get('description', query)} ({match.get('dataType', 'USDA')}, FDC {match.get('fdcId', 'unknown')})"
+    base["sourceMatch"] = f"{match.get('description', query)} ({data_type}, FDC {match.get('fdcId', 'unknown')})"
     base["databaseNotes"] = [
-        f"Matched FDC ID {match.get('fdcId')} ({match.get('dataType', 'unknown type')}).",
-        "USDA values may be per serving or per 100 g depending on record metadata.",
+        f"Matched FDC ID {match.get('fdcId')} ({data_type}).",
+        "USDA values were normalized to the estimated serving when the source row is per 100 g.",
     ]
     if selected_by_user:
         base["databaseNotes"].append("User selected this USDA nutrition row.")
