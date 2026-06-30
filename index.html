@@ -1883,7 +1883,7 @@
                   </div>
                 </div>
                 <div class="weekly-recap" id="weeklyRecapPanel" aria-live="polite">
-                  <img id="weeklyRecapImage" alt="FeedNomi weekly food collage" />
+                  <img id="weeklyRecapImage" alt="FeedNomi weekly color chart" />
                   <div class="recap-actions">
                     <button class="text-btn" id="downloadRecap" type="button">Download recap</button>
                     <button class="text-btn" id="shareRecap" type="button">Share</button>
@@ -3420,6 +3420,109 @@
         return 9;
       }
 
+      function recapFamilyHue(familyKey = "other") {
+        const hues = {
+          greens: 126,
+          fruit: 286,
+          grain: 42,
+          pasta: 35,
+          protein: 18,
+          dessert: 332,
+          other: 205
+        };
+        return hues[familyKey] || hues.other;
+      }
+
+      function recapBandHue(band) {
+        const hues = {
+          1: 126,
+          2: 205,
+          3: 286,
+          4: 358,
+          5: 42,
+          8: 88,
+          9: 205
+        };
+        return hues[band] || hues[9];
+      }
+
+      function recapColorForCandidate(candidate) {
+        const color = candidate?.color;
+        const hue = color && color.hue !== 999 ? color.hue : recapFamilyHue(candidate?.family?.key);
+        const saturation = Math.round(Math.max(30, Math.min(74, (color?.saturation || 0.36) * 100 + 18)));
+        const lightness = Math.round(Math.max(34, Math.min(72, (color?.lightness || 0.54) * 100)));
+        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+      }
+
+      function recapFallbackColorProfile(meal, family) {
+        const hue = recapFamilyHue(family.key);
+        return {
+          hue,
+          saturation: 0.38,
+          lightness: 0.56,
+          dominantBand: recapColorBand({ hue, saturation: 0.38, lightness: 0.56 }),
+          dominantShare: 0.22,
+          bandShares: { [recapColorBand({ hue, saturation: 0.38, lightness: 0.56 })]: 0.5, 8: 0.18, 9: 0.12 }
+        };
+      }
+
+      function drawAbstractRecapTile(context, tileItem, x, y, tile) {
+        const points = Number(tileItem.meal.points || 0);
+        const calories = mealCalories(tileItem.meal);
+        const baseColor = recapColorForCandidate(tileItem);
+        context.fillStyle = baseColor;
+        context.fillRect(x, y, tile, tile);
+
+        const shares = Object.entries(tileItem.color.bandShares || {})
+          .filter(([, share]) => Number(share) > 0.015)
+          .sort((a, b) => Number(a[0]) - Number(b[0]));
+        let stripeX = x;
+        shares.forEach(([band, share], index) => {
+          const width = index === shares.length - 1
+            ? x + tile - stripeX
+            : Math.max(8, Math.round(tile * Number(share)));
+          context.fillStyle = `hsl(${recapBandHue(Number(band))}, 54%, ${band === "8" ? 74 : 55}%)`;
+          context.fillRect(stripeX, y, width, 28);
+          stripeX += width;
+        });
+
+        context.fillStyle = "rgba(251, 250, 244, 0.16)";
+        context.beginPath();
+        context.arc(x + tile * 0.72, y + tile * 0.34, tile * 0.34, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = "rgba(23, 33, 29, 0.12)";
+        context.beginPath();
+        context.arc(x + tile * 0.25, y + tile * 0.78, tile * 0.24, 0, Math.PI * 2);
+        context.fill();
+
+        const ringRadius = 46;
+        const centerX = x + 66;
+        const centerY = y + tile - 72;
+        context.lineWidth = 12;
+        context.strokeStyle = "rgba(251, 250, 244, 0.62)";
+        context.beginPath();
+        context.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+        context.stroke();
+        context.strokeStyle = points >= 38 ? "#dff5de" : points >= 18 ? "#f1b94e" : "#ce4d38";
+        context.beginPath();
+        context.arc(centerX, centerY, ringRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, points / 50));
+        context.stroke();
+
+        context.fillStyle = "rgba(23, 33, 29, 0.78)";
+        context.fillRect(x, y + tile - 46, tile, 46);
+        context.fillStyle = "#fbfaf4";
+        context.font = "850 18px system-ui, sans-serif";
+        context.fillText(recapRoleLabel(tileItem.recapRole) || "Weekly bite", x + 16, y + tile - 18);
+        context.textAlign = "right";
+        context.font = "850 24px system-ui, sans-serif";
+        context.fillText(`${points}`, x + tile - 16, y + tile - 18);
+        context.textAlign = "left";
+
+        context.fillStyle = "rgba(251, 250, 244, 0.82)";
+        context.font = "750 18px system-ui, sans-serif";
+        context.fillText(`${calories} kcal`, x + 18, y + 58);
+      }
+
       function recapMood(points) {
         if (points >= 80) return "Energized Nomi";
         if (points >= 24) return "Balanced Nomi";
@@ -3460,10 +3563,13 @@
         const loadedImages = await Promise.all(candidateMeals.map((meal) => loadRecapImage(meal.photo)));
         const candidates = candidateMeals
           .map((meal, index) => {
-            const color = imageColorProfile(loadedImages[index]?.image);
+            const photoColor = imageColorProfile(loadedImages[index]?.image);
             const fingerprint = imageFingerprint(loadedImages[index]?.image);
             const exactImageKey = loadedImages[index]?.contentHash || recapPhotoKey(meal);
-            const family = recapFoodFamily(meal.name, color);
+            const family = recapFoodFamily(meal.name, photoColor);
+            const color = isUsableRecapPhoto(loadedImages[index], photoColor, fingerprint)
+              ? photoColor
+              : recapFallbackColorProfile(meal, family);
             return {
               meal,
               loaded: loadedImages[index],
@@ -3475,7 +3581,7 @@
               originalIndex: index
             };
           })
-          .filter((item) => isUsableRecapPhoto(item.loaded, item.color, item.fingerprint));
+          .filter((item) => item.color && item.color.hue !== 999);
         const { unique: uniqueCandidates, exactDuplicateCount } = uniqueRecapCandidates(candidates);
         const selected = chooseRecapTiles(uniqueCandidates, 9);
         const tiles = selected
@@ -3492,13 +3598,13 @@
 
         context.fillStyle = "#17211d";
         context.font = "800 58px system-ui, sans-serif";
-        context.fillText("Nomi Is What You Ate", 64, 78);
+        context.fillText("Nomi Color Week", 64, 78);
         context.font = "500 27px system-ui, sans-serif";
         context.fillStyle = "#5d6964";
-        context.fillText(`${tiles.length} weekly bites from ${meals.length} meals - ${points} points - ${recapMood(points)}`, 66, 120);
+        context.fillText(`${tiles.length} color signals from ${meals.length} meals - ${points} points - ${recapMood(points)}`, 66, 120);
         context.font = "700 25px system-ui, sans-serif";
         context.fillStyle = "#2f6f9f";
-        context.fillText(fitText(context, `Top fuel: ${biggestMeal.name} (${mealCalories(biggestMeal)} kcal) - Best score: ${bestMeal.name} (${bestMeal.points} pts)`, 880), 66, 155);
+        context.fillText(fitText(context, `Food photos translated into color, score, and energy patterns`, 880), 66, 155);
 
         const gap = 14;
         const tile = 292;
@@ -3511,26 +3617,17 @@
           const y = startY + row * (tile + gap);
           context.fillStyle = "#e8eee9";
           context.fillRect(x, y, tile, tile);
-          const loaded = tileItem.loaded;
-          if (loaded?.image) drawCoverImage(context, loaded.image, x, y, tile, tile);
+          drawAbstractRecapTile(context, tileItem, x, y, tile);
           context.strokeStyle = "rgba(23, 33, 29, 0.12)";
           context.lineWidth = 4;
           context.strokeRect(x + 2, y + 2, tile - 4, tile - 4);
-          const roleLabel = recapRoleLabel(tileItem.recapRole);
-          if (roleLabel) {
-            context.fillStyle = "rgba(23, 33, 29, 0.78)";
-            context.fillRect(x, y + tile - 42, tile, 42);
-            context.fillStyle = "#fbfaf4";
-            context.font = "800 18px system-ui, sans-serif";
-            context.fillText(roleLabel, x + 16, y + tile - 15);
-          }
         });
 
         context.fillStyle = "rgba(251, 250, 244, 0.94)";
         context.fillRect(64, 1024, 952, 42);
         context.fillStyle = "#33423b";
         context.font = "600 22px system-ui, sans-serif";
-        context.fillText(fitText(context, `Top fuel, repeat bites, and best Nomi scores - grouped by ${familyLabels.join(", ")}`, 900), 82, 1053);
+        context.fillText(fitText(context, `Abstracted from top fuel, repeat bites, and best Nomi scores - ${familyLabels.join(", ")}`, 900), 82, 1053);
 
         let dataUrl = "";
         try {
@@ -3549,9 +3646,9 @@
         loadedImages.forEach((loaded) => {
           if (loaded?.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
         });
-        const skippedCount = candidateMeals.length - candidates.length;
+        const skippedCount = Math.max(0, candidateMeals.length - candidates.length);
         const cleanupNote = [
-          skippedCount ? `${skippedCount} blank or missing photo${skippedCount === 1 ? "" : "s"} skipped` : "",
+          skippedCount ? `${skippedCount} meal${skippedCount === 1 ? "" : "s"} skipped` : "",
           exactDuplicateCount ? `${exactDuplicateCount} exact duplicate photo${exactDuplicateCount === 1 ? "" : "s"} skipped` : ""
         ].filter(Boolean).join("; ");
         note.textContent = cleanupNote
@@ -4279,7 +4376,7 @@
         }
         const link = document.createElement("a");
         link.href = dataUrl;
-        link.download = "feednomi-weekly-recap.png";
+        link.download = "feednomi-color-week.png";
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -4293,11 +4390,11 @@
         }
         try {
           const blob = dataUrlToBlob(dataUrl);
-          const file = blob ? new File([blob], "feednomi-weekly-recap.png", { type: "image/png" }) : null;
+          const file = blob ? new File([blob], "feednomi-color-week.png", { type: "image/png" }) : null;
           if (navigator.canShare && file && navigator.canShare({ files: [file] })) {
             await navigator.share({
               title: "FeedNomi Weekly",
-              text: "My FeedNomi weekly food recap",
+              text: "My FeedNomi weekly color recap",
               files: [file]
             });
             $("#weeklyRecapNote").textContent = "Recap shared.";
