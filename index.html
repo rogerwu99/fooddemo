@@ -3452,28 +3452,33 @@
 
       function recapFamilyHue(familyKey = "other") {
         const hues = {
-          greens: 126,
+          greens: 136,
           fruit: 286,
-          grain: 42,
-          pasta: 35,
-          protein: 18,
-          dessert: 332,
-          other: 205
+          grain: 206,
+          pasta: 54,
+          protein: 346,
+          dessert: 318,
+          other: 188
         };
         return hues[familyKey] || hues.other;
       }
 
       function recapBandHue(band) {
         const hues = {
-          1: 126,
-          2: 205,
+          1: 136,
+          2: 202,
           3: 286,
-          4: 358,
-          5: 42,
-          8: 88,
-          9: 205
+          4: 346,
+          5: 54,
+          8: 166,
+          9: 214
         };
         return hues[band] || hues[9];
+      }
+
+      function blendHue(start, end, amount = 0.5) {
+        const delta = ((((end - start) % 360) + 540) % 360) - 180;
+        return Math.round((start + delta * amount + 360) % 360);
       }
 
       function recapFallbackColorProfile(meal, family) {
@@ -3490,9 +3495,16 @@
 
       function recapHslParts(candidate) {
         const color = candidate?.color;
-        const hue = color && color.hue !== 999 ? color.hue : recapFamilyHue(candidate?.family?.key);
-        const saturation = Math.round(Math.max(30, Math.min(74, (color?.saturation || 0.36) * 100 + 18)));
-        const lightness = Math.round(Math.max(34, Math.min(72, (color?.lightness || 0.54) * 100)));
+        const familyHue = recapFamilyHue(candidate?.family?.key);
+        const rawHue = color && color.hue !== 999 ? color.hue : familyHue;
+        const rawSaturation = color?.saturation || 0.36;
+        const rawLightness = color?.lightness || 0.54;
+        const isBrownPhotoHue = rawHue >= 18 && rawHue <= 58 && rawSaturation < 0.58;
+        const hue = isBrownPhotoHue || rawSaturation < 0.18
+          ? familyHue
+          : blendHue(familyHue, rawHue, 0.24);
+        const saturation = Math.round(Math.max(48, Math.min(82, rawSaturation * 72 + 28)));
+        const lightness = Math.round(Math.max(44, Math.min(76, rawLightness * 62 + 15)));
         return { hue, saturation, lightness };
       }
 
@@ -3518,105 +3530,343 @@
         context.closePath();
       }
 
-      function drawPainterlyStroke(context, candidate, index, total) {
+      function drawColorField(context, candidate, x, y, width, height, index) {
         const points = Number(candidate.meal.points || 0);
         const calories = mealCalories(candidate.meal);
-        const angle = -0.9 + (index / Math.max(1, total - 1)) * 1.8;
-        const orbitX = 300 + Math.min(260, calories * 0.38);
-        const orbitY = 230 + Math.min(150, points * 3.2);
-        const centerX = 540 + Math.cos(angle) * orbitX;
-        const centerY = 560 + Math.sin(angle) * orbitY;
-        const radiusX = 170 + Math.min(120, calories * 0.18);
-        const radiusY = 82 + Math.min(100, points * 2.5);
-        const rotation = angle * 0.8 + (candidate.color.hue || 0) / 180;
+        const wash = context.createLinearGradient(x, y, x + width, y + height);
+        wash.addColorStop(0, recapHsl(candidate, 0.72, 18));
+        wash.addColorStop(0.54, recapHsl(candidate, 0.48, 4));
+        wash.addColorStop(1, recapHsl(candidate, 0.34, -10));
 
+        context.save();
         context.globalCompositeOperation = "multiply";
-        context.fillStyle = recapHsl(candidate, 0.46, 8);
-        drawPainterlyBlob(context, centerX, centerY, radiusX, radiusY, rotation, points + index);
+        context.fillStyle = wash;
+        drawPainterlyBlob(
+          context,
+          x + width / 2,
+          y + height / 2,
+          width * (0.58 + Math.min(0.18, calories / 2600)),
+          height * (0.46 + Math.min(0.2, points / 180)),
+          (index % 2 ? -0.05 : 0.06) + (candidate.color.hue || 0) / 900,
+          points + index * 3
+        );
         context.fill();
 
         context.globalCompositeOperation = "screen";
-        context.fillStyle = recapHsl(candidate, 0.24, 20);
-        drawPainterlyBlob(context, centerX + 32, centerY - 26, radiusX * 0.72, radiusY * 0.68, rotation - 0.4, points + 8);
+        context.fillStyle = recapHsl(candidate, 0.26, 24);
+        drawPainterlyBlob(
+          context,
+          x + width * 0.56,
+          y + height * 0.42,
+          width * 0.34,
+          height * 0.24,
+          -0.2 + index * 0.03,
+          points + 11
+        );
         context.fill();
 
         context.globalCompositeOperation = "source-over";
-        context.strokeStyle = recapHsl(candidate, 0.52, -12);
-        context.lineWidth = Math.max(10, Math.min(28, points / 2 + 8));
+        context.strokeStyle = recapHsl(candidate, 0.32, -14);
+        context.lineWidth = Math.max(7, Math.min(18, points / 4 + 5));
         context.lineCap = "round";
         context.beginPath();
-        context.moveTo(centerX - radiusX * 0.56, centerY + Math.sin(index) * 18);
+        context.moveTo(x + width * 0.16, y + height * (0.35 + Math.sin(index) * 0.06));
         context.bezierCurveTo(
-          centerX - radiusX * 0.16,
-          centerY - radiusY * 0.92,
-          centerX + radiusX * 0.2,
-          centerY + radiusY * 0.88,
-          centerX + radiusX * 0.62,
-          centerY - Math.cos(index) * 18
+          x + width * 0.34,
+          y + height * 0.1,
+          x + width * 0.62,
+          y + height * 0.82,
+          x + width * 0.86,
+          y + height * (0.48 + Math.cos(index) * 0.08)
         );
         context.stroke();
+        context.restore();
+      }
+
+      function clampNumber(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function hashStringToInt(value = "") {
+        let hash = 2166136261;
+        const text = String(value);
+        for (let index = 0; index < text.length; index += 1) {
+          hash ^= text.charCodeAt(index);
+          hash = Math.imul(hash, 16777619);
+        }
+        return hash >>> 0;
+      }
+
+      function seededUnit(seed, salt = 0) {
+        const value = Math.sin((seed + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+        return value - Math.floor(value);
+      }
+
+      function seededRange(seed, salt, min, max) {
+        return min + seededUnit(seed, salt) * (max - min);
+      }
+
+      function mealNutritionValue(meal, key) {
+        const nutrition = meal.nutrition || {};
+        return numberFromValue(meal[key] ?? nutrition[key], 0);
+      }
+
+      function nutritionFootprintSignature(meals, points) {
+        const parts = meals
+          .map((meal) => {
+            const family = recapFoodFamily(meal.name || "");
+            const timestamp = Date.parse(meal.savedAt || meal.created_at || "");
+            const day = Number.isFinite(timestamp) ? Math.floor(timestamp / (24 * 60 * 60 * 1000)) : 0;
+            return [
+              String(meal.name || "").toLowerCase().trim(),
+              family.key,
+              day,
+              Number(meal.points || 0),
+              Math.round(mealCalories(meal)),
+              Math.round(mealNutritionValue(meal, "protein")),
+              Math.round(mealNutritionValue(meal, "fiber")),
+              Math.round(mealNutritionValue(meal, "sugar"))
+            ].join(":");
+          })
+          .sort()
+          .join("|");
+        const seed = hashStringToInt(`${points}|${parts}`);
+        return {
+          seed,
+          code: seed.toString(16).padStart(8, "0").slice(0, 6).toUpperCase(),
+          hueShift: Math.round(seededRange(seed, 1, -14, 14)),
+          rotation: seededRange(seed, 2, -0.1, 0.1),
+          centerX: seededRange(seed, 3, -42, 42),
+          centerY: seededRange(seed, 4, -34, 38),
+          spread: seededRange(seed, 5, 0.92, 1.14),
+          toeDrift: seededRange(seed, 6, -26, 26),
+          ringBias: seededRange(seed, 7, -0.08, 0.08)
+        };
+      }
+
+      function nutritionFootprintMetrics(meals, points) {
+        const mealCount = Math.max(1, meals.length);
+        const totals = meals.reduce((result, meal) => {
+          const family = recapFoodFamily(meal.name || "");
+          result.calories += mealCalories(meal);
+          result.protein += mealNutritionValue(meal, "protein");
+          result.fiber += mealNutritionValue(meal, "fiber");
+          result.sugar += mealNutritionValue(meal, "sugar");
+          result.families.add(family.key);
+          if (family.key === "greens" || family.key === "fruit") result.produce += 1;
+          return result;
+        }, {
+          calories: 0,
+          protein: 0,
+          fiber: 0,
+          sugar: 0,
+          produce: 0,
+          families: new Set()
+        });
+        const scoreDepth = clampNumber(points / (mealCount * 48), 0.16, 1);
+        const plantDepth = clampNumber((totals.fiber / (mealCount * 7)) * 0.72 + (totals.produce / mealCount) * 0.28, 0.12, 1);
+        const proteinDepth = clampNumber(totals.protein / (mealCount * 28), 0.12, 1);
+        const energyDepth = clampNumber(totals.calories / (mealCount * 720), 0.14, 1);
+        const sugarDepth = clampNumber(totals.sugar / (mealCount * 16), 0.08, 1);
+        const diversityDepth = clampNumber(totals.families.size / 6, 0.12, 1);
+        return {
+          calories: Math.round(totals.calories),
+          protein: Math.round(totals.protein),
+          fiber: Math.round(totals.fiber),
+          sugar: Math.round(totals.sugar),
+          scoreDepth,
+          plantDepth,
+          proteinDepth,
+          energyDepth,
+          sugarDepth,
+          diversityDepth,
+          signature: nutritionFootprintSignature(meals, points)
+        };
+      }
+
+      function footprintColor(hue, depth, alpha, lightnessShift = 0) {
+        const normalizedHue = ((hue % 360) + 360) % 360;
+        const saturation = Math.round(54 + depth * 34);
+        const lightness = Math.round(70 - depth * 28 + lightnessShift);
+        return `hsla(${normalizedHue}, ${saturation}%, ${clampNumber(lightness, 34, 78)}%, ${alpha})`;
+      }
+
+      function drawNutritionFootShape(context, centerX, centerY, radiusX, radiusY, rotation, seed) {
+        context.beginPath();
+        const steps = 26;
+        for (let index = 0; index <= steps; index += 1) {
+          const angle = (Math.PI * 2 * index) / steps;
+          const taper = angle > Math.PI * 1.08 && angle < Math.PI * 1.82 ? 0.78 : 1;
+          const wobble = taper * (1 + 0.09 * Math.sin(angle * 3 + seed) + 0.05 * Math.cos(angle * 7 + seed * 0.3));
+          const localX = Math.cos(angle) * radiusX * wobble;
+          const localY = Math.sin(angle) * radiusY * wobble;
+          const x = centerX + localX * Math.cos(rotation) - localY * Math.sin(rotation);
+          const y = centerY + localX * Math.sin(rotation) + localY * Math.cos(rotation);
+          if (index === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        }
+        context.closePath();
+      }
+
+      function drawFootprintLayer(context, metric, index) {
+        const rotations = [-0.16, -0.1, -0.2, -0.07, -0.14];
+        const centers = [
+          [546, 592],
+          [514, 574],
+          [590, 630],
+          [548, 552],
+          [560, 606]
+        ];
+        const [fallbackCenterX, fallbackCenterY] = centers[index % centers.length];
+        const centerX = metric.centerX ?? fallbackCenterX;
+        const centerY = metric.centerY ?? fallbackCenterY;
+        const rotation = (metric.rotation ?? rotations[index % rotations.length]);
+        const depth = metric.depth;
+        context.save();
+        context.globalCompositeOperation = metric.mode || "multiply";
+        for (let ring = 0; ring < 6; ring += 1) {
+          const ringScale = 1.05 - ring * 0.11 + depth * 0.16 + (metric.ringBias || 0);
+          const alpha = (0.08 + depth * 0.17) * (1 - ring * 0.1) * (metric.fillFactor ?? 1);
+          context.fillStyle = footprintColor(metric.hue, depth, alpha, ring * 3);
+          drawNutritionFootShape(
+            context,
+            centerX + metric.offsetX * (ring + 1),
+            centerY + metric.offsetY * (ring + 1),
+            (metric.radiusX || 310) * ringScale,
+            (metric.radiusY || 430) * ringScale,
+            rotation,
+            metric.seed + ring * 1.7
+          );
+          context.fill();
+        }
+        context.globalCompositeOperation = "source-over";
+        context.strokeStyle = footprintColor(metric.hue, depth, 0.35, -10);
+        context.lineWidth = 5 + depth * 15;
+        drawNutritionFootShape(
+          context,
+          centerX + metric.offsetX * 4,
+          centerY + metric.offsetY * 4,
+          (metric.radiusX || 310) * (0.56 + depth * 0.2),
+          (metric.radiusY || 430) * (0.56 + depth * 0.2),
+          rotation,
+          metric.seed + 12
+        );
+        context.stroke();
+        context.restore();
       }
 
       function drawPainterlyRecap(context, tiles, meals, points, mood, familyLabels) {
-        const gradient = context.createLinearGradient(0, 0, 1080, 1080);
-        gradient.addColorStop(0, "#fbfaf4");
-        gradient.addColorStop(0.48, "#f1efe5");
-        gradient.addColorStop(1, "#eaf1ea");
+        const metrics = nutritionFootprintMetrics(meals, points);
+        const signature = metrics.signature;
+        const gradient = context.createRadialGradient(
+          540 + signature.centerX * 0.4,
+          510 + signature.centerY * 0.4,
+          120,
+          540 + signature.centerX,
+          560 + signature.centerY,
+          780 * signature.spread
+        );
+        gradient.addColorStop(0, "#fbfbf7");
+        gradient.addColorStop(0.55, "#f4f7f1");
+        gradient.addColorStop(1, "#eef5f7");
         context.fillStyle = gradient;
         context.fillRect(0, 0, 1080, 1080);
 
         context.save();
-        context.globalAlpha = 0.5;
-        context.fillStyle = "#ffffff";
+        context.globalAlpha = 0.36;
+        context.fillStyle = "#e0f5ef";
         context.beginPath();
-        context.arc(810, 190, 260, 0, Math.PI * 2);
+        context.arc(160 - signature.centerX * 0.5, 860 + signature.centerY * 0.4, 350 * signature.spread, 0, Math.PI * 2);
         context.fill();
-        context.fillStyle = "#dff5de";
+        context.fillStyle = "#eaf0ff";
         context.beginPath();
-        context.arc(160, 845, 300, 0, Math.PI * 2);
+        context.arc(884 + signature.centerX * 0.6, 212 - signature.centerY * 0.5, 260 * (1.08 - (signature.spread - 0.92)), 0, Math.PI * 2);
         context.fill();
         context.restore();
 
-        tiles.forEach((candidate, index) => {
-          drawPainterlyStroke(context, candidate, index, tiles.length);
-        });
+        const layers = [
+          { label: "Fiber", value: `${metrics.fiber}g`, hue: 136 + signature.hueShift, depth: metrics.plantDepth, offsetX: -7 + seededRange(signature.seed, 11, -4, 4), offsetY: 2 + seededRange(signature.seed, 12, -3, 3), seed: signature.seed + 2, radiusX: 332 * signature.spread, radiusY: 434 * signature.spread, centerX: 546 + signature.centerX, centerY: 592 + signature.centerY, rotation: -0.16 + signature.rotation, ringBias: signature.ringBias },
+          { label: "Protein", value: `${metrics.protein}g`, hue: 198 + signature.hueShift, depth: metrics.proteinDepth, offsetX: 6 + seededRange(signature.seed, 13, -4, 4), offsetY: -4 + seededRange(signature.seed, 14, -3, 3), seed: signature.seed + 7, radiusX: 300 * signature.spread, radiusY: 410 * signature.spread, centerX: 514 + signature.centerX * 0.8, centerY: 574 + signature.centerY * 0.9, rotation: -0.1 + signature.rotation * 0.8, ringBias: signature.ringBias },
+          { label: "Energy", value: `${metrics.calories} kcal`, hue: 48 + signature.hueShift, depth: metrics.energyDepth, offsetX: 2 + seededRange(signature.seed, 15, -4, 4), offsetY: 6 + seededRange(signature.seed, 16, -3, 3), seed: signature.seed + 13, radiusX: 324 * signature.spread, radiusY: 450 * signature.spread, centerX: 590 + signature.centerX * 0.65, centerY: 630 + signature.centerY * 0.75, rotation: -0.2 + signature.rotation * 1.2, ringBias: signature.ringBias },
+          { label: "Sugar", value: `${metrics.sugar}g`, hue: 330 + signature.hueShift, depth: metrics.sugarDepth, offsetX: 9 + seededRange(signature.seed, 17, -4, 4), offsetY: 5 + seededRange(signature.seed, 18, -3, 3), seed: signature.seed + 19, radiusX: 282 * signature.spread, radiusY: 386 * signature.spread, centerX: 548 + signature.centerX * 1.1, centerY: 552 + signature.centerY * 0.7, rotation: -0.07 + signature.rotation, ringBias: signature.ringBias },
+          { label: "Points", value: `${points}`, hue: 258 + signature.hueShift, depth: metrics.scoreDepth, offsetX: -3 + seededRange(signature.seed, 19, -4, 4), offsetY: -8 + seededRange(signature.seed, 20, -3, 3), seed: signature.seed + 23, radiusX: 248 * signature.spread, radiusY: 330 * signature.spread, centerX: 560 + signature.centerX * 0.9, centerY: 606 + signature.centerY * 0.8, rotation: -0.14 + signature.rotation, ringBias: signature.ringBias, mode: "source-over", fillFactor: 0.32 }
+        ];
+        layers.forEach((metric, index) => drawFootprintLayer(context, metric, index));
 
-        const bandTotals = tiles.reduce((totals, item) => {
-          Object.entries(item.color.bandShares || {}).forEach(([band, share]) => {
-            totals[band] = (totals[band] || 0) + Number(share || 0);
-          });
-          return totals;
-        }, {});
-        const bandEntries = Object.entries(bandTotals).sort((a, b) => Number(a[0]) - Number(b[0]));
-        let startAngle = -Math.PI / 2;
-        const totalShare = bandEntries.reduce((sum, [, share]) => sum + share, 0) || 1;
-        bandEntries.forEach(([band, share]) => {
-          const arc = (share / totalShare) * Math.PI * 2;
-          context.strokeStyle = `hsla(${recapBandHue(Number(band))}, 58%, ${band === "8" ? 72 : 48}%, 0.72)`;
-          context.lineWidth = 18;
+        const toeDepths = [
+          metrics.scoreDepth,
+          metrics.proteinDepth,
+          metrics.plantDepth,
+          metrics.energyDepth,
+          metrics.sugarDepth
+        ];
+        const toeHues = [258, 198, 136, 48, 330].map((hue) => hue + signature.hueShift);
+        const toeCenters = [
+          [368 + signature.toeDrift, 242 - signature.centerY * 0.25, 50],
+          [474 + signature.centerX * 0.3, 198 + signature.toeDrift * 0.25, 64],
+          [594 + signature.centerX * 0.15, 198 - signature.toeDrift * 0.18, 72],
+          [706 - signature.centerX * 0.2, 240 + signature.toeDrift * 0.22, 58],
+          [792 - signature.toeDrift, 316 + signature.centerY * 0.2, 48]
+        ];
+        toeCenters.forEach(([x, y, radius], index) => {
+          const depth = toeDepths[index];
+          const glow = context.createRadialGradient(x, y, 8, x, y, radius * (1.8 + depth));
+          glow.addColorStop(0, footprintColor(toeHues[index], depth, 0.52, 4));
+          glow.addColorStop(1, footprintColor(toeHues[index], depth, 0, 20));
+          context.fillStyle = glow;
           context.beginPath();
-          context.arc(912, 874, 76, startAngle, startAngle + arc);
-          context.stroke();
-          startAngle += arc;
+          context.arc(x, y, radius * (1 + depth * 0.5), 0, Math.PI * 2);
+          context.fill();
         });
 
-        context.fillStyle = "rgba(251, 250, 244, 0.78)";
-        context.fillRect(52, 48, 720, 126);
+        context.save();
+        context.globalCompositeOperation = "multiply";
+        tiles.slice(0, 16).forEach((candidate, index) => {
+          const angle = -0.7 + index * 0.42 + seededRange(signature.seed, 31 + index, -0.18, 0.18);
+          const radius = 210 + (index % 4) * 28 + metrics.diversityDepth * 56 + seededRange(signature.seed, 51 + index, -24, 24);
+          const x = 550 + signature.centerX * 0.5 + Math.cos(angle) * radius;
+          const y = 590 + signature.centerY * 0.5 + Math.sin(angle) * (radius * 1.36);
+          const depth = clampNumber(Number(candidate.meal.points || 0) / 70, 0.16, 1);
+          const hue = recapFamilyHue(candidate.family.key) + signature.hueShift;
+          context.fillStyle = footprintColor(hue, depth, 0.16, 10);
+          drawPainterlyBlob(context, x, y, 76 + depth * 42, 46 + depth * 28, angle * 0.16, index + points);
+          context.fill();
+        });
+        context.restore();
+
         context.fillStyle = "#17211d";
         context.font = "850 58px system-ui, sans-serif";
-        context.fillText("Nomi Color Week", 68, 94);
+        context.fillText("Nutrition Footprint", 68, 92);
         context.font = "550 25px system-ui, sans-serif";
         context.fillStyle = "#5d6964";
-        context.fillText(`${tiles.length} meals abstracted from ${meals.length} saves - ${points} points - ${mood}`, 70, 135);
+        context.fillText(`${meals.length} meals - ${points} points - ${mood}`, 70, 135);
         context.font = "750 22px system-ui, sans-serif";
-        context.fillStyle = "#2f6f9f";
-        context.fillText(fitText(context, `A week of meals translated into color, motion, and score`, 650), 70, 165);
+        context.fillStyle = "#257392";
+        context.fillText(fitText(context, `Color depth maps protein, fiber, energy, sugar, and score - mark ${signature.code}`, 820), 70, 165);
+
+        const legendX = 72;
+        const legendY = 876;
+        const legendWidth = 936;
+        const itemWidth = legendWidth / layers.length;
+        layers.forEach((metric, index) => {
+          const x = legendX + itemWidth * index;
+          context.fillStyle = footprintColor(metric.hue, metric.depth, 0.86, 2);
+          context.beginPath();
+          context.arc(x + 18, legendY + 22, 14 + metric.depth * 9, 0, Math.PI * 2);
+          context.fill();
+          context.fillStyle = "#17211d";
+          context.font = "800 18px system-ui, sans-serif";
+          context.fillText(metric.label, x + 42, legendY + 20);
+          context.fillStyle = "#5d6964";
+          context.font = "650 18px system-ui, sans-serif";
+          context.fillText(fitText(context, metric.value, itemWidth - 54), x + 42, legendY + 47);
+        });
 
         context.fillStyle = "rgba(23, 33, 29, 0.78)";
         context.fillRect(54, 956, 972, 70);
         context.fillStyle = "#fbfaf4";
         context.font = "720 23px system-ui, sans-serif";
-        context.fillText(fitText(context, `Top fuel, repeat bites, and best scores as an abstract palette - ${familyLabels.join(", ")}`, 890), 78, 1000);
+        context.fillText(fitText(context, `A nutrition footprint from this week's saves - strongest signals: ${familyLabels.join(", ")}`, 890), 78, 1000);
       }
 
       function drawPhotoRecap(context, tiles, meals, points, mood, familyLabels) {
@@ -3684,7 +3934,7 @@
         }
 
         $("#weeklyRecap").disabled = true;
-        note.textContent = state.recapMode === "photos" ? "Building your private photo recap..." : "Building your private color recap...";
+        note.textContent = state.recapMode === "photos" ? "Building your private photo recap..." : "Building your private nutrition footprint...";
         panel.classList.add("is-visible");
 
         const canvas = document.createElement("canvas");
@@ -3751,7 +4001,7 @@
           return "";
         }
         $("#weeklyRecapImage").src = dataUrl;
-        $("#weeklyRecapImage").alt = state.recapMode === "photos" ? "FeedNomi weekly photo collage" : "FeedNomi weekly abstract color painting";
+        $("#weeklyRecapImage").alt = state.recapMode === "photos" ? "FeedNomi weekly photo collage" : "FeedNomi weekly nutrition footprint";
         $("#downloadRecap").dataset.recapUrl = dataUrl;
         $("#downloadRecap").dataset.recapMode = state.recapMode;
         $("#shareRecap").dataset.recapUrl = dataUrl;
@@ -4493,7 +4743,7 @@
           $("#weeklyRecapNote").textContent = "Create a weekly recap first.";
           return;
         }
-        const mode = $("#downloadRecap").dataset.recapMode === "photos" ? "photo-week" : "color-week";
+        const mode = $("#downloadRecap").dataset.recapMode === "photos" ? "photo-week" : "nutrition-footprint";
         const link = document.createElement("a");
         link.href = dataUrl;
         link.download = `feednomi-${mode}.png`;
@@ -4510,12 +4760,12 @@
         }
         try {
           const blob = dataUrlToBlob(dataUrl);
-          const mode = $("#shareRecap").dataset.recapMode === "photos" ? "photo-week" : "color-week";
+          const mode = $("#shareRecap").dataset.recapMode === "photos" ? "photo-week" : "nutrition-footprint";
           const file = blob ? new File([blob], `feednomi-${mode}.png`, { type: "image/png" }) : null;
           if (navigator.canShare && file && navigator.canShare({ files: [file] })) {
             await navigator.share({
               title: "FeedNomi Weekly",
-              text: mode === "photo-week" ? "My FeedNomi weekly photo recap" : "My FeedNomi weekly color recap",
+              text: mode === "photo-week" ? "My FeedNomi weekly photo recap" : "My FeedNomi nutrition footprint",
               files: [file]
             });
             $("#weeklyRecapNote").textContent = "Recap shared.";
