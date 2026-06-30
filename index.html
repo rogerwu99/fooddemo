@@ -4062,6 +4062,12 @@
         return target === "#food-log" ? "food-log" : "analyzer";
       }
 
+      function supabaseAuthRedirectUrl(target = "#analyzer") {
+        const params = new URLSearchParams(window.location.search);
+        params.set("authReturn", authRedirectParam(target));
+        return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+      }
+
       function setStoredPendingSave(payload) {
         const value = JSON.stringify(payload);
         localStorage.setItem(pendingSavePrimaryKey, value);
@@ -4734,10 +4740,9 @@
           }
           const returnTarget = currentAuthReturnTarget(hasPendingMeal);
           rememberAuthReturn(returnTarget);
-          const redirectParam = authRedirectParam(returnTarget);
           const { error } = await state.supabase.auth.signInWithOtp({
             email: value,
-            options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}?authReturn=${redirectParam}${returnTarget}` }
+            options: { emailRedirectTo: supabaseAuthRedirectUrl(returnTarget) }
           });
           if (error) throw error;
           $("#authNote").textContent = "Check your email for a magic link. FeedNomi will finish sign-in when the link opens.";
@@ -4760,10 +4765,9 @@
         if (hasPendingMeal && !(await storePendingSave())) return;
         const returnTarget = currentAuthReturnTarget(hasPendingMeal);
         rememberAuthReturn(returnTarget);
-        const redirectParam = authRedirectParam(returnTarget);
         const { error } = await state.supabase.auth.signInWithOAuth({
           provider: "google",
-          options: { redirectTo: `${window.location.origin}${window.location.pathname}?authReturn=${redirectParam}${returnTarget}` }
+          options: { redirectTo: supabaseAuthRedirectUrl(returnTarget) }
         });
         if (error) {
           $("#authNote").textContent = `Google sign in failed: ${error.message}`;
