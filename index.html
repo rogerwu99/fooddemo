@@ -1291,6 +1291,31 @@
         display: grid;
       }
 
+      .recap-mode-toggle {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 5px;
+        padding: 4px;
+        border: 1px solid #cbd6cf;
+        border-radius: 8px;
+        background: #f5f8f5;
+      }
+
+      .recap-mode-toggle button {
+        min-height: 36px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 850;
+      }
+
+      .recap-mode-toggle button.is-selected {
+        background: white;
+        color: var(--ink);
+        box-shadow: 0 5px 14px rgba(23, 33, 29, 0.1);
+      }
+
       .weekly-recap img {
         width: 100%;
         border-radius: 8px;
@@ -1883,6 +1908,10 @@
                   </div>
                 </div>
                 <div class="weekly-recap" id="weeklyRecapPanel" aria-live="polite">
+                  <div class="recap-mode-toggle" id="recapModeToggle" aria-label="Weekly recap style">
+                    <button class="is-selected" type="button" data-recap-mode="color" aria-pressed="true">Color</button>
+                    <button type="button" data-recap-mode="photos" aria-pressed="false">Photos</button>
+                  </div>
                   <img id="weeklyRecapImage" alt="FeedNomi weekly color chart" />
                   <div class="recap-actions">
                     <button class="text-btn" id="downloadRecap" type="button">Download recap</button>
@@ -2127,6 +2156,7 @@
         selectedSex: "neutral",
         selectedAvatarStyle: "neutral",
         setupMode: "setup",
+        recapMode: "color",
         reminderSettings: { enabled: false, loaded: false, hasChoice: false },
         user: localStorage.getItem("platepointsUser") || "",
         profile: JSON.parse(localStorage.getItem("platepointsProfile") || "null"),
@@ -3446,14 +3476,6 @@
         return hues[band] || hues[9];
       }
 
-      function recapColorForCandidate(candidate) {
-        const color = candidate?.color;
-        const hue = color && color.hue !== 999 ? color.hue : recapFamilyHue(candidate?.family?.key);
-        const saturation = Math.round(Math.max(30, Math.min(74, (color?.saturation || 0.36) * 100 + 18)));
-        const lightness = Math.round(Math.max(34, Math.min(72, (color?.lightness || 0.54) * 100)));
-        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-      }
-
       function recapFallbackColorProfile(meal, family) {
         const hue = recapFamilyHue(family.key);
         return {
@@ -3466,61 +3488,177 @@
         };
       }
 
-      function drawAbstractRecapTile(context, tileItem, x, y, tile) {
-        const points = Number(tileItem.meal.points || 0);
-        const calories = mealCalories(tileItem.meal);
-        const baseColor = recapColorForCandidate(tileItem);
-        context.fillStyle = baseColor;
-        context.fillRect(x, y, tile, tile);
+      function recapHslParts(candidate) {
+        const color = candidate?.color;
+        const hue = color && color.hue !== 999 ? color.hue : recapFamilyHue(candidate?.family?.key);
+        const saturation = Math.round(Math.max(30, Math.min(74, (color?.saturation || 0.36) * 100 + 18)));
+        const lightness = Math.round(Math.max(34, Math.min(72, (color?.lightness || 0.54) * 100)));
+        return { hue, saturation, lightness };
+      }
 
-        const shares = Object.entries(tileItem.color.bandShares || {})
-          .filter(([, share]) => Number(share) > 0.015)
-          .sort((a, b) => Number(a[0]) - Number(b[0]));
-        let stripeX = x;
-        shares.forEach(([band, share], index) => {
-          const width = index === shares.length - 1
-            ? x + tile - stripeX
-            : Math.max(8, Math.round(tile * Number(share)));
-          context.fillStyle = `hsl(${recapBandHue(Number(band))}, 54%, ${band === "8" ? 74 : 55}%)`;
-          context.fillRect(stripeX, y, width, 28);
-          stripeX += width;
+      function recapHsl(candidate, alpha = 1, lightnessShift = 0) {
+        const color = recapHslParts(candidate);
+        const lightness = Math.max(22, Math.min(82, color.lightness + lightnessShift));
+        return `hsla(${color.hue}, ${color.saturation}%, ${lightness}%, ${alpha})`;
+      }
+
+      function drawPainterlyBlob(context, centerX, centerY, radiusX, radiusY, rotation, points) {
+        context.beginPath();
+        const steps = 18;
+        for (let index = 0; index <= steps; index += 1) {
+          const angle = (Math.PI * 2 * index) / steps;
+          const wobble = 1 + 0.12 * Math.sin(angle * 3 + points) + 0.08 * Math.cos(angle * 5 + points * 0.2);
+          const localX = Math.cos(angle) * radiusX * wobble;
+          const localY = Math.sin(angle) * radiusY * wobble;
+          const x = centerX + localX * Math.cos(rotation) - localY * Math.sin(rotation);
+          const y = centerY + localX * Math.sin(rotation) + localY * Math.cos(rotation);
+          if (index === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        }
+        context.closePath();
+      }
+
+      function drawPainterlyStroke(context, candidate, index, total) {
+        const points = Number(candidate.meal.points || 0);
+        const calories = mealCalories(candidate.meal);
+        const angle = -0.9 + (index / Math.max(1, total - 1)) * 1.8;
+        const orbitX = 300 + Math.min(260, calories * 0.38);
+        const orbitY = 230 + Math.min(150, points * 3.2);
+        const centerX = 540 + Math.cos(angle) * orbitX;
+        const centerY = 560 + Math.sin(angle) * orbitY;
+        const radiusX = 170 + Math.min(120, calories * 0.18);
+        const radiusY = 82 + Math.min(100, points * 2.5);
+        const rotation = angle * 0.8 + (candidate.color.hue || 0) / 180;
+
+        context.globalCompositeOperation = "multiply";
+        context.fillStyle = recapHsl(candidate, 0.46, 8);
+        drawPainterlyBlob(context, centerX, centerY, radiusX, radiusY, rotation, points + index);
+        context.fill();
+
+        context.globalCompositeOperation = "screen";
+        context.fillStyle = recapHsl(candidate, 0.24, 20);
+        drawPainterlyBlob(context, centerX + 32, centerY - 26, radiusX * 0.72, radiusY * 0.68, rotation - 0.4, points + 8);
+        context.fill();
+
+        context.globalCompositeOperation = "source-over";
+        context.strokeStyle = recapHsl(candidate, 0.52, -12);
+        context.lineWidth = Math.max(10, Math.min(28, points / 2 + 8));
+        context.lineCap = "round";
+        context.beginPath();
+        context.moveTo(centerX - radiusX * 0.56, centerY + Math.sin(index) * 18);
+        context.bezierCurveTo(
+          centerX - radiusX * 0.16,
+          centerY - radiusY * 0.92,
+          centerX + radiusX * 0.2,
+          centerY + radiusY * 0.88,
+          centerX + radiusX * 0.62,
+          centerY - Math.cos(index) * 18
+        );
+        context.stroke();
+      }
+
+      function drawPainterlyRecap(context, tiles, meals, points, mood, familyLabels) {
+        const gradient = context.createLinearGradient(0, 0, 1080, 1080);
+        gradient.addColorStop(0, "#fbfaf4");
+        gradient.addColorStop(0.48, "#f1efe5");
+        gradient.addColorStop(1, "#eaf1ea");
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 1080, 1080);
+
+        context.save();
+        context.globalAlpha = 0.5;
+        context.fillStyle = "#ffffff";
+        context.beginPath();
+        context.arc(810, 190, 260, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = "#dff5de";
+        context.beginPath();
+        context.arc(160, 845, 300, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+
+        tiles.forEach((candidate, index) => {
+          drawPainterlyStroke(context, candidate, index, tiles.length);
         });
 
-        context.fillStyle = "rgba(251, 250, 244, 0.16)";
-        context.beginPath();
-        context.arc(x + tile * 0.72, y + tile * 0.34, tile * 0.34, 0, Math.PI * 2);
-        context.fill();
-        context.fillStyle = "rgba(23, 33, 29, 0.12)";
-        context.beginPath();
-        context.arc(x + tile * 0.25, y + tile * 0.78, tile * 0.24, 0, Math.PI * 2);
-        context.fill();
+        const bandTotals = tiles.reduce((totals, item) => {
+          Object.entries(item.color.bandShares || {}).forEach(([band, share]) => {
+            totals[band] = (totals[band] || 0) + Number(share || 0);
+          });
+          return totals;
+        }, {});
+        const bandEntries = Object.entries(bandTotals).sort((a, b) => Number(a[0]) - Number(b[0]));
+        let startAngle = -Math.PI / 2;
+        const totalShare = bandEntries.reduce((sum, [, share]) => sum + share, 0) || 1;
+        bandEntries.forEach(([band, share]) => {
+          const arc = (share / totalShare) * Math.PI * 2;
+          context.strokeStyle = `hsla(${recapBandHue(Number(band))}, 58%, ${band === "8" ? 72 : 48}%, 0.72)`;
+          context.lineWidth = 18;
+          context.beginPath();
+          context.arc(912, 874, 76, startAngle, startAngle + arc);
+          context.stroke();
+          startAngle += arc;
+        });
 
-        const ringRadius = 46;
-        const centerX = x + 66;
-        const centerY = y + tile - 72;
-        context.lineWidth = 12;
-        context.strokeStyle = "rgba(251, 250, 244, 0.62)";
-        context.beginPath();
-        context.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
-        context.stroke();
-        context.strokeStyle = points >= 38 ? "#dff5de" : points >= 18 ? "#f1b94e" : "#ce4d38";
-        context.beginPath();
-        context.arc(centerX, centerY, ringRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, points / 50));
-        context.stroke();
+        context.fillStyle = "rgba(251, 250, 244, 0.78)";
+        context.fillRect(52, 48, 720, 126);
+        context.fillStyle = "#17211d";
+        context.font = "850 58px system-ui, sans-serif";
+        context.fillText("Nomi Color Week", 68, 94);
+        context.font = "550 25px system-ui, sans-serif";
+        context.fillStyle = "#5d6964";
+        context.fillText(`${tiles.length} meals abstracted from ${meals.length} saves - ${points} points - ${mood}`, 70, 135);
+        context.font = "750 22px system-ui, sans-serif";
+        context.fillStyle = "#2f6f9f";
+        context.fillText(fitText(context, `A week of meals translated into color, motion, and score`, 650), 70, 165);
 
         context.fillStyle = "rgba(23, 33, 29, 0.78)";
-        context.fillRect(x, y + tile - 46, tile, 46);
+        context.fillRect(54, 956, 972, 70);
         context.fillStyle = "#fbfaf4";
-        context.font = "850 18px system-ui, sans-serif";
-        context.fillText(recapRoleLabel(tileItem.recapRole) || "Weekly bite", x + 16, y + tile - 18);
-        context.textAlign = "right";
-        context.font = "850 24px system-ui, sans-serif";
-        context.fillText(`${points}`, x + tile - 16, y + tile - 18);
-        context.textAlign = "left";
+        context.font = "720 23px system-ui, sans-serif";
+        context.fillText(fitText(context, `Top fuel, repeat bites, and best scores as an abstract palette - ${familyLabels.join(", ")}`, 890), 78, 1000);
+      }
 
-        context.fillStyle = "rgba(251, 250, 244, 0.82)";
-        context.font = "750 18px system-ui, sans-serif";
-        context.fillText(`${calories} kcal`, x + 18, y + 58);
+      function drawPhotoRecap(context, tiles, meals, points, mood, familyLabels) {
+        context.fillStyle = "#fbfaf4";
+        context.fillRect(0, 0, 1080, 1080);
+        context.fillStyle = "#17211d";
+        context.font = "800 58px system-ui, sans-serif";
+        context.fillText("Nomi Photo Week", 64, 78);
+        context.font = "500 27px system-ui, sans-serif";
+        context.fillStyle = "#5d6964";
+        context.fillText(`${tiles.length} weekly bites from ${meals.length} meals - ${points} points - ${mood}`, 66, 120);
+        context.font = "700 25px system-ui, sans-serif";
+        context.fillStyle = "#2f6f9f";
+        context.fillText(fitText(context, `Food photos grouped by top fuel, repeat bites, and best scores`, 880), 66, 155);
+
+        const gap = 14;
+        const tile = 292;
+        const startX = Math.round((1080 - tile * 3 - gap * 2) / 2);
+        const startY = 184;
+        tiles.forEach((tileItem, index) => {
+          const col = index % 3;
+          const row = Math.floor(index / 3);
+          const x = startX + col * (tile + gap);
+          const y = startY + row * (tile + gap);
+          context.fillStyle = recapHsl(tileItem, 0.52, 8);
+          context.fillRect(x, y, tile, tile);
+          if (tileItem.loaded?.image) drawCoverImage(context, tileItem.loaded.image, x, y, tile, tile);
+          context.strokeStyle = "rgba(23, 33, 29, 0.12)";
+          context.lineWidth = 4;
+          context.strokeRect(x + 2, y + 2, tile - 4, tile - 4);
+          context.fillStyle = "rgba(23, 33, 29, 0.78)";
+          context.fillRect(x, y + tile - 46, tile, 46);
+          context.fillStyle = "#fbfaf4";
+          context.font = "800 18px system-ui, sans-serif";
+          context.fillText(recapRoleLabel(tileItem.recapRole) || "Weekly bite", x + 16, y + tile - 18);
+        });
+
+        context.fillStyle = "rgba(251, 250, 244, 0.94)";
+        context.fillRect(64, 1024, 952, 42);
+        context.fillStyle = "#33423b";
+        context.font = "600 22px system-ui, sans-serif";
+        context.fillText(fitText(context, `Personal photo recap - grouped by ${familyLabels.join(", ")}`, 900), 82, 1053);
       }
 
       function recapMood(points) {
@@ -3533,7 +3671,8 @@
         return numberFromValue(meal.calories, 0);
       }
 
-      async function createWeeklyRecap() {
+      async function createWeeklyRecap(mode = state.recapMode || "color") {
+        state.recapMode = mode === "photos" ? "photos" : "color";
         const meals = getWeeklyMeals();
         const panel = $("#weeklyRecapPanel");
         const note = $("#weeklyRecapNote");
@@ -3545,7 +3684,7 @@
         }
 
         $("#weeklyRecap").disabled = true;
-        note.textContent = "Building your private weekly recap...";
+        note.textContent = state.recapMode === "photos" ? "Building your private photo recap..." : "Building your private color recap...";
         panel.classList.add("is-visible");
 
         const canvas = document.createElement("canvas");
@@ -3555,8 +3694,6 @@
         context.fillStyle = "#fbfaf4";
         context.fillRect(0, 0, canvas.width, canvas.height);
         const points = meals.reduce((sum, item) => sum + Number(item.points || 0), 0);
-        const bestMeal = meals.reduce((best, meal) => Number(meal.points || 0) > Number(best.points || 0) ? meal : best, meals[0]);
-        const biggestMeal = meals.reduce((biggest, meal) => mealCalories(meal) > mealCalories(biggest) ? meal : biggest, meals[0]);
 
         const candidateMeals = [...meals]
           .sort((a, b) => Date.parse(b.savedAt || b.created_at || "") - Date.parse(a.savedAt || a.created_at || ""));
@@ -3596,38 +3733,11 @@
           ));
         const familyLabels = [...new Set(tiles.map((item) => item.family.label))].slice(0, 4);
 
-        context.fillStyle = "#17211d";
-        context.font = "800 58px system-ui, sans-serif";
-        context.fillText("Nomi Color Week", 64, 78);
-        context.font = "500 27px system-ui, sans-serif";
-        context.fillStyle = "#5d6964";
-        context.fillText(`${tiles.length} color signals from ${meals.length} meals - ${points} points - ${recapMood(points)}`, 66, 120);
-        context.font = "700 25px system-ui, sans-serif";
-        context.fillStyle = "#2f6f9f";
-        context.fillText(fitText(context, `Food photos translated into color, score, and energy patterns`, 880), 66, 155);
-
-        const gap = 14;
-        const tile = 292;
-        const startX = Math.round((canvas.width - tile * 3 - gap * 2) / 2);
-        const startY = 184;
-        tiles.forEach((tileItem, index) => {
-          const col = index % 3;
-          const row = Math.floor(index / 3);
-          const x = startX + col * (tile + gap);
-          const y = startY + row * (tile + gap);
-          context.fillStyle = "#e8eee9";
-          context.fillRect(x, y, tile, tile);
-          drawAbstractRecapTile(context, tileItem, x, y, tile);
-          context.strokeStyle = "rgba(23, 33, 29, 0.12)";
-          context.lineWidth = 4;
-          context.strokeRect(x + 2, y + 2, tile - 4, tile - 4);
-        });
-
-        context.fillStyle = "rgba(251, 250, 244, 0.94)";
-        context.fillRect(64, 1024, 952, 42);
-        context.fillStyle = "#33423b";
-        context.font = "600 22px system-ui, sans-serif";
-        context.fillText(fitText(context, `Abstracted from top fuel, repeat bites, and best Nomi scores - ${familyLabels.join(", ")}`, 900), 82, 1053);
+        if (state.recapMode === "photos") {
+          drawPhotoRecap(context, tiles, meals, points, recapMood(points), familyLabels);
+        } else {
+          drawPainterlyRecap(context, tiles, meals, points, recapMood(points), familyLabels);
+        }
 
         let dataUrl = "";
         try {
@@ -3641,8 +3751,11 @@
           return "";
         }
         $("#weeklyRecapImage").src = dataUrl;
+        $("#weeklyRecapImage").alt = state.recapMode === "photos" ? "FeedNomi weekly photo collage" : "FeedNomi weekly abstract color painting";
         $("#downloadRecap").dataset.recapUrl = dataUrl;
+        $("#downloadRecap").dataset.recapMode = state.recapMode;
         $("#shareRecap").dataset.recapUrl = dataUrl;
+        $("#shareRecap").dataset.recapMode = state.recapMode;
         loadedImages.forEach((loaded) => {
           if (loaded?.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
         });
@@ -4374,9 +4487,10 @@
           $("#weeklyRecapNote").textContent = "Create a weekly recap first.";
           return;
         }
+        const mode = $("#downloadRecap").dataset.recapMode === "photos" ? "photo-week" : "color-week";
         const link = document.createElement("a");
         link.href = dataUrl;
-        link.download = "feednomi-color-week.png";
+        link.download = `feednomi-${mode}.png`;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -4390,11 +4504,12 @@
         }
         try {
           const blob = dataUrlToBlob(dataUrl);
-          const file = blob ? new File([blob], "feednomi-color-week.png", { type: "image/png" }) : null;
+          const mode = $("#shareRecap").dataset.recapMode === "photos" ? "photo-week" : "color-week";
+          const file = blob ? new File([blob], `feednomi-${mode}.png`, { type: "image/png" }) : null;
           if (navigator.canShare && file && navigator.canShare({ files: [file] })) {
             await navigator.share({
               title: "FeedNomi Weekly",
-              text: "My FeedNomi weekly color recap",
+              text: mode === "photo-week" ? "My FeedNomi weekly photo recap" : "My FeedNomi weekly color recap",
               files: [file]
             });
             $("#weeklyRecapNote").textContent = "Recap shared.";
@@ -4756,6 +4871,17 @@
       $("#editProfile").addEventListener("click", () => openProfileSetup("edit"));
       $("#refreshLog").addEventListener("click", () => refreshFoodLog());
       $("#weeklyRecap").addEventListener("click", () => createWeeklyRecap());
+      $("#recapModeToggle").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-recap-mode]");
+        if (!button) return;
+        state.recapMode = button.dataset.recapMode === "photos" ? "photos" : "color";
+        document.querySelectorAll("[data-recap-mode]").forEach((item) => {
+          const selected = item === button;
+          item.classList.toggle("is-selected", selected);
+          item.setAttribute("aria-pressed", selected ? "true" : "false");
+        });
+        if ($("#weeklyRecapPanel").classList.contains("is-visible")) void createWeeklyRecap(state.recapMode);
+      });
       $("#downloadRecap").addEventListener("click", () => downloadRecap());
       $("#shareRecap").addEventListener("click", () => shareRecap());
       $("#signOut").addEventListener("click", () => signOut());
