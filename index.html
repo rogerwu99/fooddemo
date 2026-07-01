@@ -1291,6 +1291,18 @@
         display: grid;
       }
 
+      .weekly-recap-preview {
+        position: relative;
+        min-height: 280px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 28% 22%, rgba(116, 168, 200, 0.16), rgba(116, 168, 200, 0) 34%),
+          radial-gradient(circle at 75% 68%, rgba(98, 173, 106, 0.14), rgba(98, 173, 106, 0) 38%),
+          #eef3ed;
+      }
+
       .recap-mode-toggle {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1317,10 +1329,51 @@
       }
 
       .weekly-recap img {
+        display: block;
         width: 100%;
+        min-height: 280px;
+        object-fit: cover;
         border-radius: 8px;
-        border: 1px solid var(--line);
-        background: #eef3ed;
+        background: transparent;
+      }
+
+      .weekly-recap img:not([src]),
+      .weekly-recap.is-loading img {
+        visibility: hidden;
+      }
+
+      .recap-loader {
+        position: absolute;
+        inset: 0;
+        display: none;
+        place-items: center;
+        padding: 24px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.92rem;
+        font-weight: 800;
+      }
+
+      .weekly-recap.is-loading .recap-loader {
+        display: grid;
+      }
+
+      .recap-loader::before {
+        content: "";
+        width: 42px;
+        height: 42px;
+        margin: 0 auto 12px;
+        display: block;
+        border-radius: 999px;
+        border: 4px solid rgba(23, 33, 29, 0.12);
+        border-top-color: var(--green);
+        animation: recap-spin 850ms linear infinite;
+      }
+
+      @keyframes recap-spin {
+        to {
+          transform: rotate(360deg);
+        }
       }
 
       .recap-actions {
@@ -1331,18 +1384,18 @@
 
       .log-item {
         display: grid;
-        grid-template-columns: 64px minmax(0, 1fr) auto auto;
+        grid-template-columns: 52px minmax(0, 1fr) auto auto;
         align-items: start;
-        gap: 12px;
-        padding: 11px;
+        gap: 9px;
+        padding: 8px;
         border-radius: 8px;
         border: 1px solid var(--line);
         background: #fbfdfb;
       }
 
       .log-thumb {
-        width: 64px;
-        height: 64px;
+        width: 52px;
+        height: 52px;
         border-radius: 8px;
         object-fit: cover;
         background: #e8eee9;
@@ -1350,35 +1403,44 @@
 
       .log-item strong {
         display: block;
+        line-height: 1.15;
       }
 
       .log-item span {
         color: var(--muted);
-        font-size: 0.88rem;
+        font-size: 0.82rem;
       }
 
       .log-metrics {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 7px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 5px;
+        margin-top: 5px;
       }
 
       .log-metrics span {
-        padding: 4px 7px;
+        min-width: 0;
+        padding: 3px 6px;
         border-radius: 999px;
         background: #eef6f0;
         color: #2d5140;
+        font-size: 0.76rem;
+        line-height: 1.15;
+        text-align: center;
+        white-space: nowrap;
       }
 
       .point-badge {
         min-width: 54px;
         text-align: center;
         border-radius: 999px;
-        padding: 7px 8px;
-        color: white;
+        padding: 6px 8px;
         background: var(--leaf);
         font-weight: 850;
+      }
+
+      .log-item .point-badge {
+        color: white;
       }
 
       .delete-log {
@@ -1912,7 +1974,12 @@
                     <button class="is-selected" type="button" data-recap-mode="color" aria-pressed="true">Color</button>
                     <button type="button" data-recap-mode="photos" aria-pressed="false">Photos</button>
                   </div>
-                  <img id="weeklyRecapImage" alt="FeedNomi weekly color chart" />
+                  <div class="weekly-recap-preview">
+                    <img id="weeklyRecapImage" alt="FeedNomi weekly color chart" />
+                    <div class="recap-loader" id="weeklyRecapLoader" role="status">
+                      <span>Building your private weekly recap...</span>
+                    </div>
+                  </div>
                   <div class="recap-actions">
                     <button class="text-btn" id="downloadRecap" type="button">Download recap</button>
                     <button class="text-btn" id="shareRecap" type="button">Share</button>
@@ -3654,6 +3721,9 @@
           result.sugar += mealNutritionValue(meal, "sugar");
           result.families.add(family.key);
           if (family.key === "greens" || family.key === "fruit") result.produce += 1;
+          if (family.key === "greens" || family.key === "fruit" || family.key === "grain") result.plantMeals += 1;
+          if (family.key === "protein") result.proteinMeals += 1;
+          if (family.key === "dessert") result.treatMeals += 1;
           return result;
         }, {
           calories: 0,
@@ -3661,19 +3731,36 @@
           fiber: 0,
           sugar: 0,
           produce: 0,
+          plantMeals: 0,
+          proteinMeals: 0,
+          treatMeals: 0,
           families: new Set()
         });
+        const plantRatio = clampNumber((totals.plantMeals / mealCount) * 0.58 + (totals.fiber / (mealCount * 10)) * 0.42, 0, 1);
+        const proteinRatio = clampNumber((totals.proteinMeals / mealCount) * 0.48 + (totals.protein / (mealCount * 36)) * 0.52, 0, 1);
+        const treatRatio = clampNumber((totals.treatMeals / mealCount) * 0.5 + (totals.sugar / (mealCount * 24)) * 0.5, 0, 1);
         const scoreDepth = clampNumber(points / (mealCount * 48), 0.16, 1);
         const plantDepth = clampNumber((totals.fiber / (mealCount * 7)) * 0.72 + (totals.produce / mealCount) * 0.28, 0.12, 1);
         const proteinDepth = clampNumber(totals.protein / (mealCount * 28), 0.12, 1);
         const energyDepth = clampNumber(totals.calories / (mealCount * 720), 0.14, 1);
         const sugarDepth = clampNumber(totals.sugar / (mealCount * 16), 0.08, 1);
         const diversityDepth = clampNumber(totals.families.size / 6, 0.12, 1);
+        const dietPattern = proteinRatio - plantRatio > 0.28
+          ? "protein-dense"
+          : (plantRatio - proteinRatio > 0.24 ? "plant-forward" : (treatRatio > 0.42 ? "treat-heavy" : "mixed"));
+        const patternLabel = dietPattern === "protein-dense"
+          ? "protein-dense"
+          : (dietPattern === "plant-forward" ? "plant-forward" : (dietPattern === "treat-heavy" ? "treat-bright" : "mixed"));
         return {
           calories: Math.round(totals.calories),
           protein: Math.round(totals.protein),
           fiber: Math.round(totals.fiber),
           sugar: Math.round(totals.sugar),
+          plantRatio,
+          proteinRatio,
+          treatRatio,
+          dietPattern,
+          patternLabel,
           scoreDepth,
           plantDepth,
           proteinDepth,
@@ -3755,6 +3842,146 @@
         context.restore();
       }
 
+      function drawDietPatternSignature(context, metrics, signature) {
+        const baseX = 540 + signature.centerX * 0.55;
+        const baseY = 568 + signature.centerY * 0.45;
+        context.save();
+        context.globalCompositeOperation = "source-over";
+        if (metrics.dietPattern === "protein-dense") {
+          const density = 8 + Math.round(metrics.proteinRatio * 10);
+          for (let index = 0; index < density; index += 1) {
+            const x = baseX - 230 + index * (460 / Math.max(1, density - 1)) + seededRange(signature.seed, 520 + index, -24, 24);
+            const y = baseY + seededRange(signature.seed, 550 + index, -160, 160);
+            const length = 170 + seededRange(signature.seed, 580 + index, -32, 72);
+            context.strokeStyle = footprintColor(202 + signature.hueShift, metrics.proteinDepth, 0.11 + metrics.proteinRatio * 0.07, 0);
+            context.lineWidth = 4 + metrics.proteinRatio * 7;
+            context.lineCap = "round";
+            context.beginPath();
+            context.moveTo(x, y - length * 0.44);
+            context.bezierCurveTo(
+              x + seededRange(signature.seed, 610 + index, -34, 34),
+              y - length * 0.12,
+              x + seededRange(signature.seed, 640 + index, -34, 34),
+              y + length * 0.12,
+              x,
+              y + length * 0.46
+            );
+            context.stroke();
+          }
+        } else if (metrics.dietPattern === "plant-forward") {
+          const branches = 9 + Math.round(metrics.plantRatio * 9);
+          for (let index = 0; index < branches; index += 1) {
+            const startX = baseX + seededRange(signature.seed, 700 + index, -220, 180);
+            const startY = baseY + seededRange(signature.seed, 730 + index, -150, 190);
+            const length = 92 + seededRange(signature.seed, 760 + index, -24, 64);
+            const angle = seededRange(signature.seed, 790 + index, -2.55, 0.2);
+            const endX = startX + Math.cos(angle) * length;
+            const endY = startY + Math.sin(angle) * length;
+            context.strokeStyle = footprintColor(136 + signature.hueShift, metrics.plantDepth, 0.1 + metrics.plantRatio * 0.08, 10);
+            context.lineWidth = 2 + metrics.plantRatio * 4;
+            context.lineCap = "round";
+            context.beginPath();
+            context.moveTo(startX, startY);
+            context.bezierCurveTo(
+              startX + Math.cos(angle - 0.5) * length * 0.32,
+              startY + Math.sin(angle - 0.5) * length * 0.32,
+              startX + Math.cos(angle + 0.35) * length * 0.68,
+              startY + Math.sin(angle + 0.35) * length * 0.68,
+              endX,
+              endY
+            );
+            context.stroke();
+            context.fillStyle = footprintColor(148 + signature.hueShift, metrics.plantDepth, 0.055 + metrics.plantRatio * 0.055, 18);
+            drawPainterlyBlob(context, endX, endY, 22 + metrics.plantRatio * 24, 10 + metrics.plantRatio * 14, angle, signature.seed + index);
+            context.fill();
+          }
+        } else if (metrics.dietPattern === "treat-heavy") {
+          const glints = 10 + Math.round(metrics.treatRatio * 8);
+          for (let index = 0; index < glints; index += 1) {
+            const x = baseX + seededRange(signature.seed, 840 + index, -260, 260);
+            const y = baseY + seededRange(signature.seed, 870 + index, -210, 210);
+            const radius = 18 + seededRange(signature.seed, 900 + index, 0, 38);
+            const glow = context.createRadialGradient(x, y, 2, x, y, radius);
+            glow.addColorStop(0, footprintColor(322 + signature.hueShift, metrics.sugarDepth, 0.13 + metrics.treatRatio * 0.12, 18));
+            glow.addColorStop(1, footprintColor(322 + signature.hueShift, metrics.sugarDepth, 0, 26));
+            context.fillStyle = glow;
+            context.beginPath();
+            context.arc(x, y, radius, 0, Math.PI * 2);
+            context.fill();
+          }
+        } else {
+          const loops = 7 + Math.round(metrics.diversityDepth * 7);
+          for (let index = 0; index < loops; index += 1) {
+            const x = baseX + seededRange(signature.seed, 940 + index, -250, 250);
+            const y = baseY + seededRange(signature.seed, 970 + index, -190, 190);
+            context.strokeStyle = footprintColor(188 + signature.hueShift, metrics.diversityDepth, 0.08 + metrics.diversityDepth * 0.06, 12);
+            context.lineWidth = 2 + metrics.diversityDepth * 5;
+            drawPainterlyBlob(
+              context,
+              x,
+              y,
+              44 + seededRange(signature.seed, 1000 + index, 0, 70),
+              22 + seededRange(signature.seed, 1030 + index, 0, 44),
+              seededRange(signature.seed, 1060 + index, -0.9, 0.9),
+              signature.seed + index
+            );
+            context.stroke();
+          }
+        }
+        context.restore();
+      }
+
+      function drawNutritionSediment(context, layers, metrics, signature) {
+        context.save();
+        context.globalCompositeOperation = "source-over";
+        layers.forEach((metric, layerIndex) => {
+          const depth = metric.depth;
+          const washCount = 3 + Math.round(depth * 3);
+          for (let wash = 0; wash < washCount; wash += 1) {
+            const x = 300 + seededRange(signature.seed, 90 + layerIndex * 11 + wash, 0, 480);
+            const y = 292 + seededRange(signature.seed, 130 + layerIndex * 11 + wash, 0, 472);
+            const radius = 154 + depth * 190 + seededRange(signature.seed, 170 + layerIndex * 9 + wash, -42, 58);
+            const stain = context.createRadialGradient(x, y, 12, x, y, radius);
+            stain.addColorStop(0, footprintColor(metric.hue, depth, 0.12 + depth * 0.09, 16));
+            stain.addColorStop(0.62, footprintColor(metric.hue, depth, 0.045 + depth * 0.045, 22));
+            stain.addColorStop(1, footprintColor(metric.hue, depth, 0, 28));
+            context.fillStyle = stain;
+            drawPainterlyBlob(
+              context,
+              x,
+              y,
+              radius * seededRange(signature.seed, 210 + wash, 0.62, 0.94),
+              radius * seededRange(signature.seed, 240 + layerIndex, 0.34, 0.58),
+              seededRange(signature.seed, 270 + layerIndex * 5 + wash, -0.72, 0.72),
+              signature.seed + layerIndex * 29 + wash
+            );
+            context.fill();
+          }
+          const contourCount = 2 + Math.round(depth * 2);
+          context.lineCap = "round";
+          for (let contour = 0; contour < contourCount; contour += 1) {
+            const y = 350 + layerIndex * 78 + contour * 48 + seededRange(signature.seed, 300 + layerIndex * 7 + contour, -42, 42);
+            const xStart = 230 + seededRange(signature.seed, 330 + layerIndex * 7 + contour, -36, 54);
+            const xEnd = 842 + seededRange(signature.seed, 360 + layerIndex * 7 + contour, -54, 36);
+            const lift = seededRange(signature.seed, 390 + layerIndex * 7 + contour, -66, 66);
+            context.strokeStyle = footprintColor(metric.hue, depth, 0.08 + depth * 0.05, 8);
+            context.lineWidth = 2 + depth * 5;
+            context.beginPath();
+            context.moveTo(xStart, y);
+            context.bezierCurveTo(
+              360 + seededRange(signature.seed, 420 + contour, -48, 48),
+              y + lift,
+              650 + seededRange(signature.seed, 450 + layerIndex, -54, 54),
+              y - lift * 0.72,
+              xEnd,
+              y + seededRange(signature.seed, 480 + layerIndex * 5 + contour, -28, 28)
+            );
+            context.stroke();
+          }
+        });
+        context.restore();
+      }
+
       function drawPainterlyRecap(context, tiles, meals, points, mood, familyLabels) {
         const metrics = nutritionFootprintMetrics(meals, points);
         const signature = metrics.signature;
@@ -3792,44 +4019,19 @@
           { label: "Points", value: `${points}`, hue: 258 + signature.hueShift, depth: metrics.scoreDepth, offsetX: -3 + seededRange(signature.seed, 19, -4, 4), offsetY: -8 + seededRange(signature.seed, 20, -3, 3), seed: signature.seed + 23, radiusX: 248 * signature.spread, radiusY: 330 * signature.spread, centerX: 560 + signature.centerX * 0.9, centerY: 606 + signature.centerY * 0.8, rotation: -0.14 + signature.rotation, ringBias: signature.ringBias, mode: "source-over", fillFactor: 0.32 }
         ];
         layers.forEach((metric, index) => drawFootprintLayer(context, metric, index));
-
-        const toeDepths = [
-          metrics.scoreDepth,
-          metrics.proteinDepth,
-          metrics.plantDepth,
-          metrics.energyDepth,
-          metrics.sugarDepth
-        ];
-        const toeHues = [258, 198, 136, 48, 330].map((hue) => hue + signature.hueShift);
-        const toeCenters = [
-          [368 + signature.toeDrift, 242 - signature.centerY * 0.25, 50],
-          [474 + signature.centerX * 0.3, 198 + signature.toeDrift * 0.25, 64],
-          [594 + signature.centerX * 0.15, 198 - signature.toeDrift * 0.18, 72],
-          [706 - signature.centerX * 0.2, 240 + signature.toeDrift * 0.22, 58],
-          [792 - signature.toeDrift, 316 + signature.centerY * 0.2, 48]
-        ];
-        toeCenters.forEach(([x, y, radius], index) => {
-          const depth = toeDepths[index];
-          const glow = context.createRadialGradient(x, y, 8, x, y, radius * (1.8 + depth));
-          glow.addColorStop(0, footprintColor(toeHues[index], depth, 0.52, 4));
-          glow.addColorStop(1, footprintColor(toeHues[index], depth, 0, 20));
-          context.fillStyle = glow;
-          context.beginPath();
-          context.arc(x, y, radius * (1 + depth * 0.5), 0, Math.PI * 2);
-          context.fill();
-        });
+        drawDietPatternSignature(context, metrics, signature);
+        drawNutritionSediment(context, layers, metrics, signature);
 
         context.save();
         context.globalCompositeOperation = "multiply";
         tiles.slice(0, 16).forEach((candidate, index) => {
-          const angle = -0.7 + index * 0.42 + seededRange(signature.seed, 31 + index, -0.18, 0.18);
-          const radius = 210 + (index % 4) * 28 + metrics.diversityDepth * 56 + seededRange(signature.seed, 51 + index, -24, 24);
-          const x = 550 + signature.centerX * 0.5 + Math.cos(angle) * radius;
-          const y = 590 + signature.centerY * 0.5 + Math.sin(angle) * (radius * 1.36);
+          const x = 244 + seededRange(signature.seed, 31 + index, 0, 610);
+          const y = 266 + seededRange(signature.seed, 51 + index, 0, 548);
+          const angle = seededRange(signature.seed, 71 + index, -0.72, 0.72);
           const depth = clampNumber(Number(candidate.meal.points || 0) / 70, 0.16, 1);
           const hue = recapFamilyHue(candidate.family.key) + signature.hueShift;
-          context.fillStyle = footprintColor(hue, depth, 0.16, 10);
-          drawPainterlyBlob(context, x, y, 76 + depth * 42, 46 + depth * 28, angle * 0.16, index + points);
+          context.fillStyle = footprintColor(hue, depth, 0.055, 20);
+          drawPainterlyBlob(context, x, y, 34 + depth * 38, 22 + depth * 26, angle, index + points);
           context.fill();
         });
         context.restore();
@@ -3839,7 +4041,7 @@
         context.fillText("Nutrition Footprint", 68, 92);
         context.font = "550 25px system-ui, sans-serif";
         context.fillStyle = "#5d6964";
-        context.fillText(`${meals.length} meals - ${points} points - ${mood}`, 70, 135);
+        context.fillText(`${meals.length} meals - ${points} points - ${metrics.patternLabel} - ${mood}`, 70, 135);
         context.font = "750 22px system-ui, sans-serif";
         context.fillStyle = "#257392";
         context.fillText(fitText(context, `Color depth maps protein, fiber, energy, sugar, and score - mark ${signature.code}`, 820), 70, 165);
@@ -3850,16 +4052,23 @@
         const itemWidth = legendWidth / layers.length;
         layers.forEach((metric, index) => {
           const x = legendX + itemWidth * index;
-          context.fillStyle = footprintColor(metric.hue, metric.depth, 0.86, 2);
+          const swatch = context.createLinearGradient(x, legendY + 8, x + itemWidth - 26, legendY + 8);
+          swatch.addColorStop(0, footprintColor(metric.hue, metric.depth, 0.18, 18));
+          swatch.addColorStop(0.55, footprintColor(metric.hue, metric.depth, 0.72, 4));
+          swatch.addColorStop(1, footprintColor(metric.hue, metric.depth, 0.1, 20));
+          context.strokeStyle = swatch;
+          context.lineWidth = 12 + metric.depth * 10;
+          context.lineCap = "round";
           context.beginPath();
-          context.arc(x + 18, legendY + 22, 14 + metric.depth * 9, 0, Math.PI * 2);
-          context.fill();
+          context.moveTo(x + 4, legendY + 16);
+          context.bezierCurveTo(x + 42, legendY + 5, x + 92, legendY + 28, x + itemWidth - 28, legendY + 16);
+          context.stroke();
           context.fillStyle = "#17211d";
           context.font = "800 18px system-ui, sans-serif";
-          context.fillText(metric.label, x + 42, legendY + 20);
+          context.fillText(metric.label, x + 4, legendY + 40);
           context.fillStyle = "#5d6964";
           context.font = "650 18px system-ui, sans-serif";
-          context.fillText(fitText(context, metric.value, itemWidth - 54), x + 42, legendY + 47);
+          context.fillText(fitText(context, metric.value, itemWidth - 28), x + 4, legendY + 64);
         });
 
         context.fillStyle = "rgba(23, 33, 29, 0.78)";
@@ -3926,9 +4135,15 @@
         const meals = getWeeklyMeals();
         const panel = $("#weeklyRecapPanel");
         const note = $("#weeklyRecapNote");
+        const image = $("#weeklyRecapImage");
+        const downloadButton = $("#downloadRecap");
+        const shareButton = $("#shareRecap");
         if (!meals.length) {
           panel.classList.add("is-visible");
-          $("#weeklyRecapImage").removeAttribute("src");
+          panel.classList.remove("is-loading");
+          image.removeAttribute("src");
+          delete downloadButton.dataset.recapUrl;
+          delete shareButton.dataset.recapUrl;
           note.textContent = "No saved meals from the last 7 days yet.";
           return "";
         }
@@ -3936,6 +4151,12 @@
         $("#weeklyRecap").disabled = true;
         note.textContent = state.recapMode === "photos" ? "Building your private photo recap..." : "Building your private nutrition footprint...";
         panel.classList.add("is-visible");
+        panel.classList.add("is-loading");
+        image.removeAttribute("src");
+        delete downloadButton.dataset.recapUrl;
+        delete shareButton.dataset.recapUrl;
+        downloadButton.disabled = true;
+        shareButton.disabled = true;
 
         const canvas = document.createElement("canvas");
         canvas.width = 1080;
@@ -3995,17 +4216,23 @@
         } catch (error) {
           note.textContent = "Your recap preview was created, but browser photo permissions blocked export. Try refreshing the food log and creating it again.";
           $("#weeklyRecap").disabled = false;
+          panel.classList.remove("is-loading");
+          downloadButton.disabled = false;
+          shareButton.disabled = false;
           loadedImages.forEach((loaded) => {
             if (loaded?.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
           });
           return "";
         }
-        $("#weeklyRecapImage").src = dataUrl;
-        $("#weeklyRecapImage").alt = state.recapMode === "photos" ? "FeedNomi weekly photo collage" : "FeedNomi weekly nutrition footprint";
-        $("#downloadRecap").dataset.recapUrl = dataUrl;
-        $("#downloadRecap").dataset.recapMode = state.recapMode;
-        $("#shareRecap").dataset.recapUrl = dataUrl;
-        $("#shareRecap").dataset.recapMode = state.recapMode;
+        image.src = dataUrl;
+        image.alt = state.recapMode === "photos" ? "FeedNomi weekly photo collage" : "FeedNomi weekly nutrition footprint";
+        downloadButton.dataset.recapUrl = dataUrl;
+        downloadButton.dataset.recapMode = state.recapMode;
+        shareButton.dataset.recapUrl = dataUrl;
+        shareButton.dataset.recapMode = state.recapMode;
+        panel.classList.remove("is-loading");
+        downloadButton.disabled = false;
+        shareButton.disabled = false;
         loadedImages.forEach((loaded) => {
           if (loaded?.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
         });
@@ -4052,9 +4279,9 @@
                     <span>${escapeHtml(item.serving)}</span>
                     <div class="log-metrics">
                       <span>${escapeHtml(item.calories)} kcal</span>
-                      <span>${escapeHtml(item.protein || "-")}</span>
-                      <span>${escapeHtml(item.fiber || "-")}</span>
-                      <span>${escapeHtml(item.sugar || "-")}</span>
+                      <span>Protein ${escapeHtml(item.protein || "-")}</span>
+                      <span>Fiber ${escapeHtml(item.fiber || "-")}</span>
+                      <span>Sugar ${escapeHtml(item.sugar || "-")}</span>
                     </div>
                   </div>
                   <span class="point-badge">${escapeHtml(item.points)}</span>

@@ -1122,6 +1122,7 @@ def combine_components(component_foods, dish_name=""):
             for food in weighted_components
         ],
     }
+    apply_combined_macro_plausibility(combined, weighted_components)
     debug_candidates = next((food.get("usdaCandidates") for food in component_foods if food.get("usdaCandidates")), None)
     if debug_candidates:
         combined["usdaCandidates"] = debug_candidates
@@ -1129,6 +1130,71 @@ def combine_components(component_foods, dish_name=""):
     combined["points"] = calculate_points(combined)
     combined["effect"] = effect_for_points(combined["points"])
     return combined
+
+
+def apply_combined_macro_plausibility(combined, weighted_components):
+    calories = float(combined.get("calories", 0) or 0)
+    protein = parse_grams(combined.get("protein", "0 g"))
+    fiber = parse_grams(combined.get("fiber", "0 g"))
+    name = normalized_label(combined.get("name", ""))
+    roles = {food.get("role", "") for food in weighted_components}
+    nutrient_roles = {food.get("nutrient_role", "") for food in weighted_components}
+    source_text = " ".join(
+        [
+            combined.get("name", ""),
+            combined.get("serving", ""),
+            " ".join(food.get("name", "") for food in weighted_components),
+            " ".join(food.get("sourceMatch", "") for food in weighted_components),
+        ]
+    ).lower()
+    is_dessertish = "dessert" in roles or text_has_term(source_text, DESSERT_FOOD_TERMS)
+    is_light_produce = roles and roles <= {"fruit_veg"} and calories < 180
+    is_meal_like = (
+        len(weighted_components) > 1
+        or any(term in name for term in ["bowl", "salad", "plate", "meal", "entree", "dish"])
+        or any(role in roles for role in {"base", "prepared", "protein"})
+    )
+    has_protein_signal = (
+        "protein" in roles
+        or "protein" in nutrient_roles
+        or text_has_term(source_text, PROTEIN_FOOD_TERMS)
+        or any(term in source_text for term in ["tofu", "tempeh", "lentil", "bean", "chickpea", "feta", "yogurt"])
+    )
+
+    floor = 0
+    if is_meal_like and not is_dessertish and not is_light_produce:
+        if calories >= 450:
+            floor = 8
+        elif calories >= 280:
+            floor = 6
+        elif calories >= 180:
+            floor = 4
+        elif any(term in name for term in ["bowl", "salad", "plate", "meal", "entree", "dish"]):
+            floor = 4
+        if fiber >= 6:
+            floor = max(floor, 6)
+        elif fiber >= 4:
+            floor = max(floor, 4)
+    if has_protein_signal and is_meal_like and not is_dessertish:
+        if calories >= 350:
+            floor = max(floor, 14)
+        elif calories >= 180:
+            floor = max(floor, 10)
+        else:
+            floor = max(floor, 6)
+
+    if floor and 0 < protein < floor:
+        combined["protein"] = f"{floor:.0f} g"
+        combined["databaseNotes"] = dedupe(
+            (combined.get("databaseNotes") or [])
+            + [
+                (
+                    "Protein was raised to a conservative full-meal floor because component portioning "
+                    "looked implausibly low for the visible serving."
+                )
+            ]
+        )
+        combined["nutritionBasis"] = f"{combined.get('nutritionBasis', 'estimated serving')} + full-meal macro plausibility floor"
 
 
 def portion_confidence_label(avg_confidence, component_count):
