@@ -3853,8 +3853,9 @@
           context.fill();
         }
         context.globalCompositeOperation = "source-over";
-        context.strokeStyle = footprintColor(metric.hue, depth, 0.35, -10);
-        context.lineWidth = 5 + depth * 15;
+        const strokeFactor = metric.strokeFactor ?? 1;
+        context.strokeStyle = footprintColor(metric.hue, depth, 0.35 * strokeFactor, -10);
+        context.lineWidth = (5 + depth * 15) * strokeFactor;
         drawNutritionFootShape(
           context,
           centerX + metric.offsetX * 4,
@@ -3962,14 +3963,15 @@
         context.globalCompositeOperation = "source-over";
         layers.forEach((metric, layerIndex) => {
           const depth = metric.depth;
+          const sedimentFactor = metric.sedimentFactor ?? 1;
           const washCount = 3 + Math.round(depth * 3);
           for (let wash = 0; wash < washCount; wash += 1) {
             const x = 300 + seededRange(signature.seed, 90 + layerIndex * 11 + wash, 0, 480);
             const y = 292 + seededRange(signature.seed, 130 + layerIndex * 11 + wash, 0, 472);
             const radius = 154 + depth * 190 + seededRange(signature.seed, 170 + layerIndex * 9 + wash, -42, 58);
             const stain = context.createRadialGradient(x, y, 12, x, y, radius);
-            stain.addColorStop(0, footprintColor(metric.hue, depth, 0.12 + depth * 0.09, 16));
-            stain.addColorStop(0.62, footprintColor(metric.hue, depth, 0.045 + depth * 0.045, 22));
+            stain.addColorStop(0, footprintColor(metric.hue, depth, (0.12 + depth * 0.09) * sedimentFactor, 16));
+            stain.addColorStop(0.62, footprintColor(metric.hue, depth, (0.045 + depth * 0.045) * sedimentFactor, 22));
             stain.addColorStop(1, footprintColor(metric.hue, depth, 0, 28));
             context.fillStyle = stain;
             drawPainterlyBlob(
@@ -3990,8 +3992,8 @@
             const xStart = 230 + seededRange(signature.seed, 330 + layerIndex * 7 + contour, -36, 54);
             const xEnd = 842 + seededRange(signature.seed, 360 + layerIndex * 7 + contour, -54, 36);
             const lift = seededRange(signature.seed, 390 + layerIndex * 7 + contour, -66, 66);
-            context.strokeStyle = footprintColor(metric.hue, depth, 0.08 + depth * 0.05, 8);
-            context.lineWidth = 2 + depth * 5;
+            context.strokeStyle = footprintColor(metric.hue, depth, (0.08 + depth * 0.05) * sedimentFactor, 8);
+            context.lineWidth = (2 + depth * 5) * sedimentFactor;
             context.beginPath();
             context.moveTo(xStart, y);
             context.bezierCurveTo(
@@ -4152,7 +4154,8 @@
           if (metrics.dietPattern === "meat-heavy") {
             drawProteinBandMark(context, x, y, radiusX, radiusY, rotation, hue, intensity, protein, sugar, signature, index);
           } else if (metrics.dietPattern === "plant-forward") {
-            drawPlantBranchMark(context, x, y, radiusX, radiusY, hue, intensity, fiber, signature, index);
+            const branchBoost = metrics.meatRatio < 0.08 ? 1.18 : 1;
+            drawPlantBranchMark(context, x, y, radiusX * branchBoost, radiusY * branchBoost, hue, intensity, clampNumber(fiber + 0.18, 0, 1), signature, index);
           } else if (metrics.dietPattern === "treat-heavy") {
             drawTreatBloomMark(context, x, y, radiusX, radiusY, hue, intensity, sugar, signature, index);
           } else {
@@ -4204,11 +4207,16 @@
         context.fill();
         context.restore();
 
+        const plantNoMeatBias = metrics.dietPattern === "plant-forward" && metrics.meatRatio < 0.08;
+        const plantLayerBoost = plantNoMeatBias ? 1.18 : 1;
+        const plantSupportFactor = plantNoMeatBias ? 0.46 : 1;
+        const plantProteinFactor = plantNoMeatBias ? 0.36 : 1;
+        const plantSugarFactor = plantNoMeatBias ? 0.72 : 1;
         const layers = [
-          { label: "Fiber", value: `${metrics.fiber}g`, hue: 136 + signature.hueShift, depth: metrics.plantDepth, offsetX: -7 + seededRange(signature.seed, 11, -4, 4), offsetY: 2 + seededRange(signature.seed, 12, -3, 3), seed: signature.seed + 2, radiusX: 300 * signature.spread, radiusY: 396 * signature.spread, centerX: 286 + signature.centerX * 0.65, centerY: 736 + signature.centerY * 0.75, rotation: -0.16 + signature.rotation, ringBias: signature.ringBias },
-          { label: "Protein", value: `${metrics.protein}g`, hue: 198 + signature.hueShift, depth: metrics.proteinDepth, offsetX: 6 + seededRange(signature.seed, 13, -4, 4), offsetY: -4 + seededRange(signature.seed, 14, -3, 3), seed: signature.seed + 7, radiusX: 286 * signature.spread, radiusY: 390 * signature.spread, centerX: 802 + signature.centerX * 0.7, centerY: 330 + signature.centerY * 0.6, rotation: -0.1 + signature.rotation * 0.8, ringBias: signature.ringBias },
-          { label: "Energy", value: `${metrics.calories} kcal`, hue: 48 + signature.hueShift, depth: metrics.energyDepth, offsetX: 2 + seededRange(signature.seed, 15, -4, 4), offsetY: 6 + seededRange(signature.seed, 16, -3, 3), seed: signature.seed + 13, radiusX: 304 * signature.spread, radiusY: 410 * signature.spread, centerX: 770 + signature.centerX * 0.65, centerY: 790 + signature.centerY * 0.75, rotation: -0.2 + signature.rotation * 1.2, ringBias: signature.ringBias },
-          { label: "Sugar", value: `${metrics.sugar}g`, hue: 330 + signature.hueShift, depth: metrics.sugarDepth, offsetX: 9 + seededRange(signature.seed, 17, -4, 4), offsetY: 5 + seededRange(signature.seed, 18, -3, 3), seed: signature.seed + 19, radiusX: 276 * signature.spread, radiusY: 366 * signature.spread, centerX: 278 + signature.centerX * 0.8, centerY: 318 + signature.centerY * 0.6, rotation: -0.07 + signature.rotation, ringBias: signature.ringBias },
+          { label: "Fiber", value: `${metrics.fiber}g`, hue: 136 + signature.hueShift, depth: clampNumber(metrics.plantDepth * plantLayerBoost, 0.12, 1), offsetX: -7 + seededRange(signature.seed, 11, -4, 4), offsetY: 2 + seededRange(signature.seed, 12, -3, 3), seed: signature.seed + 2, radiusX: 318 * signature.spread, radiusY: 420 * signature.spread, centerX: 286 + signature.centerX * 0.65, centerY: 736 + signature.centerY * 0.75, rotation: -0.16 + signature.rotation, ringBias: signature.ringBias, fillFactor: plantNoMeatBias ? 1.16 : 1, strokeFactor: plantNoMeatBias ? 1.08 : 1, sedimentFactor: plantNoMeatBias ? 1.12 : 1 },
+          { label: "Protein", value: `${metrics.protein}g`, hue: 198 + signature.hueShift, depth: clampNumber(metrics.proteinDepth * plantProteinFactor, 0.08, 1), offsetX: 6 + seededRange(signature.seed, 13, -4, 4), offsetY: -4 + seededRange(signature.seed, 14, -3, 3), seed: signature.seed + 7, radiusX: 252 * signature.spread, radiusY: 340 * signature.spread, centerX: 802 + signature.centerX * 0.7, centerY: 330 + signature.centerY * 0.6, rotation: -0.1 + signature.rotation * 0.8, ringBias: signature.ringBias, fillFactor: plantNoMeatBias ? 0.22 : 1, strokeFactor: plantNoMeatBias ? 0.22 : 1, sedimentFactor: plantNoMeatBias ? 0.18 : 1 },
+          { label: "Energy", value: `${metrics.calories} kcal`, hue: 48 + signature.hueShift, depth: clampNumber(metrics.energyDepth * plantSupportFactor, 0.08, 1), offsetX: 2 + seededRange(signature.seed, 15, -4, 4), offsetY: 6 + seededRange(signature.seed, 16, -3, 3), seed: signature.seed + 13, radiusX: 268 * signature.spread, radiusY: 354 * signature.spread, centerX: 770 + signature.centerX * 0.65, centerY: 790 + signature.centerY * 0.75, rotation: -0.2 + signature.rotation * 1.2, ringBias: signature.ringBias, fillFactor: plantNoMeatBias ? 0.32 : 1, strokeFactor: plantNoMeatBias ? 0.28 : 1, sedimentFactor: plantNoMeatBias ? 0.24 : 1 },
+          { label: "Sugar", value: `${metrics.sugar}g`, hue: 330 + signature.hueShift, depth: clampNumber(metrics.sugarDepth * plantSugarFactor, 0.08, 1), offsetX: 9 + seededRange(signature.seed, 17, -4, 4), offsetY: 5 + seededRange(signature.seed, 18, -3, 3), seed: signature.seed + 19, radiusX: 248 * signature.spread, radiusY: 328 * signature.spread, centerX: 278 + signature.centerX * 0.8, centerY: 318 + signature.centerY * 0.6, rotation: -0.07 + signature.rotation, ringBias: signature.ringBias, fillFactor: plantNoMeatBias ? 0.58 : 1, strokeFactor: plantNoMeatBias ? 0.5 : 1, sedimentFactor: plantNoMeatBias ? 0.48 : 1 },
           { label: "Points", value: `${points}`, hue: 258 + signature.hueShift, depth: metrics.scoreDepth, offsetX: -3 + seededRange(signature.seed, 19, -4, 4), offsetY: -8 + seededRange(signature.seed, 20, -3, 3), seed: signature.seed + 23, radiusX: 248 * signature.spread, radiusY: 330 * signature.spread, centerX: 540 + signature.centerX * 0.9, centerY: 544 + signature.centerY * 0.8, rotation: -0.14 + signature.rotation, ringBias: signature.ringBias, mode: "source-over", fillFactor: 0.24 }
         ];
         layers.forEach((metric, index) => drawFootprintLayer(context, metric, index));
