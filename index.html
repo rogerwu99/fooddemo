@@ -2092,8 +2092,8 @@
           protein: "44 g",
           fiber: "0 g",
           sugar: "0 g added",
-          points: 20,
-          why: "Dense protein helps recovery and keeps the meal satisfying, especially with vegetables or grains.",
+          points: 16,
+          why: "Dense protein helps recovery and fullness, but meat feeds Nomi less than fiber-rich plants.",
           effect: "Muscle support",
           imagePosition: "30% 72%"
         },
@@ -2104,7 +2104,7 @@
           protein: "2 g",
           fiber: "8 g",
           sugar: "0 g added",
-          points: 38,
+          points: 44,
           why: "Fiber, antioxidants, and low energy density make berries a high-return snack or side.",
           effect: "Lean boost",
           imagePosition: "78% 2%"
@@ -2208,6 +2208,7 @@
       const pendingSaveBackupKey = "feednomiPendingSaveBackup";
       const authReturnHashKey = "platepointsAuthReturnHash";
       const profileKey = "platepointsProfile";
+      const recapEntryLimit = 21;
       const debugUsda = new URLSearchParams(window.location.search).get("debugUsda") === "1";
       const state = {
         analyzed: null,
@@ -2430,6 +2431,15 @@
         return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} g`;
       }
 
+      function componentMentionsMeat(component = {}) {
+        const terms = ["beef", "burger", "chicken", "cod", "cutlet", "fish", "lamb", "meat", "pork", "salmon", "shrimp", "steak", "tuna", "turkey"];
+        const text = [component.name, component.label, component.serving, component.sourceMatch, component.nutritionBasis]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return terms.some((term) => text.includes(term));
+      }
+
       function calculateClientPoints(food) {
         const protein = numberFromValue(food.protein, 0);
         const fiber = numberFromValue(food.fiber, 0);
@@ -2439,13 +2449,18 @@
         const producePortion = components.reduce((sum, component) => {
           return sum + (component.role === "fruit_veg" ? Number(component.portion || 0) : 0);
         }, 0);
+        const meatPortion = components.reduce((sum, component) => {
+          return sum + (componentMentionsMeat(component) ? Number(component.portion || 0) : 0);
+        }, 0);
         const hasProduce = producePortion > 0;
+        const hasMeat = meatPortion > 0 || componentMentionsMeat(food);
         const naturalSugar = Number(food.naturalSugar || (hasProduce ? sugar : 0));
         const addedSugar = Number(food.addedSugar || 0);
         const unknownSugar = Number(food.unknownSugar || Math.max(0, sugar - naturalSugar - addedSugar));
         const sugarPenalty = addedSugar * 0.8 + unknownSugar * 0.45 + naturalSugar * 0.15;
-        const produceBonus = hasProduce ? Math.min(10, 6 + producePortion * 6) : 0;
-        const score = 18 + protein * 0.4 + fiber * 3 + produceBonus + calorieFitAdjustment(calories) - sugarPenalty - maxCaloriePenalty(calories);
+        const produceBonus = hasProduce ? Math.min(16, 8 + producePortion * 10) : 0;
+        const meatPenalty = hasMeat ? Math.min(12, 6 + Math.max(meatPortion, 0.75) * 8) : 0;
+        const score = 18 + protein * 0.32 + fiber * 3.25 + produceBonus + calorieFitAdjustment(calories) - meatPenalty - sugarPenalty - maxCaloriePenalty(calories);
         return Math.max(1, Math.min(50, Math.round(score)));
       }
 
@@ -3178,13 +3193,13 @@
       }
 
       function getWeeklyMeals() {
-        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
         return state.log
           .filter((item) => {
             const timestamp = Date.parse(item.savedAt || item.created_at || "");
-            return Number.isFinite(timestamp) && timestamp >= weekAgo;
+            return Number.isFinite(timestamp);
           })
-          .sort((a, b) => Date.parse(b.savedAt || b.created_at || "") - Date.parse(a.savedAt || a.created_at || ""));
+          .sort((a, b) => Date.parse(b.savedAt || b.created_at || "") - Date.parse(a.savedAt || a.created_at || ""))
+          .slice(0, recapEntryLimit);
       }
 
       async function blobHash(blob) {
@@ -3715,29 +3730,39 @@
         const mealCount = Math.max(1, meals.length);
         const totals = meals.reduce((result, meal) => {
           const family = recapFoodFamily(meal.name || "");
+          const isMeat = componentMentionsMeat(meal);
+          const isPlantProtein = /\b(bean|beans|chickpea|chickpeas|falafel|lentil|lentils|pea|peas|peanut|seitan|tempeh|tofu)\b/i.test(String(meal.name || ""));
+          const proteinValue = mealNutritionValue(meal, "protein");
           result.calories += mealCalories(meal);
-          result.protein += mealNutritionValue(meal, "protein");
+          result.protein += proteinValue;
           result.fiber += mealNutritionValue(meal, "fiber");
           result.sugar += mealNutritionValue(meal, "sugar");
           result.families.add(family.key);
           if (family.key === "greens" || family.key === "fruit") result.produce += 1;
-          if (family.key === "greens" || family.key === "fruit" || family.key === "grain") result.plantMeals += 1;
+          if (family.key === "greens" || family.key === "fruit" || family.key === "grain" || isPlantProtein) result.plantMeals += 1;
           if (family.key === "protein") result.proteinMeals += 1;
+          if (isMeat) {
+            result.meatMeals += 1;
+            result.meatProtein += proteinValue;
+          }
           if (family.key === "dessert") result.treatMeals += 1;
           return result;
         }, {
           calories: 0,
           protein: 0,
+          meatProtein: 0,
           fiber: 0,
           sugar: 0,
           produce: 0,
           plantMeals: 0,
+          meatMeals: 0,
           proteinMeals: 0,
           treatMeals: 0,
           families: new Set()
         });
         const plantRatio = clampNumber((totals.plantMeals / mealCount) * 0.58 + (totals.fiber / (mealCount * 10)) * 0.42, 0, 1);
         const proteinRatio = clampNumber((totals.proteinMeals / mealCount) * 0.48 + (totals.protein / (mealCount * 36)) * 0.52, 0, 1);
+        const meatRatio = clampNumber((totals.meatMeals / mealCount) * 0.58 + (totals.meatProtein / (mealCount * 36)) * 0.42, 0, 1);
         const treatRatio = clampNumber((totals.treatMeals / mealCount) * 0.5 + (totals.sugar / (mealCount * 24)) * 0.5, 0, 1);
         const scoreDepth = clampNumber(points / (mealCount * 48), 0.16, 1);
         const plantDepth = clampNumber((totals.fiber / (mealCount * 7)) * 0.72 + (totals.produce / mealCount) * 0.28, 0.12, 1);
@@ -3745,11 +3770,11 @@
         const energyDepth = clampNumber(totals.calories / (mealCount * 720), 0.14, 1);
         const sugarDepth = clampNumber(totals.sugar / (mealCount * 16), 0.08, 1);
         const diversityDepth = clampNumber(totals.families.size / 6, 0.12, 1);
-        const dietPattern = proteinRatio - plantRatio > 0.28
-          ? "protein-dense"
-          : (plantRatio - proteinRatio > 0.24 ? "plant-forward" : (treatRatio > 0.42 ? "treat-heavy" : "mixed"));
-        const patternLabel = dietPattern === "protein-dense"
-          ? "protein-dense"
+        const dietPattern = meatRatio > 0.22 && meatRatio - plantRatio > 0.08
+          ? "meat-heavy"
+          : (plantRatio - meatRatio > 0.12 ? "plant-forward" : (treatRatio > 0.42 ? "treat-heavy" : (proteinRatio - plantRatio > 0.28 ? "protein-rich" : "mixed")));
+        const patternLabel = dietPattern === "meat-heavy"
+          ? "meat-heavy"
           : (dietPattern === "plant-forward" ? "plant-forward" : (dietPattern === "treat-heavy" ? "treat-bright" : "mixed"));
         return {
           calories: Math.round(totals.calories),
@@ -3758,6 +3783,7 @@
           sugar: Math.round(totals.sugar),
           plantRatio,
           proteinRatio,
+          meatRatio,
           treatRatio,
           dietPattern,
           patternLabel,
@@ -3982,6 +4008,173 @@
         context.restore();
       }
 
+      function macroNorm(value, max) {
+        return clampNumber(numberFromValue(value, 0) / max, 0, 1);
+      }
+
+      function mealPaintHue(candidate) {
+        const familyHue = recapFamilyHue(candidate.family.key);
+        const meal = candidate.meal || {};
+        const sugar = macroNorm(meal.sugar, 35);
+        const protein = macroNorm(meal.protein, 45);
+        const fiber = macroNorm(meal.fiber, 12);
+        if (sugar > 0.58 && fiber < 0.45) return 328;
+        if (fiber > 0.52 && protein < 0.38) return 134;
+        if (protein > 0.58 && candidate.family.key === "protein") return 206;
+        return familyHue;
+      }
+
+      function extremeFootprintColor(hue, depth, alpha, lightnessShift = 0) {
+        const normalizedHue = ((hue % 360) + 360) % 360;
+        const saturation = Math.round(74 + depth * 22);
+        const lightness = Math.round(62 - depth * 24 + lightnessShift);
+        return `hsla(${normalizedHue}, ${saturation}%, ${clampNumber(lightness, 30, 78)}%, ${alpha})`;
+      }
+
+      function nutritionPaintCoordinate(protein, fiber, sugar, calories, points, signature, index) {
+        const macroSpread = Math.max(protein, fiber, sugar, calories) - Math.min(protein, fiber, sugar, calories);
+        const macroAngle = (protein * 1.7 - fiber * 1.25 + sugar * 2.4 + calories * 0.8 + points * 0.5) * Math.PI;
+        const angle = macroAngle + seededRange(signature.seed, 1180 + index, -0.46, 0.46) + index * 0.74;
+        const radius = 278 + macroSpread * 190 + Math.max(protein, fiber, sugar, calories) * 86;
+        const baseX = 540 + Math.cos(angle) * radius + (protein - fiber) * 112 + sugar * 72;
+        const baseY = 540 + Math.sin(angle) * radius + calories * 92 - fiber * 82 + sugar * 58;
+        const driftX = seededRange(signature.seed, 1200 + index, -64, 64);
+        const driftY = seededRange(signature.seed, 1240 + index, -64, 64);
+        const quadrant = (index + Math.round(protein * 3) + Math.round(fiber * 5) + Math.round(sugar * 7)) % 4;
+        const shouldFlipX = quadrant === 1 || quadrant === 3 || fiber > protein + 0.22;
+        const shouldFlipY = quadrant === 2 || quadrant === 3 || sugar > fiber + 0.24;
+        const rawX = shouldFlipX ? 1080 - baseX : baseX;
+        const rawY = shouldFlipY ? 1080 - baseY : baseY;
+        const edgePull = 78 + macroSpread * 132;
+        const x = rawX < 540 ? rawX - edgePull : rawX + edgePull;
+        const y = rawY < 540 ? rawY - edgePull * 0.82 : rawY + edgePull * 0.82;
+        return {
+          x: clampNumber(x + driftX, 54, 1026),
+          y: clampNumber(y + driftY, 64, 1016)
+        };
+      }
+
+      function drawProteinBandMark(context, x, y, radiusX, radiusY, rotation, hue, intensity, protein, sugar, signature, index) {
+        const bands = 2 + Math.round(protein * 3);
+        context.save();
+        context.translate(x, y);
+        context.rotate(rotation + 0.22);
+        context.strokeStyle = extremeFootprintColor(hue, intensity, 0.16 + intensity * 0.12, -8);
+        context.lineWidth = 6 + protein * 10 + sugar * 3;
+        context.lineCap = "square";
+        for (let band = 0; band < bands; band += 1) {
+          const offset = (band - (bands - 1) / 2) * radiusY * 0.28;
+          const sway = seededRange(signature.seed, 1500 + index * 9 + band, -18, 18);
+          context.beginPath();
+          context.moveTo(-radiusX * 0.7, offset + sway);
+          context.lineTo(radiusX * 0.72, offset - sway * 0.45);
+          context.stroke();
+        }
+        context.restore();
+      }
+
+      function drawPlantBranchMark(context, x, y, radiusX, radiusY, hue, intensity, fiber, signature, index) {
+        const branches = 3 + Math.round(fiber * 5);
+        context.save();
+        context.strokeStyle = extremeFootprintColor(hue, intensity, 0.14 + intensity * 0.1, 10);
+        context.lineWidth = 2 + fiber * 5;
+        context.lineCap = "round";
+        for (let branch = 0; branch < branches; branch += 1) {
+          const angle = seededRange(signature.seed, 1600 + index * 11 + branch, -2.8, -0.15);
+          const length = radiusX * seededRange(signature.seed, 1640 + index * 7 + branch, 0.55, 1.08);
+          const startX = x + seededRange(signature.seed, 1680 + index * 5 + branch, -radiusX * 0.28, radiusX * 0.28);
+          const startY = y + seededRange(signature.seed, 1720 + index * 5 + branch, -radiusY * 0.2, radiusY * 0.22);
+          const endX = startX + Math.cos(angle) * length;
+          const endY = startY + Math.sin(angle) * length;
+          context.beginPath();
+          context.moveTo(startX, startY);
+          context.bezierCurveTo(
+            startX + Math.cos(angle - 0.45) * length * 0.32,
+            startY + Math.sin(angle - 0.45) * length * 0.32,
+            startX + Math.cos(angle + 0.28) * length * 0.7,
+            startY + Math.sin(angle + 0.28) * length * 0.7,
+            endX,
+            endY
+          );
+          context.stroke();
+          context.fillStyle = extremeFootprintColor(hue + 12, intensity, 0.08 + fiber * 0.08, 18);
+          drawPainterlyBlob(context, endX, endY, 18 + fiber * 24, 8 + fiber * 12, angle, signature.seed + branch + index);
+          context.fill();
+        }
+        context.restore();
+      }
+
+      function drawTreatBloomMark(context, x, y, radiusX, radiusY, hue, intensity, sugar, signature, index) {
+        const blooms = 2 + Math.round(sugar * 5);
+        context.save();
+        context.globalCompositeOperation = "screen";
+        for (let bloom = 0; bloom < blooms; bloom += 1) {
+          const bx = x + seededRange(signature.seed, 1800 + index * 7 + bloom, -radiusX * 0.45, radiusX * 0.45);
+          const by = y + seededRange(signature.seed, 1840 + index * 7 + bloom, -radiusY * 0.45, radiusY * 0.45);
+          const radius = 16 + sugar * 52 + seededRange(signature.seed, 1880 + index * 5 + bloom, 0, 24);
+          const bloomGradient = context.createRadialGradient(bx, by, 2, bx, by, radius);
+          bloomGradient.addColorStop(0, extremeFootprintColor(hue + 10, intensity, 0.3 + intensity * 0.2, 18));
+          bloomGradient.addColorStop(0.72, extremeFootprintColor(hue + 24, intensity, 0.12 + sugar * 0.08, 22));
+          bloomGradient.addColorStop(1, extremeFootprintColor(hue + 24, intensity, 0, 28));
+          context.fillStyle = bloomGradient;
+          context.beginPath();
+          context.arc(bx, by, radius, 0, Math.PI * 2);
+          context.fill();
+        }
+        context.restore();
+      }
+
+      function drawMealNutritionPaint(context, candidates, signature, metrics) {
+        context.save();
+        context.globalCompositeOperation = "multiply";
+        candidates.slice(0, recapEntryLimit).forEach((candidate, index) => {
+          const meal = candidate.meal || {};
+          const protein = macroNorm(meal.protein, 45);
+          const fiber = macroNorm(meal.fiber, 12);
+          const sugar = macroNorm(meal.sugar, 35);
+          const calories = macroNorm(meal.calories, 900);
+          const points = macroNorm(meal.points, 50);
+          const { x, y } = nutritionPaintCoordinate(protein, fiber, sugar, calories, points, signature, index);
+          const intensity = clampNumber(0.2 + calories * 0.34 + Math.max(protein, fiber, sugar) * 0.38 + points * 0.22, 0.18, 1);
+          const hue = mealPaintHue(candidate) + signature.hueShift;
+          const radiusX = 38 + calories * 112 + fiber * 44;
+          const radiusY = 24 + calories * 54 + protein * 86 + sugar * 36;
+          const rotation = seededRange(signature.seed, 1280 + index, -0.9, 0.9) + (protein - fiber) * 0.38;
+
+          const stain = context.createRadialGradient(x, y, 10, x, y, radiusX * 1.08);
+          stain.addColorStop(0, extremeFootprintColor(hue, intensity, 0.18 + intensity * 0.18, 10));
+          stain.addColorStop(0.58, extremeFootprintColor(hue, intensity, 0.08 + intensity * 0.1, 18));
+          stain.addColorStop(1, extremeFootprintColor(hue, intensity, 0, 30));
+          context.fillStyle = stain;
+          drawPainterlyBlob(context, x, y, radiusX, radiusY, rotation, signature.seed + index * 3);
+          context.fill();
+
+          if (metrics.dietPattern === "meat-heavy") {
+            drawProteinBandMark(context, x, y, radiusX, radiusY, rotation, hue, intensity, protein, sugar, signature, index);
+          } else if (metrics.dietPattern === "plant-forward") {
+            drawPlantBranchMark(context, x, y, radiusX, radiusY, hue, intensity, fiber, signature, index);
+          } else if (metrics.dietPattern === "treat-heavy") {
+            drawTreatBloomMark(context, x, y, radiusX, radiusY, hue, intensity, sugar, signature, index);
+          } else {
+            context.strokeStyle = extremeFootprintColor(hue, intensity, 0.12 + intensity * 0.1, -4);
+            context.lineWidth = 1.5 + protein * 5 + sugar * 3;
+            context.lineCap = "round";
+            context.beginPath();
+            context.moveTo(x - radiusX * 0.42, y + seededRange(signature.seed, 1320 + index, -18, 18));
+            context.bezierCurveTo(
+              x - radiusX * 0.08,
+              y - radiusY * (0.6 + fiber * 0.3),
+              x + radiusX * 0.22,
+              y + radiusY * (0.62 + sugar * 0.25),
+              x + radiusX * 0.48,
+              y + seededRange(signature.seed, 1360 + index, -20, 20)
+            );
+            context.stroke();
+          }
+        });
+        context.restore();
+      }
+
       function drawPainterlyRecap(context, tiles, meals, points, mood, familyLabels) {
         const metrics = nutritionFootprintMetrics(meals, points);
         const signature = metrics.signature;
@@ -4012,70 +4205,16 @@
         context.restore();
 
         const layers = [
-          { label: "Fiber", value: `${metrics.fiber}g`, hue: 136 + signature.hueShift, depth: metrics.plantDepth, offsetX: -7 + seededRange(signature.seed, 11, -4, 4), offsetY: 2 + seededRange(signature.seed, 12, -3, 3), seed: signature.seed + 2, radiusX: 332 * signature.spread, radiusY: 434 * signature.spread, centerX: 546 + signature.centerX, centerY: 592 + signature.centerY, rotation: -0.16 + signature.rotation, ringBias: signature.ringBias },
-          { label: "Protein", value: `${metrics.protein}g`, hue: 198 + signature.hueShift, depth: metrics.proteinDepth, offsetX: 6 + seededRange(signature.seed, 13, -4, 4), offsetY: -4 + seededRange(signature.seed, 14, -3, 3), seed: signature.seed + 7, radiusX: 300 * signature.spread, radiusY: 410 * signature.spread, centerX: 514 + signature.centerX * 0.8, centerY: 574 + signature.centerY * 0.9, rotation: -0.1 + signature.rotation * 0.8, ringBias: signature.ringBias },
-          { label: "Energy", value: `${metrics.calories} kcal`, hue: 48 + signature.hueShift, depth: metrics.energyDepth, offsetX: 2 + seededRange(signature.seed, 15, -4, 4), offsetY: 6 + seededRange(signature.seed, 16, -3, 3), seed: signature.seed + 13, radiusX: 324 * signature.spread, radiusY: 450 * signature.spread, centerX: 590 + signature.centerX * 0.65, centerY: 630 + signature.centerY * 0.75, rotation: -0.2 + signature.rotation * 1.2, ringBias: signature.ringBias },
-          { label: "Sugar", value: `${metrics.sugar}g`, hue: 330 + signature.hueShift, depth: metrics.sugarDepth, offsetX: 9 + seededRange(signature.seed, 17, -4, 4), offsetY: 5 + seededRange(signature.seed, 18, -3, 3), seed: signature.seed + 19, radiusX: 282 * signature.spread, radiusY: 386 * signature.spread, centerX: 548 + signature.centerX * 1.1, centerY: 552 + signature.centerY * 0.7, rotation: -0.07 + signature.rotation, ringBias: signature.ringBias },
-          { label: "Points", value: `${points}`, hue: 258 + signature.hueShift, depth: metrics.scoreDepth, offsetX: -3 + seededRange(signature.seed, 19, -4, 4), offsetY: -8 + seededRange(signature.seed, 20, -3, 3), seed: signature.seed + 23, radiusX: 248 * signature.spread, radiusY: 330 * signature.spread, centerX: 560 + signature.centerX * 0.9, centerY: 606 + signature.centerY * 0.8, rotation: -0.14 + signature.rotation, ringBias: signature.ringBias, mode: "source-over", fillFactor: 0.32 }
+          { label: "Fiber", value: `${metrics.fiber}g`, hue: 136 + signature.hueShift, depth: metrics.plantDepth, offsetX: -7 + seededRange(signature.seed, 11, -4, 4), offsetY: 2 + seededRange(signature.seed, 12, -3, 3), seed: signature.seed + 2, radiusX: 300 * signature.spread, radiusY: 396 * signature.spread, centerX: 286 + signature.centerX * 0.65, centerY: 736 + signature.centerY * 0.75, rotation: -0.16 + signature.rotation, ringBias: signature.ringBias },
+          { label: "Protein", value: `${metrics.protein}g`, hue: 198 + signature.hueShift, depth: metrics.proteinDepth, offsetX: 6 + seededRange(signature.seed, 13, -4, 4), offsetY: -4 + seededRange(signature.seed, 14, -3, 3), seed: signature.seed + 7, radiusX: 286 * signature.spread, radiusY: 390 * signature.spread, centerX: 802 + signature.centerX * 0.7, centerY: 330 + signature.centerY * 0.6, rotation: -0.1 + signature.rotation * 0.8, ringBias: signature.ringBias },
+          { label: "Energy", value: `${metrics.calories} kcal`, hue: 48 + signature.hueShift, depth: metrics.energyDepth, offsetX: 2 + seededRange(signature.seed, 15, -4, 4), offsetY: 6 + seededRange(signature.seed, 16, -3, 3), seed: signature.seed + 13, radiusX: 304 * signature.spread, radiusY: 410 * signature.spread, centerX: 770 + signature.centerX * 0.65, centerY: 790 + signature.centerY * 0.75, rotation: -0.2 + signature.rotation * 1.2, ringBias: signature.ringBias },
+          { label: "Sugar", value: `${metrics.sugar}g`, hue: 330 + signature.hueShift, depth: metrics.sugarDepth, offsetX: 9 + seededRange(signature.seed, 17, -4, 4), offsetY: 5 + seededRange(signature.seed, 18, -3, 3), seed: signature.seed + 19, radiusX: 276 * signature.spread, radiusY: 366 * signature.spread, centerX: 278 + signature.centerX * 0.8, centerY: 318 + signature.centerY * 0.6, rotation: -0.07 + signature.rotation, ringBias: signature.ringBias },
+          { label: "Points", value: `${points}`, hue: 258 + signature.hueShift, depth: metrics.scoreDepth, offsetX: -3 + seededRange(signature.seed, 19, -4, 4), offsetY: -8 + seededRange(signature.seed, 20, -3, 3), seed: signature.seed + 23, radiusX: 248 * signature.spread, radiusY: 330 * signature.spread, centerX: 540 + signature.centerX * 0.9, centerY: 544 + signature.centerY * 0.8, rotation: -0.14 + signature.rotation, ringBias: signature.ringBias, mode: "source-over", fillFactor: 0.24 }
         ];
         layers.forEach((metric, index) => drawFootprintLayer(context, metric, index));
         drawDietPatternSignature(context, metrics, signature);
         drawNutritionSediment(context, layers, metrics, signature);
-
-        context.save();
-        context.globalCompositeOperation = "multiply";
-        tiles.slice(0, 16).forEach((candidate, index) => {
-          const x = 244 + seededRange(signature.seed, 31 + index, 0, 610);
-          const y = 266 + seededRange(signature.seed, 51 + index, 0, 548);
-          const angle = seededRange(signature.seed, 71 + index, -0.72, 0.72);
-          const depth = clampNumber(Number(candidate.meal.points || 0) / 70, 0.16, 1);
-          const hue = recapFamilyHue(candidate.family.key) + signature.hueShift;
-          context.fillStyle = footprintColor(hue, depth, 0.055, 20);
-          drawPainterlyBlob(context, x, y, 34 + depth * 38, 22 + depth * 26, angle, index + points);
-          context.fill();
-        });
-        context.restore();
-
-        context.fillStyle = "#17211d";
-        context.font = "850 58px system-ui, sans-serif";
-        context.fillText("Nutrition Footprint", 68, 92);
-        context.font = "550 25px system-ui, sans-serif";
-        context.fillStyle = "#5d6964";
-        context.fillText(`${meals.length} meals - ${points} points - ${metrics.patternLabel} - ${mood}`, 70, 135);
-        context.font = "750 22px system-ui, sans-serif";
-        context.fillStyle = "#257392";
-        context.fillText(fitText(context, `Color depth maps protein, fiber, energy, sugar, and score - mark ${signature.code}`, 820), 70, 165);
-
-        const legendX = 72;
-        const legendY = 876;
-        const legendWidth = 936;
-        const itemWidth = legendWidth / layers.length;
-        layers.forEach((metric, index) => {
-          const x = legendX + itemWidth * index;
-          const swatch = context.createLinearGradient(x, legendY + 8, x + itemWidth - 26, legendY + 8);
-          swatch.addColorStop(0, footprintColor(metric.hue, metric.depth, 0.18, 18));
-          swatch.addColorStop(0.55, footprintColor(metric.hue, metric.depth, 0.72, 4));
-          swatch.addColorStop(1, footprintColor(metric.hue, metric.depth, 0.1, 20));
-          context.strokeStyle = swatch;
-          context.lineWidth = 12 + metric.depth * 10;
-          context.lineCap = "round";
-          context.beginPath();
-          context.moveTo(x + 4, legendY + 16);
-          context.bezierCurveTo(x + 42, legendY + 5, x + 92, legendY + 28, x + itemWidth - 28, legendY + 16);
-          context.stroke();
-          context.fillStyle = "#17211d";
-          context.font = "800 18px system-ui, sans-serif";
-          context.fillText(metric.label, x + 4, legendY + 40);
-          context.fillStyle = "#5d6964";
-          context.font = "650 18px system-ui, sans-serif";
-          context.fillText(fitText(context, metric.value, itemWidth - 28), x + 4, legendY + 64);
-        });
-
-        context.fillStyle = "rgba(23, 33, 29, 0.78)";
-        context.fillRect(54, 956, 972, 70);
-        context.fillStyle = "#fbfaf4";
-        context.font = "720 23px system-ui, sans-serif";
-        context.fillText(fitText(context, `A nutrition footprint from this week's saves - strongest signals: ${familyLabels.join(", ")}`, 890), 78, 1000);
+        drawMealNutritionPaint(context, tiles, signature, metrics);
       }
 
       function drawPhotoRecap(context, tiles, meals, points, mood, familyLabels) {
@@ -4144,7 +4283,7 @@
           image.removeAttribute("src");
           delete downloadButton.dataset.recapUrl;
           delete shareButton.dataset.recapUrl;
-          note.textContent = "No saved meals from the last 7 days yet.";
+          note.textContent = "No saved meals yet.";
           return "";
         }
 
@@ -4202,12 +4341,20 @@
             a.color.lightness - b.color.lightness ||
             a.originalIndex - b.originalIndex
           ));
-        const familyLabels = [...new Set(tiles.map((item) => item.family.label))].slice(0, 4);
+        const paintCandidates = uniqueCandidates
+          .slice()
+          .sort((a, b) => (
+            Date.parse(b.meal.savedAt || b.meal.created_at || "") -
+            Date.parse(a.meal.savedAt || a.meal.created_at || "")
+          ))
+          .slice(0, recapEntryLimit);
+        const labelSource = state.recapMode === "photos" ? tiles : paintCandidates;
+        const familyLabels = [...new Set(labelSource.map((item) => item.family.label))].slice(0, 4);
 
         if (state.recapMode === "photos") {
           drawPhotoRecap(context, tiles, meals, points, recapMood(points), familyLabels);
         } else {
-          drawPainterlyRecap(context, tiles, meals, points, recapMood(points), familyLabels);
+          drawPainterlyRecap(context, paintCandidates, meals, points, recapMood(points), familyLabels);
         }
 
         let dataUrl = "";
@@ -4241,9 +4388,12 @@
           skippedCount ? `${skippedCount} meal${skippedCount === 1 ? "" : "s"} skipped` : "",
           exactDuplicateCount ? `${exactDuplicateCount} exact duplicate photo${exactDuplicateCount === 1 ? "" : "s"} skipped` : ""
         ].filter(Boolean).join("; ");
+        const recapSummary = state.recapMode === "photos"
+          ? "Private photo recap created."
+          : `Nutrition footprint created from ${meals.length} recent meal${meals.length === 1 ? "" : "s"}: color, position, and depth map protein, fiber, sugar, calories, and score.`;
         note.textContent = cleanupNote
-          ? `Private recap created. ${cleanupNote}.`
-          : "Private recap created. Download or share when ready.";
+          ? `${recapSummary} ${cleanupNote}.`
+          : `${recapSummary} Download or share when ready.`;
         $("#weeklyRecap").disabled = false;
         return dataUrl;
       }
@@ -4260,6 +4410,17 @@
         $("#googleSignup").focus();
       }
 
+      function formatLogTimestamp(value = "") {
+        const timestamp = Date.parse(value);
+        if (!Number.isFinite(timestamp)) return "";
+        return new Intl.DateTimeFormat(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit"
+        }).format(new Date(timestamp));
+      }
+
       function renderLog() {
         const logList = $("#logList");
         if (!state.log.length) {
@@ -4271,12 +4432,13 @@
             .map((item, index) => {
               const deleteId = item.id ? escapeHtml(item.id) : "";
               const photo = item.photo ? `<img class="log-thumb" src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name)}" />` : '<div class="log-thumb" aria-hidden="true"></div>';
+              const timestamp = formatLogTimestamp(item.savedAt || item.created_at || "");
               return `
                 <div class="log-item">
                   ${photo}
                   <div>
                     <strong>${escapeHtml(item.name)}</strong>
-                    <span>${escapeHtml(item.serving)}</span>
+                    <span>${escapeHtml(item.serving)}${timestamp ? ` · ${escapeHtml(timestamp)}` : ""}</span>
                     <div class="log-metrics">
                       <span>${escapeHtml(item.calories)} kcal</span>
                       <span>Protein ${escapeHtml(item.protein || "-")}</span>

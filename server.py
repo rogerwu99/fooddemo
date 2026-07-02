@@ -46,6 +46,11 @@ PROTEIN_FOOD_TERMS = {
     "pork", "salmon", "shrimp", "steak", "tempeh", "tofu", "tuna", "turkey",
 }
 
+MEAT_FOOD_TERMS = {
+    "beef", "burger", "chicken", "cod", "cutlet", "fish", "lamb", "meat",
+    "pork", "salmon", "shrimp", "steak", "tuna", "turkey",
+}
+
 BASE_FOOD_TERMS = {
     "bagel", "bread", "cereal", "farro", "grain", "noodle", "oat", "oatmeal",
     "pasta", "porridge", "quinoa", "rice", "spaghetti",
@@ -110,8 +115,8 @@ NUTRITION_DB = {
         "protein": "44 g",
         "fiber": "0 g",
         "sugar": "0 g added",
-        "points": 20,
-        "why": "Dense protein helps recovery and keeps the meal satisfying, especially with vegetables or grains.",
+        "points": 16,
+        "why": "Dense protein helps recovery and fullness, but meat feeds Nomi less than fiber-rich plants.",
         "effect": "Muscle support",
     },
     "berries": {
@@ -121,7 +126,7 @@ NUTRITION_DB = {
         "protein": "2 g",
         "fiber": "8 g",
         "sugar": "0 g added",
-        "points": 38,
+        "points": 44,
         "why": "Fiber, antioxidants, and low energy density make berries a high-return snack or side.",
         "effect": "Lean boost",
     },
@@ -1987,14 +1992,29 @@ def calculate_points(food):
         for component in components
         if component.get("role") == "fruit_veg"
     )
+    meat_portion = sum(
+        float(component.get("portion", 0) or 0)
+        for component in components
+        if component_mentions_meat(component)
+    )
     has_produce = produce_portion > 0 or food.get("role") == "fruit_veg"
+    has_meat = meat_portion > 0 or component_mentions_meat(food)
     natural_sugar = float(food.get("naturalSugar", sugar if has_produce else 0) or 0)
     added_sugar = float(food.get("addedSugar", 0) or 0)
     unknown_sugar = float(food.get("unknownSugar", max(0, sugar - natural_sugar - added_sugar)) or 0)
     sugar_penalty = added_sugar * 0.8 + unknown_sugar * 0.45 + natural_sugar * 0.15
-    produce_bonus = min(10, 6 + produce_portion * 6) if has_produce else 0
-    score = 18 + protein * 0.4 + fiber * 3 + produce_bonus - sugar_penalty - max(0, calories - 350) * 0.025
+    produce_bonus = min(16, 8 + produce_portion * 10) if has_produce else 0
+    meat_penalty = min(12, 6 + max(meat_portion, 0.75) * 8) if has_meat else 0
+    score = 18 + protein * 0.32 + fiber * 3.25 + produce_bonus - meat_penalty - sugar_penalty - max(0, calories - 350) * 0.025
     return int(max(1, min(50, round(score))))
+
+
+def component_mentions_meat(component):
+    text = " ".join(
+        str(component.get(key, "") or "")
+        for key in ["name", "label", "serving", "sourceMatch", "nutritionBasis"]
+    ).lower()
+    return text_has_term(text, MEAT_FOOD_TERMS)
 
 
 def effect_for_points(points):
