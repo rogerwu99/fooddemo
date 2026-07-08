@@ -1303,6 +1303,10 @@
           #eef3ed;
       }
 
+      .weekly-recap-preview[hidden] {
+        display: none;
+      }
+
       .recap-mode-toggle {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1380,6 +1384,50 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
+      }
+
+      .weekly-coach {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid #d7dfd8;
+        border-radius: 8px;
+        background: #f8fbf6;
+      }
+
+      .weekly-coach[hidden] {
+        display: none;
+      }
+
+      .weekly-coach h4 {
+        margin: 0;
+        font-size: 0.98rem;
+      }
+
+      .weekly-coach-list {
+        display: grid;
+        gap: 7px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .weekly-coach-list li {
+        display: grid;
+        gap: 2px;
+      }
+
+      .weekly-coach-list strong {
+        color: var(--ink);
+        font-size: 0.78rem;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+
+      .weekly-coach-list span {
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.35;
       }
 
       .log-item {
@@ -1948,7 +1996,7 @@
                   <div class="account-actions">
                     <button class="text-btn" id="editProfile" type="button">Edit profile</button>
                     <button class="text-btn" id="refreshLog" type="button">Refresh log</button>
-                    <button class="text-btn" id="weeklyRecap" type="button">Weekly recap</button>
+                    <button class="text-btn" id="weeklyRecap" type="button">Weekly coach</button>
                     <button class="text-btn" id="signOut" type="button">Sign out</button>
                   </div>
                   <label class="reminder-setting" id="reminderSetting">
@@ -1970,17 +2018,22 @@
                   </div>
                 </div>
                 <div class="weekly-recap" id="weeklyRecapPanel" aria-live="polite">
+                  <div class="weekly-coach" id="weeklyCoach" hidden>
+                    <h4>Weekly Coach</h4>
+                    <ul class="weekly-coach-list" id="weeklyCoachList"></ul>
+                  </div>
                   <div class="recap-mode-toggle" id="recapModeToggle" aria-label="Weekly recap style">
                     <button class="is-selected" type="button" data-recap-mode="color" aria-pressed="true">Color</button>
                     <button type="button" data-recap-mode="photos" aria-pressed="false">Photos</button>
                   </div>
-                  <div class="weekly-recap-preview">
+                  <div class="weekly-recap-preview" id="weeklyRecapPreview" hidden>
                     <img id="weeklyRecapImage" alt="FeedNomi weekly color chart" />
                     <div class="recap-loader" id="weeklyRecapLoader" role="status">
                       <span>Building your private weekly recap...</span>
                     </div>
                   </div>
                   <div class="recap-actions">
+                    <button class="text-btn" id="createRecapVisual" type="button">Create footprint</button>
                     <button class="text-btn" id="downloadRecap" type="button">Download recap</button>
                     <button class="text-btn" id="shareRecap" type="button">Share</button>
                   </div>
@@ -4275,6 +4328,171 @@
         return "Hungry Nomi";
       }
 
+      function weeklyCoachSignals(meals, points) {
+        const mealCount = Math.max(1, meals.length);
+        const totals = meals.reduce((result, meal) => {
+          const family = recapFoodFamily(meal.name || "");
+          const name = String(meal.name || "").toLowerCase();
+          const isPlantProtein = /\b(bean|beans|chickpea|chickpeas|edamame|falafel|lentil|lentils|pea|peas|peanut|seitan|tempeh|tofu)\b/i.test(name);
+          const isMeat = componentMentionsMeat(meal);
+          const protein = mealNutritionValue(meal, "protein");
+          const fiber = mealNutritionValue(meal, "fiber");
+          const sugar = mealNutritionValue(meal, "sugar");
+          result.calories += mealCalories(meal);
+          result.protein += protein;
+          result.fiber += fiber;
+          result.sugar += sugar;
+          result.families.add(family.key);
+          if (family.key === "greens") result.greens += 1;
+          if (family.key === "fruit") result.fruit += 1;
+          if (family.key === "dessert") result.treats += 1;
+          if (family.key === "greens" || family.key === "fruit") result.produce += 1;
+          if (family.key === "greens" || family.key === "fruit" || family.key === "grain" || isPlantProtein) result.plants += 1;
+          if (family.key === "protein" || protein >= 18 || isPlantProtein) result.proteinMeals += 1;
+          if (isPlantProtein) result.plantProteins += 1;
+          if (isMeat) result.meat += 1;
+          return result;
+        }, {
+          calories: 0,
+          protein: 0,
+          fiber: 0,
+          sugar: 0,
+          produce: 0,
+          plants: 0,
+          proteinMeals: 0,
+          plantProteins: 0,
+          meat: 0,
+          greens: 0,
+          fruit: 0,
+          treats: 0,
+          families: new Set()
+        });
+        return {
+          mealCount,
+          points,
+          avgProtein: totals.protein / mealCount,
+          avgFiber: totals.fiber / mealCount,
+          avgSugar: totals.sugar / mealCount,
+          avgCalories: totals.calories / mealCount,
+          diversity: totals.families.size,
+          produceRatio: totals.produce / mealCount,
+          plantRatio: totals.plants / mealCount,
+          proteinRatio: totals.proteinMeals / mealCount,
+          meatRatio: totals.meat / mealCount,
+          greensRatio: totals.greens / mealCount,
+          fruitRatio: totals.fruit / mealCount,
+          treatRatio: totals.treats / mealCount,
+          plantProteinRatio: totals.plantProteins / mealCount
+        };
+      }
+
+      function weeklyCoachCopy(meals, points) {
+        const signal = weeklyCoachSignals(meals, points);
+        const lowGreens = signal.greensRatio < 0.28;
+        const pattern = signal.meatRatio >= 0.45
+          ? "Your week leaned meat-forward, with animal proteins showing up often."
+          : (signal.plantRatio >= 0.5
+            ? (lowGreens
+              ? "Your week leaned plant-forward, with fruit, grains, beans, tofu, or other plants showing up more than leafy greens."
+              : "Your week leaned plant-forward, with leafy greens and other plants showing up often.")
+            : (signal.treatRatio >= 0.28
+              ? "Your week leaned snacky and treat-bright."
+              : "Your week looked mixed, with a few different meal styles."));
+        const strength = signal.avgFiber >= 6 || signal.produceRatio >= 0.45
+          ? "You built a good base of fiber, color, and plant volume."
+          : (signal.proteinRatio >= 0.55 || signal.avgProtein >= 22
+            ? "You had steady protein from foods like beans, tofu, dairy, eggs, fish, or meat."
+            : (signal.diversity >= 5
+              ? "You got nice variety across the week."
+              : "You kept enough entries to spot a real weekly pattern."));
+        const lowProtein = signal.avgProtein < 16 && signal.proteinRatio < 0.45;
+        const lowFiber = signal.avgFiber < 5;
+        const highSugar = signal.avgSugar >= 20 || signal.treatRatio >= 0.3;
+        let gap = "The main opportunity is making the week a little more consistent.";
+        let why = "Small repeatable additions are easier to keep than a full reset.";
+        let tryThis = "Pick one meal you already eat and add one useful side three times next week.";
+        if (lowProtein && lowGreens) {
+          gap = "Protein and leafy greens were less consistent.";
+          why = "Protein helps meals last longer. Greens add fiber, minerals, and volume.";
+          tryThis = "Add one plant-forward protein and one green side to 3 meals: beans, lentils, tofu, tempeh, eggs, yogurt, spinach, or broccoli.";
+        } else if (lowProtein) {
+          gap = "Steady protein was the least consistent signal.";
+          why = "Protein can come from plants or animal foods, and it helps with fullness, energy, and recovery.";
+          tryThis = "Add one protein source to 3 meals, starting plant-first: beans, lentils, tofu, tempeh, Greek yogurt, eggs, fish, or chicken.";
+        } else if (signal.meatRatio >= 0.45 && signal.produceRatio < 0.45) {
+          gap = "Plants were the main missing balance around the meat-forward meals.";
+          why = "Colorful plants add fiber and micronutrients while keeping the satisfying parts of the meal.";
+          tryThis = "Keep the satisfying center of the meal, but add one bright plant side to 3 meals.";
+        } else if (lowGreens || lowFiber) {
+          gap = lowGreens ? "Leafy greens did not show up very often." : "Fiber looked a little light.";
+          why = "Greens and fiber support digestion, fullness, and broader nutrient coverage.";
+          tryThis = "Add one green or fiber-rich side to 3 meals: spinach, broccoli, salad, beans, lentils, berries, or oats.";
+        } else if (highSugar) {
+          gap = "Sweet foods showed up strongly this week.";
+          why = "Keeping sweets paired with protein or fiber can make energy feel steadier.";
+          tryThis = "Keep the treat, but pair it with yogurt, nuts, fruit, beans, tofu, eggs, or another steady meal 3 times next week.";
+        }
+        return [
+          { label: "Pattern", text: pattern },
+          { label: "Strength", text: strength },
+          { label: "Gap", text: gap },
+          { label: "Why It Matters", text: why },
+          { label: "Try This", text: tryThis }
+        ];
+      }
+
+      function renderWeeklyCoach(meals, points) {
+        const coach = $("#weeklyCoach");
+        const list = $("#weeklyCoachList");
+        if (!meals.length) {
+          coach.hidden = true;
+          list.innerHTML = "";
+          return;
+        }
+        list.innerHTML = weeklyCoachCopy(meals, points).map((item) => `
+          <li>
+            <strong>${escapeHtml(item.label)}</strong>
+            <span>${escapeHtml(item.text)}</span>
+          </li>
+        `).join("");
+        coach.hidden = false;
+      }
+
+      function recapVisualLabel(mode = state.recapMode) {
+        return mode === "photos" ? "Create photo recap" : "Create footprint";
+      }
+
+      function clearRecapVisual(message = "") {
+        const preview = $("#weeklyRecapPreview");
+        const image = $("#weeklyRecapImage");
+        const downloadButton = $("#downloadRecap");
+        const shareButton = $("#shareRecap");
+        preview.hidden = true;
+        image.removeAttribute("src");
+        delete downloadButton.dataset.recapUrl;
+        delete shareButton.dataset.recapUrl;
+        downloadButton.disabled = true;
+        shareButton.disabled = true;
+        $("#createRecapVisual").textContent = recapVisualLabel();
+        if (message) $("#weeklyRecapNote").textContent = message;
+      }
+
+      function openWeeklyCoach() {
+        const meals = getWeeklyMeals();
+        const panel = $("#weeklyRecapPanel");
+        panel.classList.add("is-visible");
+        panel.classList.remove("is-loading");
+        if (!meals.length) {
+          $("#weeklyCoach").hidden = true;
+          $("#weeklyCoachList").innerHTML = "";
+          clearRecapVisual("No saved meals yet.");
+          return;
+        }
+        const points = meals.reduce((sum, item) => sum + Number(item.points || 0), 0);
+        renderWeeklyCoach(meals, points);
+        clearRecapVisual(`Weekly Coach created from ${meals.length} recent meal${meals.length === 1 ? "" : "s"}. Create a footprint only when you want the shareable image.`);
+      }
+
       function mealCalories(meal) {
         return numberFromValue(meal.calories, 0);
       }
@@ -4284,23 +4502,28 @@
         const meals = getWeeklyMeals();
         const panel = $("#weeklyRecapPanel");
         const note = $("#weeklyRecapNote");
+        const preview = $("#weeklyRecapPreview");
         const image = $("#weeklyRecapImage");
+        const createButton = $("#createRecapVisual");
         const downloadButton = $("#downloadRecap");
         const shareButton = $("#shareRecap");
+        const coach = $("#weeklyCoach");
         if (!meals.length) {
           panel.classList.add("is-visible");
           panel.classList.remove("is-loading");
-          image.removeAttribute("src");
-          delete downloadButton.dataset.recapUrl;
-          delete shareButton.dataset.recapUrl;
-          note.textContent = "No saved meals yet.";
+          coach.hidden = true;
+          $("#weeklyCoachList").innerHTML = "";
+          clearRecapVisual("No saved meals yet.");
           return "";
         }
 
         $("#weeklyRecap").disabled = true;
+        createButton.disabled = true;
+        createButton.textContent = state.recapMode === "photos" ? "Building photo recap..." : "Building footprint...";
         note.textContent = state.recapMode === "photos" ? "Building your private photo recap..." : "Building your private nutrition footprint...";
         panel.classList.add("is-visible");
         panel.classList.add("is-loading");
+        preview.hidden = false;
         image.removeAttribute("src");
         delete downloadButton.dataset.recapUrl;
         delete shareButton.dataset.recapUrl;
@@ -4314,6 +4537,7 @@
         context.fillStyle = "#fbfaf4";
         context.fillRect(0, 0, canvas.width, canvas.height);
         const points = meals.reduce((sum, item) => sum + Number(item.points || 0), 0);
+        renderWeeklyCoach(meals, points);
 
         const candidateMeals = [...meals]
           .sort((a, b) => Date.parse(b.savedAt || b.created_at || "") - Date.parse(a.savedAt || a.created_at || ""));
@@ -4379,9 +4603,11 @@
         } catch (error) {
           note.textContent = "Your recap preview was created, but browser photo permissions blocked export. Try refreshing the food log and creating it again.";
           $("#weeklyRecap").disabled = false;
+          createButton.disabled = false;
+          createButton.textContent = recapVisualLabel();
           panel.classList.remove("is-loading");
-          downloadButton.disabled = false;
-          shareButton.disabled = false;
+          downloadButton.disabled = true;
+          shareButton.disabled = true;
           loadedImages.forEach((loaded) => {
             if (loaded?.objectUrl) URL.revokeObjectURL(loaded.objectUrl);
           });
@@ -4411,6 +4637,8 @@
           ? `${recapSummary} ${cleanupNote}.`
           : `${recapSummary} Download or share when ready.`;
         $("#weeklyRecap").disabled = false;
+        createButton.disabled = false;
+        createButton.textContent = recapVisualLabel();
         return dataUrl;
       }
 
@@ -5146,7 +5374,7 @@
       function downloadRecap() {
         const dataUrl = $("#downloadRecap").dataset.recapUrl;
         if (!dataUrl) {
-          $("#weeklyRecapNote").textContent = "Create a weekly recap first.";
+          $("#weeklyRecapNote").textContent = "Create a footprint or photo recap first.";
           return;
         }
         const mode = $("#downloadRecap").dataset.recapMode === "photos" ? "photo-week" : "nutrition-footprint";
@@ -5161,7 +5389,7 @@
       async function shareRecap() {
         const dataUrl = $("#shareRecap").dataset.recapUrl;
         if (!dataUrl) {
-          $("#weeklyRecapNote").textContent = "Create a weekly recap first.";
+          $("#weeklyRecapNote").textContent = "Create a footprint or photo recap first.";
           return;
         }
         try {
@@ -5530,7 +5758,7 @@
       $("#saveFood").addEventListener("click", () => saveCurrentFood());
       $("#editProfile").addEventListener("click", () => openProfileSetup("edit"));
       $("#refreshLog").addEventListener("click", () => refreshFoodLog());
-      $("#weeklyRecap").addEventListener("click", () => createWeeklyRecap());
+      $("#weeklyRecap").addEventListener("click", () => openWeeklyCoach());
       $("#recapModeToggle").addEventListener("click", (event) => {
         const button = event.target.closest("[data-recap-mode]");
         if (!button) return;
@@ -5540,8 +5768,12 @@
           item.classList.toggle("is-selected", selected);
           item.setAttribute("aria-pressed", selected ? "true" : "false");
         });
-        if ($("#weeklyRecapPanel").classList.contains("is-visible")) void createWeeklyRecap(state.recapMode);
+        $("#createRecapVisual").textContent = recapVisualLabel();
+        if ($("#weeklyRecapPanel").classList.contains("is-visible")) {
+          clearRecapVisual(`${state.recapMode === "photos" ? "Photo recap" : "Nutrition footprint"} selected. Create the image when you want the shareable visual.`);
+        }
       });
+      $("#createRecapVisual").addEventListener("click", () => createWeeklyRecap(state.recapMode));
       $("#downloadRecap").addEventListener("click", () => downloadRecap());
       $("#shareRecap").addEventListener("click", () => shareRecap());
       $("#signOut").addEventListener("click", () => signOut());
