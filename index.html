@@ -1449,6 +1449,11 @@
         background: #e8eee9;
       }
 
+      .log-photo-more {
+        justify-self: center;
+        margin-top: 2px;
+      }
+
       .log-item strong {
         display: block;
         line-height: 1.15;
@@ -2262,7 +2267,8 @@
       const authReturnHashKey = "platepointsAuthReturnHash";
       const profileKey = "platepointsProfile";
       const recapEntryLimit = 21;
-      const logSignedPhotoLimit = 0;
+      const logSignedPhotoInitialLimit = 5;
+      const logSignedPhotoBatchSize = 5;
       const recapPhotoLoadLimit = 6;
       const debugUsda = new URLSearchParams(window.location.search).get("debugUsda") === "1";
       const state = {
@@ -2281,10 +2287,13 @@
         setupMode: "setup",
         recapMode: "color",
         reminderSettings: { enabled: false, loaded: false, hasChoice: false },
+        logPhotoLimit: logSignedPhotoInitialLimit,
+        loadingMoreLogPhotos: false,
         user: localStorage.getItem("platepointsUser") || "",
         profile: JSON.parse(localStorage.getItem("platepointsProfile") || "null"),
         log: JSON.parse(localStorage.getItem("platepointsLog") || "[]")
       };
+      let logPhotoObserver = null;
 
       const $ = (selector) => document.querySelector(selector);
       const foodImage = $("#foodImage");
@@ -4665,6 +4674,37 @@
         }).format(new Date(timestamp));
       }
 
+      function hasDeferredLogPhotos() {
+        return state.supabase && state.session && state.log
+          .slice(state.logPhotoLimit)
+          .some((item) => item.photoPath && !isPublicPhotoUrl(item.photoPath));
+      }
+
+      async function loadMoreLogPhotos() {
+        if (state.loadingMoreLogPhotos || !hasDeferredLogPhotos()) return;
+        state.loadingMoreLogPhotos = true;
+        try {
+          state.logPhotoLimit = Math.min(state.log.length, state.logPhotoLimit + logSignedPhotoBatchSize);
+          await hydrateSignedPhotoUrls(state.log, state.logPhotoLimit);
+        } finally {
+          state.loadingMoreLogPhotos = false;
+        }
+        renderLog();
+      }
+
+      function observeLogPhotoLoader() {
+        if (logPhotoObserver) {
+          logPhotoObserver.disconnect();
+          logPhotoObserver = null;
+        }
+        const trigger = $("#loadMoreLogPhotos");
+        if (!trigger || !("IntersectionObserver" in window)) return;
+        logPhotoObserver = new IntersectionObserver((entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) void loadMoreLogPhotos();
+        }, { rootMargin: "160px 0px" });
+        logPhotoObserver.observe(trigger);
+      }
+
       function renderLog() {
         const logList = $("#logList");
         if (!state.log.length) {
@@ -4672,11 +4712,15 @@
             ? `<p class="empty-state">No saved meals for this account yet.</p>`
             : `<p class="empty-state">No saved meals yet. Scan a plate and we will ask before saving, or <button class="text-btn" type="button" data-auth-open>sign in</button> to see your food log.</p>`;
         } else {
+          const morePhotos = hasDeferredLogPhotos()
+            ? `<button class="text-btn log-photo-more" id="loadMoreLogPhotos" type="button">Load more photos</button>`
+            : "";
           logList.innerHTML = state.log
             .map((item, index) => {
               const deleteId = item.id ? escapeHtml(item.id) : "";
               const photo = item.photo ? `<img class="log-thumb" src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name)}" />` : '<div class="log-thumb" aria-hidden="true"></div>';
               const timestamp = formatLogTimestamp(item.savedAt || item.created_at || "");
+              const loadMore = morePhotos && index + 1 === state.logPhotoLimit ? morePhotos : "";
               return `
                 <div class="log-item">
                   ${photo}
@@ -4701,11 +4745,13 @@
                     </svg>
                   </button>
                 </div>
+                ${loadMore}
               `;
             })
             .join("");
         }
         setAvatar(getWeeklyPoints());
+        observeLogPhotoLoader();
       }
 
       function normalizeLogRow(row) {
@@ -5035,8 +5081,9 @@
           renderLog();
           return;
         }
+        state.logPhotoLimit = logSignedPhotoInitialLimit;
         state.log = (data || []).map(normalizeLogRow);
-        await hydrateSignedPhotoUrls(state.log);
+        await hydrateSignedPhotoUrls(state.log, state.logPhotoLimit);
         setAuthStatus(`Signed in as ${state.user}. ${state.log.length} saved meal${state.log.length === 1 ? "" : "s"} loaded.`, "success");
         renderLog();
       }
@@ -5258,11 +5305,11 @@
         return /^https?:\/\//i.test(String(value));
       }
 
-      async function hydrateSignedPhotoUrls(entries, limit = logSignedPhotoLimit) {
+      async function hydrateSignedPhotoUrls(entries, limit = state.logPhotoLimit) {
         if (!state.supabase || !state.session || !entries.length) return;
         const bucket = state.supabaseConfig.photoBucket || "food-photos";
         await Promise.all(entries.slice(0, limit).map(async (entry) => {
-          if (!entry.photoPath || isPublicPhotoUrl(entry.photoPath)) return;
+          if (entry.photo || !entry.photoPath || isPublicPhotoUrl(entry.photoPath)) return;
           const { data, error } = await state.supabase.storage
             .from(bucket)
             .createSignedUrl(entry.photoPath, 60 * 60);
@@ -5796,6 +5843,11 @@
         const authButton = event.target.closest("[data-auth-open]");
         if (authButton) {
           openAuthModal("signin");
+          return;
+        }
+        const morePhotosButton = event.target.closest("#loadMoreLogPhotos");
+        if (morePhotosButton) {
+          void loadMoreLogPhotos();
           return;
         }
         const button = event.target.closest(".delete-log");
