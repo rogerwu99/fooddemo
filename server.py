@@ -42,8 +42,9 @@ LESS_PREFERRED_USDA_TERMS = {
 }
 
 PROTEIN_FOOD_TERMS = {
-    "beef", "burger", "chicken", "cod", "cutlet", "egg", "fish", "lamb", "meat",
-    "pork", "salmon", "shrimp", "steak", "tempeh", "tofu", "tuna", "turkey",
+    "bean", "beans", "beef", "burger", "chicken", "chickpea", "chickpeas", "cod",
+    "cutlet", "egg", "eggs", "fish", "lamb", "lentil", "lentils", "meat", "pork",
+    "salmon", "shrimp", "steak", "tempeh", "tofu", "tuna", "turkey", "yogurt",
 }
 
 MEAT_FOOD_TERMS = {
@@ -206,6 +207,105 @@ NUTRITION_DB = {
         "points": 5,
         "why": "Syrup mostly contributes added sugar, so a small amount should reduce the score without erasing the value of the whole meal.",
         "effect": "Softness gain",
+    },
+    "rice": {
+        "name": "Rice",
+        "serving": "1 cup cooked",
+        "calories": 205,
+        "protein": "4 g",
+        "fiber": "1 g",
+        "sugar": "0 g added",
+        "points": 18,
+        "why": "Rice is a useful energy base, while protein, greens, or beans determine the rest of the meal balance.",
+        "effect": "Balanced shift",
+    },
+    "quinoa": {
+        "name": "Quinoa",
+        "serving": "1 cup cooked",
+        "calories": 222,
+        "protein": "8 g",
+        "fiber": "5 g",
+        "sugar": "0 g added",
+        "points": 30,
+        "why": "Quinoa brings a grain-like base with more protein and fiber than many refined starches.",
+        "effect": "Balanced shift",
+    },
+    "greens": {
+        "name": "Leafy greens",
+        "serving": "2 cups",
+        "calories": 20,
+        "protein": "2 g",
+        "fiber": "2 g",
+        "sugar": "0 g added",
+        "points": 42,
+        "why": "Leafy greens add volume, fiber, and micronutrients for very few calories.",
+        "effect": "Lean boost",
+    },
+    "beans": {
+        "name": "Beans",
+        "serving": "3/4 cup cooked",
+        "calories": 180,
+        "protein": "11 g",
+        "fiber": "10 g",
+        "sugar": "0 g added",
+        "points": 42,
+        "why": "Beans bring plant protein and fiber, which can make a mixed plate more filling.",
+        "effect": "Strong lean gain",
+    },
+    "lentils": {
+        "name": "Lentils",
+        "serving": "3/4 cup cooked",
+        "calories": 170,
+        "protein": "13 g",
+        "fiber": "12 g",
+        "sugar": "0 g added",
+        "points": 44,
+        "why": "Lentils add plant protein, fiber, and slow-digesting carbohydrates.",
+        "effect": "Strong lean gain",
+    },
+    "tofu": {
+        "name": "Tofu",
+        "serving": "4 oz",
+        "calories": 160,
+        "protein": "17 g",
+        "fiber": "2 g",
+        "sugar": "0 g added",
+        "points": 34,
+        "why": "Tofu adds plant protein and makes vegetable-forward meals more substantial.",
+        "effect": "Balanced shift",
+    },
+    "salmon": {
+        "name": "Salmon",
+        "serving": "5 oz cooked",
+        "calories": 280,
+        "protein": "34 g",
+        "fiber": "0 g",
+        "sugar": "0 g added",
+        "points": 18,
+        "why": "Salmon is protein-rich and satisfying, though plants still drive most of the fiber score.",
+        "effect": "Muscle support",
+    },
+    "egg": {
+        "name": "Eggs",
+        "serving": "2 large eggs",
+        "calories": 140,
+        "protein": "13 g",
+        "fiber": "0 g",
+        "sugar": "0 g added",
+        "points": 20,
+        "why": "Eggs add compact protein and fat, especially useful when paired with plants or grains.",
+        "effect": "Balanced shift",
+    },
+    "avocado": {
+        "name": "Avocado",
+        "serving": "1/2 avocado",
+        "calories": 120,
+        "protein": "2 g",
+        "fiber": "5 g",
+        "sugar": "0 g added",
+        "points": 34,
+        "why": "Avocado adds fiber and satisfying fat, with more calorie density than leafy vegetables.",
+        "effect": "Balanced shift",
     },
     "mixed": {
         "name": "Mixed plate",
@@ -721,12 +821,12 @@ def analyze_with_openai_vision(image_data_url, file_name):
     prompt = (
         "Analyze this food photo for a nutrition logging app. Return JSON only with this shape: "
         '{"is_food":true,"confidence":0.0,'
-        '"foods":[{"label":"specific visible food or component","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
+        '"foods":[{"label":"specific visible food or component","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|rice|quinoa|greens|beans|lentils|tofu|salmon|egg|avocado|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
         '"query":"plain USDA food search query","serving_estimate":"short serving estimate",'
         '"role":"base|protein|fruit_veg|mix_in|topping|sauce|condiment|dessert",'
         '"nutrient_role":"fiber|protein|added_sugar|fat|neutral",'
         '"portion":0.0,"confidence":0.0}],'
-        '"dish_alternatives":[{"label":"complete alternate dish identity","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
+        '"dish_alternatives":[{"label":"complete alternate dish identity","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|rice|quinoa|greens|beans|lentils|tofu|salmon|egg|avocado|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
         '"query":"plain USDA food search query","confidence":0.0,"reason":"short visual reason"}],'
         '"dish_name":"string","notes":["short note"]}. '
         "If the image is not food, return is_food=false, confidence, foods=[], dish_name='', and notes explaining what was seen. "
@@ -736,7 +836,7 @@ def analyze_with_openai_vision(image_data_url, file_name):
         "from 0 to 1. Prefer common food names that can be searched in USDA FoodData Central. "
         "For visually similar dishes, include complete dish alternatives with confidence scores in dish_alternatives, not as component foods. "
         "For example, a breaded cutlet with red sauce and cheese could include eggplant parmesan, chicken parmesan, and veal parmesan. "
-        "Use canonical=mixed when a component does not fit the known canonical set, but keep label and query specific, for example cacio e pepe, salmon, salad, rice, dumplings, or burrito."
+        "Use canonical=mixed only when a component does not fit the known canonical set, but keep label and query specific, for example dumplings or burrito."
     )
     payload = {
         "model": os.environ.get("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
@@ -909,6 +1009,9 @@ def components_from_vision(vision):
         original_label = item.get("label") or item.get("query") or ""
         original_query = item.get("query") or item.get("label") or ""
         canonical = normalize_component_key(item.get("canonical", "mixed"), original_label, original_query)
+        combined_component = looks_like_combined_dish(original_label) or looks_like_combined_dish(original_query)
+        if combined_component and canonical not in {"eggplant_parmesan", "chicken_parmesan", "pizza", "pasta"}:
+            canonical = "mixed"
         try:
             portion = float(item.get("portion", 1))
         except (TypeError, ValueError):
@@ -934,7 +1037,7 @@ def components_from_vision(vision):
 
 def looks_like_combined_dish(label):
     text = (label or "").lower()
-    return " with " in text or " and " in text or "," in text
+    return " with " in text or " and " in text or "," in text or " bowl" in text or " salad" in text
 
 
 def default_component_portion(key):
@@ -978,6 +1081,24 @@ def infer_nutrient_role(canonical, label="", query=""):
 
 def normalize_component_key(canonical, label="", query=""):
     text = f"{canonical} {label} {query}".lower()
+    if "lentil" in text:
+        return "lentils"
+    if "chickpea" in text or "garbanzo" in text or re.search(r"\bbeans?\b", text):
+        return "beans"
+    if "tofu" in text or "tempeh" in text:
+        return "tofu"
+    if "salmon" in text:
+        return "salmon"
+    if re.search(r"\beggs?\b", text):
+        return "egg"
+    if "avocado" in text:
+        return "avocado"
+    if "quinoa" in text:
+        return "quinoa"
+    if re.search(r"\brice\b", text):
+        return "rice"
+    if any(term in text for term in ["salad", "greens", "lettuce", "spinach", "kale", "arugula"]):
+        return "greens"
     if "oat" in text or "porridge" in text:
         return "oatmeal"
     if "blueberr" in text or "berr" in text:
@@ -1006,6 +1127,28 @@ def expand_composite_components(components, vision):
     keys = {component["key"] for component in components}
 
     inferred = []
+    if "chicken" in dish_text and "chicken" not in keys and "chicken_parmesan" not in keys:
+        inferred.append({"key": "chicken", "label": "Chicken", "query": "grilled chicken", "serving_estimate": "4 oz cooked", "role": "protein", "nutrient_role": "protein", "portion": 0.32, "confidence": 0.62})
+    if "broccoli" in dish_text and "broccoli" not in keys:
+        inferred.append({"key": "broccoli", "label": "Broccoli", "query": "broccoli cooked", "serving_estimate": "1 cup cooked", "role": "fruit_veg", "nutrient_role": "fiber", "portion": 0.25, "confidence": 0.62})
+    if ("rice" in dish_text or "grain bowl" in dish_text) and "rice" not in keys and "quinoa" not in keys:
+        inferred.append({"key": "rice", "label": "Rice", "query": "cooked rice", "serving_estimate": "1 cup cooked", "role": "base", "nutrient_role": "neutral", "portion": 0.35, "confidence": 0.62})
+    if "quinoa" in dish_text and "quinoa" not in keys:
+        inferred.append({"key": "quinoa", "label": "Quinoa", "query": "cooked quinoa", "serving_estimate": "1 cup cooked", "role": "base", "nutrient_role": "fiber", "portion": 0.35, "confidence": 0.62})
+    if any(term in dish_text for term in ["salad", "greens", "lettuce", "spinach", "kale", "arugula"]) and "greens" not in keys:
+        inferred.append({"key": "greens", "label": "Leafy greens", "query": "mixed salad greens raw", "serving_estimate": "2 cups", "role": "fruit_veg", "nutrient_role": "fiber", "portion": 0.25, "confidence": 0.62})
+    if ("lentil" in dish_text) and "lentils" not in keys:
+        inferred.append({"key": "lentils", "label": "Lentils", "query": "lentils cooked", "serving_estimate": "3/4 cup cooked", "role": "protein", "nutrient_role": "protein", "portion": 0.28, "confidence": 0.62})
+    if any(term in dish_text for term in ["beans", "bean", "chickpea", "chickpeas", "garbanzo"]) and "beans" not in keys:
+        inferred.append({"key": "beans", "label": "Beans", "query": "beans cooked", "serving_estimate": "3/4 cup cooked", "role": "protein", "nutrient_role": "protein", "portion": 0.28, "confidence": 0.62})
+    if any(term in dish_text for term in ["tofu", "tempeh"]) and "tofu" not in keys:
+        inferred.append({"key": "tofu", "label": "Tofu", "query": "tofu firm", "serving_estimate": "4 oz", "role": "protein", "nutrient_role": "protein", "portion": 0.3, "confidence": 0.62})
+    if "salmon" in dish_text and "salmon" not in keys:
+        inferred.append({"key": "salmon", "label": "Salmon", "query": "salmon cooked", "serving_estimate": "5 oz cooked", "role": "protein", "nutrient_role": "protein", "portion": 0.35, "confidence": 0.62})
+    if re.search(r"\beggs?\b", dish_text) and "egg" not in keys:
+        inferred.append({"key": "egg", "label": "Eggs", "query": "egg cooked", "serving_estimate": "2 large eggs", "role": "protein", "nutrient_role": "protein", "portion": 0.25, "confidence": 0.62})
+    if "avocado" in dish_text and "avocado" not in keys:
+        inferred.append({"key": "avocado", "label": "Avocado", "query": "avocado raw", "serving_estimate": "1/2 avocado", "role": "fruit_veg", "nutrient_role": "fiber", "portion": 0.18, "confidence": 0.58})
     if ("oat" in dish_text or "porridge" in dish_text) and "oatmeal" not in keys:
         inferred.append({"key": "oatmeal", "label": "Oatmeal", "query": "cooked oatmeal", "serving_estimate": "1 cup cooked", "role": "base", "nutrient_role": "fiber", "portion": 0.6, "confidence": 0.7})
     if ("blueberr" in dish_text or "berr" in dish_text) and "berries" not in keys:
@@ -1227,7 +1370,7 @@ def with_portion_weight(food, force_full_serving=False):
     serving_text = str(food.get("serving", "") or "").lower()
     has_explicit_serving = any(
         token in serving_text
-        for token in ["cup", "oz", "ounce", "slice", "cutlet", "entree", "portion", "plate"]
+        for token in ["bowl", "cup", "oz", "ounce", "slice", "cutlet", "entree", "portion", "plate"]
     )
     if force_full_serving or (has_explicit_serving and role in {"base", "protein", "prepared", "dessert", "fruit_veg"}):
         portion = 1
@@ -1390,13 +1533,29 @@ def estimated_serving_grams(serving="", role="", key="", name=""):
             return amount * 234
         if "berr" in text:
             return amount * 148
+        if "bean" in text or "lentil" in text or "chickpea" in text:
+            return amount * 170
         if "broccoli" in text or "vegetable" in text or "salad" in text:
             return amount * 90
+        if "quinoa" in text:
+            return amount * 185
         if "pasta" in text or "spaghetti" in text or "noodle" in text or "rice" in text:
             return amount * 140
         if "eggplant" in text or "parmesan" in text or "parm" in text:
             return amount * 220
         return amount * 160
+    if "bowl" in text:
+        if "oat" in text or "porridge" in text:
+            return amount * 300
+        if "salad" in text or "greens" in text or "lettuce" in text:
+            return amount * 280
+        if "rice" in text or "grain" in text or "quinoa" in text or "burrito" in text:
+            return amount * 420
+        if text_has_term(text, PROTEIN_FOOD_TERMS):
+            return amount * 380
+        return amount * 360
+    if "salad" in text:
+        return amount * 280
     if "slice" in text:
         if "pizza" in text:
             return 125
