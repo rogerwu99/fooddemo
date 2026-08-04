@@ -1161,6 +1161,37 @@
         color: #314039;
       }
 
+      .avatar-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .avatar-stat {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+        padding: 9px 10px;
+        border: 1px solid #dce9df;
+        border-radius: 8px;
+        background: #f8fbf8;
+      }
+
+      .avatar-stat span {
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .avatar-stat strong {
+        color: var(--ink);
+        font-size: 0.98rem;
+        line-height: 1.15;
+        white-space: nowrap;
+      }
+
       .score-meter {
         display: grid;
         gap: 8px;
@@ -1793,15 +1824,15 @@
           <div class="score-strip" aria-label="Sample food point values">
             <article class="food-card">
               <div class="food-photo broccoli" role="img" aria-label="Broccoli"></div>
-              <div class="food-body"><strong>Broccoli</strong><span class="points-pill">50 points</span></div>
+              <div class="food-body"><strong>Broccoli</strong><span class="points-pill">58 points</span></div>
             </article>
             <article class="food-card">
               <div class="food-photo chicken" role="img" aria-label="Grilled chicken"></div>
-              <div class="food-body"><strong>Grilled chicken</strong><span class="points-pill">20 points</span></div>
+              <div class="food-body"><strong>Grilled chicken</strong><span class="points-pill">18 points</span></div>
             </article>
             <article class="food-card">
               <div class="food-photo berries" role="img" aria-label="Blueberries"></div>
-              <div class="food-body"><strong>Blueberries</strong><span class="points-pill">38 points</span></div>
+              <div class="food-body"><strong>Blueberries</strong><span class="points-pill">52 points</span></div>
             </article>
             <article class="food-card">
               <div class="food-photo pizza" role="img" aria-label="Pizza"></div>
@@ -1919,7 +1950,7 @@
                     <h3>Nomi</h3>
                     <span id="avatarLabel">Balanced beginner</span>
                   </div>
-                  <strong id="totalPoints">0 pts</strong>
+                  <strong id="vitalityValue">0%</strong>
                 </div>
                 <div class="avatar-stage">
                   <div class="avatar" id="avatar" data-state="lean" data-style="neutral" aria-label="Nomi care state">
@@ -1990,7 +2021,12 @@
                 </div>
                 <div class="score-meter" aria-label="Avatar progress meter">
                   <div class="meter-track"><div class="meter-fill" id="meterFill"></div></div>
-                  <span id="meterText">0 points this week</span>
+                  <span id="meterText">Vitality reflects recent care and nutrition.</span>
+                </div>
+                <div class="avatar-stats" aria-label="Recent Nomi stats">
+                  <div class="avatar-stat"><span>Today</span><strong id="todayPoints">0 pts</strong></div>
+                  <div class="avatar-stat"><span>Week</span><strong id="weekPoints">0 pts</strong></div>
+                  <div class="avatar-stat"><span>Active</span><strong id="activeDays">0/7 days</strong></div>
                 </div>
               </section>
 
@@ -2138,7 +2174,7 @@
           protein: "5 g",
           fiber: "7 g",
           sugar: "0 g added",
-          points: 50,
+          points: 58,
           why: "High fiber, vitamin C, potassium, and volume per calorie make this a strong satiety play.",
           effect: "Strong lean gain",
           imagePosition: "0 70%"
@@ -2150,7 +2186,7 @@
           protein: "44 g",
           fiber: "0 g",
           sugar: "0 g added",
-          points: 16,
+          points: 18,
           why: "Dense protein helps recovery and fullness, but meat feeds Nomi less than fiber-rich plants.",
           effect: "Muscle support",
           imagePosition: "30% 72%"
@@ -2162,7 +2198,7 @@
           protein: "2 g",
           fiber: "8 g",
           sugar: "0 g added",
-          points: 44,
+          points: 52,
           why: "Fiber, antioxidants, and low energy density make berries a high-return snack or side.",
           effect: "Lean boost",
           imagePosition: "78% 2%"
@@ -2174,7 +2210,7 @@
           protein: "6 g",
           fiber: "4 g",
           sugar: "0 g added",
-          points: 32,
+          points: 34,
           why: "Oatmeal brings slow-digesting carbohydrates and soluble fiber, especially useful when paired with fruit or protein.",
           effect: "Balanced shift",
           imagePosition: "50% 50%"
@@ -2186,7 +2222,7 @@
           protein: "19 g",
           fiber: "3 g",
           sugar: "0 g added",
-          points: 14,
+          points: 15,
           why: "Pasta provides quick energy and some protein from cheese, while refined pasta, butter, and cheese keep the score moderate.",
           effect: "Softness gain",
           imagePosition: "50% 50%"
@@ -2198,7 +2234,7 @@
           protein: "15 g",
           fiber: "7 g",
           sugar: "6 g added",
-          points: 26,
+          points: 28,
           why: "Eggplant parmesan can offer fiber and plant volume, while cheese, breading, and sauce keep the score moderate.",
           effect: "Balanced shift",
           imagePosition: "50% 50%"
@@ -2210,7 +2246,7 @@
           protein: "42 g",
           fiber: "3 g",
           sugar: "5 g added",
-          points: 17,
+          points: 16,
           why: "Chicken parmesan is protein-rich, but breading, cheese, and sauce make it more calorie-dense.",
           effect: "Softness gain",
           imagePosition: "50% 50%"
@@ -2246,7 +2282,7 @@
           protein: "18 g",
           fiber: "5 g",
           sugar: "6 g added",
-          points: 24,
+          points: 20,
           why: "The plate appears mixed or visually ambiguous, so this estimate uses a balanced default until a stronger classifier confirms the item.",
           effect: "Balanced shift",
           imagePosition: "50% 50%"
@@ -2412,7 +2448,7 @@
           previewUnsaved(food.points);
           renderCorrections(food);
         } else {
-          setAvatar(getWeeklyPoints());
+          setAvatar();
           correctionPanel.classList.remove("is-visible");
           correctionOptions.innerHTML = "";
         }
@@ -2504,6 +2540,15 @@
         return terms.some((term) => text.includes(term));
       }
 
+      function componentMentionsPlantProtein(component = {}) {
+        const terms = ["bean", "beans", "chickpea", "chickpeas", "lentil", "lentils", "tofu", "tempeh"];
+        const text = [component.key, component.name, component.label, component.query, component.sourceMatch, component.nutritionBasis]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return terms.some((term) => text.includes(term));
+      }
+
       function calculateClientPoints(food) {
         const protein = numberFromValue(food.protein, 0);
         const fiber = numberFromValue(food.fiber, 0);
@@ -2516,24 +2561,30 @@
         const meatPortion = components.reduce((sum, component) => {
           return sum + (componentMentionsMeat(component) ? Number(component.portion || 0) : 0);
         }, 0);
+        const plantProteinPortion = components.reduce((sum, component) => {
+          return sum + (componentMentionsPlantProtein(component) ? Number(component.portion || 0) : 0);
+        }, 0);
         const hasProduce = producePortion > 0;
         const hasMeat = meatPortion > 0 || componentMentionsMeat(food);
+        const hasPlantProtein = plantProteinPortion > 0 || componentMentionsPlantProtein(food);
         const naturalSugar = Number(food.naturalSugar || (hasProduce ? sugar : 0));
         const addedSugar = Number(food.addedSugar || 0);
         const unknownSugar = Number(food.unknownSugar || Math.max(0, sugar - naturalSugar - addedSugar));
-        const sugarPenalty = addedSugar * 0.8 + unknownSugar * 0.45 + naturalSugar * 0.15;
-        const produceBonus = hasProduce ? Math.min(16, 8 + producePortion * 10) : 0;
-        const meatPenalty = hasMeat ? Math.min(12, 6 + Math.max(meatPortion, 0.75) * 8) : 0;
-        const score = 18 + protein * 0.32 + fiber * 3.25 + produceBonus + calorieFitAdjustment(calories) - meatPenalty - sugarPenalty - maxCaloriePenalty(calories);
-        return Math.max(1, Math.min(50, Math.round(score)));
+        const sugarPenalty = addedSugar * 1.05 + unknownSugar * 0.65 + naturalSugar * 0.08;
+        const produceBonus = hasProduce ? Math.min(20, 7 + producePortion * 18) : 0;
+        const plantProteinBonus = hasPlantProtein ? Math.min(8, 3 + plantProteinPortion * 10) : 0;
+        const meatPenalty = hasMeat ? Math.min(8, 3 + Math.max(meatPortion, 0.5) * 5) : 0;
+        const lowFiberPenalty = fiber < 2 && protein < 15 && calories > 180 ? 6 : 0;
+        const score = 10 + protein * 0.3 + fiber * 3.6 + produceBonus + plantProteinBonus + calorieFitAdjustment(calories) - meatPenalty - sugarPenalty - maxCaloriePenalty(calories) - lowFiberPenalty;
+        return Math.max(1, Math.min(65, Math.round(score)));
       }
 
       function maxCaloriePenalty(calories) {
         const target = getProfileTargets();
         if (target) {
-          return Math.max(0, calories - target.mealHigh) * 0.025;
+          return Math.max(0, calories - target.mealHigh) * 0.035;
         }
-        return Math.max(0, calories - 350) * 0.025;
+        return Math.max(0, calories - 320) * 0.035;
       }
 
       function calorieFitAdjustment(calories) {
@@ -2571,9 +2622,9 @@
       }
 
       function effectForPoints(points) {
-        if (points >= 38) return "Strong lean gain";
-        if (points >= 18) return "Balanced shift";
-        if (points >= 8) return "Softness gain";
+        if (points >= 52) return "Strong lean gain";
+        if (points >= 32) return "Balanced shift";
+        if (points >= 12) return "Softness gain";
         return "Chubby shift";
       }
 
@@ -3152,30 +3203,55 @@
       }
 
       function previewUnsaved(points) {
-        const weeklyTotal = getWeeklyPoints() + points;
-        setAvatar(weeklyTotal, true);
-        $("#totalPoints").textContent = `${getTotalPoints()} pts`;
+        const previewFood = points ? { points, savedAt: new Date().toISOString() } : null;
+        setAvatar(previewFood ? [previewFood, ...state.log] : state.log, true);
       }
 
-      function getTotalPoints() {
-        return state.log.reduce((sum, item) => sum + item.points, 0);
+      function logTimestamp(item) {
+        const timestamp = Date.parse(item?.savedAt || item?.created_at || "");
+        return Number.isFinite(timestamp) ? timestamp : 0;
       }
 
-      function getWeeklyPoints() {
-        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        return state.log.reduce((sum, item) => {
-          const timestamp = Date.parse(item.savedAt || item.created_at || "");
-          if (!Number.isFinite(timestamp) || timestamp < weekAgo) return sum;
+      function isSameLocalDay(first, second) {
+        const a = new Date(first);
+        const b = new Date(second);
+        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      }
+
+      function getRecentMeals(logs = state.log, days = 7) {
+        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+        return logs.filter((item) => {
+          const timestamp = logTimestamp(item);
+          return timestamp && timestamp >= cutoff;
+        });
+      }
+
+      function getTodayPoints(logs = state.log) {
+        const now = Date.now();
+        return logs.reduce((sum, item) => {
+          const timestamp = logTimestamp(item);
+          if (!timestamp || !isSameLocalDay(timestamp, now)) return sum;
           return sum + Number(item.points || 0);
         }, 0);
       }
 
+      function getWeeklyPoints(logs = state.log) {
+        return getRecentMeals(logs, 7).reduce((sum, item) => sum + Number(item.points || 0), 0);
+      }
+
+      function getActiveDays(logs = state.log) {
+        const days = new Set();
+        getRecentMeals(logs, 7).forEach((item) => {
+          const timestamp = logTimestamp(item);
+          if (!timestamp) return;
+          const date = new Date(timestamp);
+          days.add(`${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`);
+        });
+        return days.size;
+      }
+
       function getLastFedAt() {
-        return state.log.reduce((latest, item) => {
-          const timestamp = Date.parse(item.savedAt || item.created_at || "");
-          if (!Number.isFinite(timestamp)) return latest;
-          return Math.max(latest, timestamp);
-        }, 0);
+        return state.log.reduce((latest, item) => Math.max(latest, logTimestamp(item)), 0);
       }
 
       function getLastFedState() {
@@ -3189,49 +3265,86 @@
         return { level: "waiting", hours, text: `Last fed ${days} days ago.` };
       }
 
-      function setAvatar(weeklyTotal, preview = false) {
+      function getAvatarVitality(logs = state.log) {
+        const recentMeals = getRecentMeals(logs, 7);
+        const weeklyPoints = getWeeklyPoints(logs);
+        const todayPoints = getTodayPoints(logs);
+        const activeDays = getActiveDays(logs);
+        const lastFedAt = recentMeals.reduce((latest, item) => Math.max(latest, logTimestamp(item)), 0);
+        const hoursSinceFed = lastFedAt ? Math.max(0, (Date.now() - lastFedAt) / (60 * 60 * 1000)) : Infinity;
+        const averageMealScore = recentMeals.length
+          ? recentMeals.reduce((sum, item) => sum + Number(item.points || 0), 0) / recentMeals.length
+          : 0;
+        let consistencyMultiplier = 0.25;
+        if (hoursSinceFed <= 24 && activeDays >= 4) {
+          consistencyMultiplier = 1;
+        } else if (hoursSinceFed <= 24 && activeDays >= 2) {
+          consistencyMultiplier = 0.9;
+        } else if (hoursSinceFed <= 24) {
+          consistencyMultiplier = 0.7;
+        } else if (hoursSinceFed <= 48) {
+          consistencyMultiplier = 0.55;
+        } else if (hoursSinceFed <= 72) {
+          consistencyMultiplier = 0.4;
+        }
+        const nutritionSignal = Math.min(100, averageMealScore * 2);
+        const weeklyCompleteness = Math.min(1, recentMeals.length / 10);
+        const vitality = Math.round(Math.max(0, Math.min(100, (nutritionSignal * 0.72 + weeklyCompleteness * 28) * consistencyMultiplier)));
+        return { vitality, weeklyPoints, todayPoints, activeDays, mealCount: recentMeals.length, hoursSinceFed };
+      }
+
+      function setAvatar(logs = state.log, preview = false) {
         const avatar = $("#avatar");
         applyAvatarStyle(state.profile?.avatarStyle || avatarStyleFromSex(state.profile?.sex || state.selectedSex));
-        const bounded = Math.min(weeklyTotal, 160);
-        const percent = Math.max(7, Math.round((bounded / 160) * 100));
+        const stats = getAvatarVitality(logs);
+        const percent = Math.max(7, stats.vitality);
         const lastFed = getLastFedState();
         $("#meterFill").style.width = `${percent}%`;
         $("#meterText").textContent = preview
-          ? `${weeklyTotal} points this week with current plate`
-          : `${weeklyTotal} points this week - ${lastFed.text}`;
-        $("#totalPoints").textContent = `${getTotalPoints()} pts`;
+          ? `Projected vitality with this meal: ${stats.vitality}%`
+          : `Vitality ${stats.vitality}% - ${lastFed.text}`;
+        $("#vitalityValue").textContent = `${stats.vitality}%`;
+        $("#todayPoints").textContent = `${stats.todayPoints} pts`;
+        $("#weekPoints").textContent = `${stats.weeklyPoints} pts`;
+        $("#activeDays").textContent = `${stats.activeDays}/7 days`;
 
-        if (weeklyTotal < 12) {
+        if (stats.vitality < 26) {
+          avatar.dataset.state = "weak";
+          $("#avatarLabel").textContent = "Quiet Nomi";
+          $("#avatarStatus").textContent = preview
+            ? "This helps, but Nomi still needs a recent pattern."
+            : "Nomi is quiet. A fresh meal log starts waking them up.";
+        } else if (stats.vitality < 51) {
           avatar.dataset.state = "heavy";
-          $("#avatarLabel").textContent = "Resting Nomi";
+          $("#avatarLabel").textContent = "Awake Nomi";
           $("#avatarStatus").textContent = preview
-            ? "This meal keeps Nomi in a low-energy zone."
-            : "Feed Nomi a few balanced meals to wake them up.";
-        } else if (weeklyTotal < 80) {
+            ? "This meal gives Nomi a little recent momentum."
+            : "Nomi is awake. Keep logging to turn today into a pattern.";
+        } else if (stats.vitality < 76) {
           avatar.dataset.state = "lean";
-          $("#avatarLabel").textContent = "Balanced Nomi";
+          $("#avatarLabel").textContent = "Bright Nomi";
           $("#avatarStatus").textContent = preview
-            ? "This meal gives Nomi a little momentum."
-            : "Keep feeding Nomi balanced meals to build momentum.";
+            ? "This meal brightens Nomi's current rhythm."
+            : "Recent care and nutrition have Nomi looking bright.";
         } else {
           avatar.dataset.state = "fit";
-          $("#avatarLabel").textContent = "Energized Nomi";
+          $("#avatarLabel").textContent = "Thriving Nomi";
           $("#avatarStatus").textContent = preview
-            ? "Nice. This meal powers Nomi up."
-            : "Balanced meals have Nomi glowing this week.";
+            ? "Nice. This keeps Nomi thriving right now."
+            : "Nomi is thriving from consistent recent care.";
         }
 
         if (!preview && lastFed.level !== "fed" && lastFed.level !== "new") {
           avatar.dataset.state = "weak";
           if (lastFed.level === "hungry") {
-            $("#avatarLabel").textContent = "Hungry Nomi";
-            $("#avatarStatus").textContent = "Nomi has not eaten in 24 hours. Feed Nomi when you log your next meal.";
+            $("#avatarLabel").textContent = "Quiet Nomi";
+            $("#avatarStatus").textContent = "Nomi is waiting for today's check-in.";
           } else if (lastFed.level === "weak") {
-            $("#avatarLabel").textContent = "Low-energy Nomi";
-            $("#avatarStatus").textContent = "Nomi is getting weak after two days without a logged meal.";
+            $("#avatarLabel").textContent = "Resting Nomi";
+            $("#avatarStatus").textContent = "Nomi has been quiet for a couple days. Log a meal to wake the pattern back up.";
           } else {
-            $("#avatarLabel").textContent = "Waiting-for-care Nomi";
-            $("#avatarStatus").textContent = "Nomi is waiting for care. Log a meal to perk her back up.";
+            $("#avatarLabel").textContent = "Waiting Nomi";
+            $("#avatarStatus").textContent = "Nomi reflects recent life, so old points do not keep them bright forever.";
           }
         }
       }
@@ -4750,7 +4863,7 @@
             })
             .join("");
         }
-        setAvatar(getWeeklyPoints());
+        setAvatar();
         observeLogPhotoLoader();
       }
 
@@ -5546,7 +5659,7 @@
         $("#avatarEffect").textContent = "Neutral";
         $("#saveFood").disabled = true;
         $("#saveHint").textContent = "Saved to your food log. Upload another plate when ready.";
-        setAvatar(getWeeklyPoints());
+        setAvatar();
       }
 
       async function saveCurrentFood() {

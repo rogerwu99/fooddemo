@@ -105,7 +105,7 @@ NUTRITION_DB = {
         "protein": "5 g",
         "fiber": "7 g",
         "sugar": "0 g added",
-        "points": 50,
+        "points": 58,
         "why": "High fiber, vitamin C, potassium, and volume per calorie make this a strong satiety play.",
         "effect": "Strong lean gain",
     },
@@ -116,7 +116,7 @@ NUTRITION_DB = {
         "protein": "44 g",
         "fiber": "0 g",
         "sugar": "0 g added",
-        "points": 16,
+        "points": 18,
         "why": "Dense protein helps recovery and fullness, but meat feeds Nomi less than fiber-rich plants.",
         "effect": "Muscle support",
     },
@@ -127,7 +127,7 @@ NUTRITION_DB = {
         "protein": "2 g",
         "fiber": "8 g",
         "sugar": "0 g added",
-        "points": 44,
+        "points": 52,
         "why": "Fiber, antioxidants, and low energy density make berries a high-return snack or side.",
         "effect": "Lean boost",
     },
@@ -138,7 +138,7 @@ NUTRITION_DB = {
         "protein": "6 g",
         "fiber": "4 g",
         "sugar": "0 g added",
-        "points": 32,
+        "points": 34,
         "why": "Oatmeal brings slow-digesting carbohydrates and soluble fiber, especially useful when paired with fruit or protein.",
         "effect": "Balanced shift",
     },
@@ -149,7 +149,7 @@ NUTRITION_DB = {
         "protein": "19 g",
         "fiber": "3 g",
         "sugar": "0 g added",
-        "points": 14,
+        "points": 15,
         "why": "Pasta provides quick energy and some protein from cheese, while refined pasta, butter, and cheese keep the score moderate.",
         "effect": "Softness gain",
     },
@@ -160,7 +160,7 @@ NUTRITION_DB = {
         "protein": "15 g",
         "fiber": "7 g",
         "sugar": "6 g added",
-        "points": 26,
+        "points": 28,
         "why": "Eggplant parmesan can offer fiber and plant volume, while cheese, breading, and sauce keep the score moderate.",
         "effect": "Balanced shift",
     },
@@ -171,7 +171,7 @@ NUTRITION_DB = {
         "protein": "42 g",
         "fiber": "3 g",
         "sugar": "5 g added",
-        "points": 17,
+        "points": 16,
         "why": "Chicken parmesan is protein-rich, but breading, cheese, and sauce make it more calorie-dense.",
         "effect": "Softness gain",
     },
@@ -182,7 +182,7 @@ NUTRITION_DB = {
         "protein": "13 g",
         "fiber": "2 g",
         "sugar": "2 g added",
-        "points": 8,
+        "points": 9,
         "why": "Useful for enjoyment and quick energy, but refined flour and saturated fat keep the score modest.",
         "effect": "Softness gain",
     },
@@ -204,7 +204,7 @@ NUTRITION_DB = {
         "protein": "0 g",
         "fiber": "0 g",
         "sugar": "12 g added",
-        "points": 5,
+        "points": 3,
         "why": "Syrup mostly contributes added sugar, so a small amount should reduce the score without erasing the value of the whole meal.",
         "effect": "Softness gain",
     },
@@ -215,7 +215,7 @@ NUTRITION_DB = {
         "protein": "4 g",
         "fiber": "1 g",
         "sugar": "0 g added",
-        "points": 18,
+        "points": 16,
         "why": "Rice is a useful energy base, while protein, greens, or beans determine the rest of the meal balance.",
         "effect": "Balanced shift",
     },
@@ -226,7 +226,7 @@ NUTRITION_DB = {
         "protein": "8 g",
         "fiber": "5 g",
         "sugar": "0 g added",
-        "points": 30,
+        "points": 35,
         "why": "Quinoa brings a grain-like base with more protein and fiber than many refined starches.",
         "effect": "Balanced shift",
     },
@@ -237,7 +237,7 @@ NUTRITION_DB = {
         "protein": "2 g",
         "fiber": "2 g",
         "sugar": "0 g added",
-        "points": 42,
+        "points": 45,
         "why": "Leafy greens add volume, fiber, and micronutrients for very few calories.",
         "effect": "Lean boost",
     },
@@ -248,7 +248,7 @@ NUTRITION_DB = {
         "protein": "11 g",
         "fiber": "10 g",
         "sugar": "0 g added",
-        "points": 42,
+        "points": 50,
         "why": "Beans bring plant protein and fiber, which can make a mixed plate more filling.",
         "effect": "Strong lean gain",
     },
@@ -259,7 +259,7 @@ NUTRITION_DB = {
         "protein": "13 g",
         "fiber": "12 g",
         "sugar": "0 g added",
-        "points": 44,
+        "points": 55,
         "why": "Lentils add plant protein, fiber, and slow-digesting carbohydrates.",
         "effect": "Strong lean gain",
     },
@@ -270,7 +270,7 @@ NUTRITION_DB = {
         "protein": "17 g",
         "fiber": "2 g",
         "sugar": "0 g added",
-        "points": 34,
+        "points": 38,
         "why": "Tofu adds plant protein and makes vegetable-forward meals more substantial.",
         "effect": "Balanced shift",
     },
@@ -281,7 +281,7 @@ NUTRITION_DB = {
         "protein": "34 g",
         "fiber": "0 g",
         "sugar": "0 g added",
-        "points": 18,
+        "points": 19,
         "why": "Salmon is protein-rich and satisfying, though plants still drive most of the fiber score.",
         "effect": "Muscle support",
     },
@@ -292,7 +292,7 @@ NUTRITION_DB = {
         "protein": "13 g",
         "fiber": "0 g",
         "sugar": "0 g added",
-        "points": 20,
+        "points": 18,
         "why": "Eggs add compact protein and fat, especially useful when paired with plants or grains.",
         "effect": "Balanced shift",
     },
@@ -303,7 +303,7 @@ NUTRITION_DB = {
         "protein": "2 g",
         "fiber": "5 g",
         "sugar": "0 g added",
-        "points": 34,
+        "points": 36,
         "why": "Avocado adds fiber and satisfying fat, with more calorie density than leafy vegetables.",
         "effect": "Balanced shift",
     },
@@ -314,7 +314,7 @@ NUTRITION_DB = {
         "protein": "18 g",
         "fiber": "5 g",
         "sugar": "6 g added",
-        "points": 24,
+        "points": 20,
         "why": "The plate appears mixed or visually ambiguous, so this estimate uses a balanced default until a stronger classifier confirms the item.",
         "effect": "Balanced shift",
     },
@@ -2156,16 +2156,28 @@ def calculate_points(food):
         for component in components
         if component_mentions_meat(component)
     )
+    plant_protein_portion = sum(
+        float(component.get("portion", 0) or 0)
+        for component in components
+        if component.get("key") in {"beans", "lentils", "tofu"} or text_has_term(
+            " ".join(str(component.get(key, "") or "") for key in ["name", "label", "query", "sourceMatch"]),
+            {"bean", "beans", "chickpea", "chickpeas", "lentil", "lentils", "tofu", "tempeh"},
+        )
+    )
     has_produce = produce_portion > 0 or food.get("role") == "fruit_veg"
     has_meat = meat_portion > 0 or component_mentions_meat(food)
+    has_plant_protein = plant_protein_portion > 0
     natural_sugar = float(food.get("naturalSugar", sugar if has_produce else 0) or 0)
     added_sugar = float(food.get("addedSugar", 0) or 0)
     unknown_sugar = float(food.get("unknownSugar", max(0, sugar - natural_sugar - added_sugar)) or 0)
-    sugar_penalty = added_sugar * 0.8 + unknown_sugar * 0.45 + natural_sugar * 0.15
-    produce_bonus = min(16, 8 + produce_portion * 10) if has_produce else 0
-    meat_penalty = min(12, 6 + max(meat_portion, 0.75) * 8) if has_meat else 0
-    score = 18 + protein * 0.32 + fiber * 3.25 + produce_bonus - meat_penalty - sugar_penalty - max(0, calories - 350) * 0.025
-    return int(max(1, min(50, round(score))))
+    sugar_penalty = added_sugar * 1.05 + unknown_sugar * 0.65 + natural_sugar * 0.08
+    produce_bonus = min(20, 7 + produce_portion * 18) if has_produce else 0
+    plant_protein_bonus = min(8, 3 + plant_protein_portion * 10) if has_plant_protein else 0
+    meat_penalty = min(8, 3 + max(meat_portion, 0.5) * 5) if has_meat else 0
+    calorie_penalty = max(0, calories - 320) * 0.035
+    low_fiber_penalty = 6 if fiber < 2 and protein < 15 and calories > 180 else 0
+    score = 10 + protein * 0.3 + fiber * 3.6 + produce_bonus + plant_protein_bonus - meat_penalty - sugar_penalty - calorie_penalty - low_fiber_penalty
+    return int(max(1, min(65, round(score))))
 
 
 def component_mentions_meat(component):
@@ -2177,11 +2189,11 @@ def component_mentions_meat(component):
 
 
 def effect_for_points(points):
-    if points >= 38:
+    if points >= 52:
         return "Strong lean gain"
-    if points >= 18:
+    if points >= 32:
         return "Balanced shift"
-    if points >= 8:
+    if points >= 12:
         return "Softness gain"
     return "Chubby shift"
 
