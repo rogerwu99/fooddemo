@@ -488,26 +488,6 @@
         clip: rect(0 0 0 0);
       }
 
-      .sample-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 16px;
-      }
-
-      .sample-row.is-hidden {
-        display: none;
-      }
-
-      .sample-row button {
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: #fff;
-        padding: 8px 11px;
-        color: #314039;
-        font-weight: 760;
-      }
-
       .correction-panel {
         display: none;
         gap: 9px;
@@ -590,6 +570,54 @@
         margin-top: 16px;
       }
 
+      .analysis-loader {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: 12px;
+        margin-top: 16px;
+        padding: 14px;
+        border: 1px solid #dce9df;
+        border-radius: 8px;
+        background: #f8fbf8;
+      }
+
+      .analysis-loader[hidden] {
+        display: none;
+      }
+
+      .analysis-loader-ring {
+        width: 34px;
+        height: 34px;
+        border: 3px solid #dce9df;
+        border-top-color: #2f7d4f;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+
+      .analysis-loader strong,
+      .analysis-loader span {
+        display: block;
+      }
+
+      .analysis-loader span {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 0.88rem;
+        line-height: 1.35;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .results-area[hidden],
+      .save-row[hidden] {
+        display: none;
+      }
+
       .result-card {
         min-height: 168px;
         padding: 15px;
@@ -601,6 +629,37 @@
       .result-card h4 {
         margin: 0 0 9px;
         font-size: 1rem;
+      }
+
+      .nutrition-card {
+        grid-column: 1 / -1;
+        min-height: 0;
+      }
+
+      .nutrition-lines {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .nutrition-card .metric {
+        display: grid;
+        align-content: center;
+        justify-content: stretch;
+        gap: 4px;
+        min-height: 44px;
+        padding: 10px;
+        border: 1px solid #e0eae2;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .nutrition-card .metric strong {
+        text-align: left;
+      }
+
+      .nutrition-card .metric:last-child {
+        border-bottom: 1px solid #e0eae2;
       }
 
       .metric {
@@ -714,14 +773,39 @@
 
       .component-source-list {
         grid-column: 1 / -1;
-        display: grid;
-        gap: 7px;
         margin-top: 6px;
         padding-top: 8px;
         border-top: 1px solid #edf2ee;
       }
 
-      .component-source-list p {
+      .component-source-list summary {
+        width: fit-content;
+        min-height: 30px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 10px;
+        border: 1px solid #cbd8ce;
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        font-size: 0.78rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .component-source-list[open] summary {
+        border-color: #2f7d4f;
+        background: #e6f4ea;
+        color: #1f5f3a;
+      }
+
+      .component-source-options {
+        display: grid;
+        gap: 7px;
+        margin-top: 8px;
+      }
+
+      .component-source-options p {
         margin: 0;
         color: var(--muted);
         font-size: 0.78rem;
@@ -1888,6 +1972,10 @@
           grid-template-columns: 1fr;
         }
 
+        .nutrition-lines {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .score-strip {
           margin-top: 8px;
         }
@@ -2002,13 +2090,6 @@
               </div>
               <input class="file-input" id="foodImage" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,.heic,.heif,image/heic,image/heif" />
 
-              <div class="sample-row" id="sampleFoodRow" aria-label="Analyze sample foods">
-                <button type="button" data-sample="broccoli">Try broccoli</button>
-                <button type="button" data-sample="chicken">Try grilled chicken</button>
-                <button type="button" data-sample="cake">Try cake</button>
-                <button type="button" data-sample="pizza">Try pizza</button>
-              </div>
-
               <div class="correction-panel" id="correctionPanel" aria-live="polite">
                 <strong>Not quite? Pick the closest match.</strong>
                 <p class="correction-summary" id="correctionSummary">Alternatives appear after analysis.</p>
@@ -2019,20 +2100,36 @@
                 </div>
               </div>
 
-              <div class="results-area" id="resultsArea" aria-live="polite">
+              <div class="analysis-loader" id="analysisLoader" aria-live="polite" hidden>
+                <span class="analysis-loader-ring" aria-hidden="true"></span>
+                <div>
+                  <strong id="analysisLoaderTitle">Analyzing photo</strong>
+                  <span id="analysisLoaderText">Identifying the pieces and estimating nutrition.</span>
+                </div>
+              </div>
+
+              <div class="results-area" id="resultsArea" aria-live="polite" hidden>
                 <article class="result-card">
                   <h4>Food identified</h4>
                   <div class="metric"><span>Item</span><strong id="foodName">Awaiting photo</strong></div>
                   <div class="metric"><span>Confidence</span><strong id="confidence">-</strong></div>
                   <div class="metric"><span>Nutrition basis</span><strong id="servingSize">-</strong></div>
                   <div class="metric"><span>Portion confidence</span><strong id="portionConfidence">-</strong></div>
-                  <div class="metric"><span>Calories</span><strong id="calories">-</strong></div>
                 </article>
-                <article class="result-card">
-                  <h4>Estimated nutrition</h4>
-                  <div class="metric"><span>Protein</span><strong id="protein">-</strong></div>
-                  <div class="metric"><span>Fiber</span><strong id="fiber">-</strong></div>
-                  <div class="metric"><span id="sugarLabel">Sugar</span><strong id="sugar">-</strong></div>
+                <article class="result-card component-card">
+                  <h4>Estimated pieces</h4>
+                  <div class="component-list" id="componentBreakdown">
+                    <p class="component-empty">Components appear after analysis.</p>
+                  </div>
+                </article>
+                <article class="result-card nutrition-card">
+                  <h4>Total nutrition</h4>
+                  <div class="nutrition-lines">
+                    <div class="metric"><span>Calories</span><strong id="calories">-</strong></div>
+                    <div class="metric"><span>Protein</span><strong id="protein">-</strong></div>
+                    <div class="metric"><span>Fiber</span><strong id="fiber">-</strong></div>
+                    <div class="metric"><span id="sugarLabel">Sugar</span><strong id="sugar">-</strong></div>
+                  </div>
                   <div class="serving-editor" id="servingEditor" aria-label="Serving size editor">
                     <label>Serving size</label>
                     <div class="serving-options">
@@ -2043,12 +2140,6 @@
                     </div>
                   </div>
                   <p class="nutrition-note" id="nutritionBasisNote">Nutrition values will show the serving basis after analysis.</p>
-                </article>
-                <article class="result-card component-card">
-                  <h4>Estimated pieces</h4>
-                  <div class="component-list" id="componentBreakdown">
-                    <p class="component-empty">Components appear after analysis.</p>
-                  </div>
                 </article>
                 <article class="result-card">
                   <h4>Why eat this</h4>
@@ -2062,7 +2153,7 @@
                 </article>
               </div>
 
-              <div class="save-row">
+              <div class="save-row" id="saveRow" hidden>
                 <span id="saveHint">Analyze a food before saving it to your profile.</span>
                 <button class="primary-btn" id="saveFood" type="button" disabled>Feed Nomi</button>
               </div>
@@ -2415,13 +2506,6 @@
       };
 
       const fallbackOrder = ["broccoli", "chicken", "berries", "oatmeal", "pasta", "eggplant_parmesan", "chicken_parmesan", "pizza", "cake", "mixed"];
-      const samplePhotos = {
-        broccoli: "assets/score-broccoli.jpg",
-        chicken: "assets/score-chicken.jpg",
-        berries: "assets/score-blueberries.jpg",
-        pizza: "assets/score-pizza.jpg",
-        cake: "assets/score-cake.jpg"
-      };
       const pendingSaveKey = "platepointsPendingSave";
       const pendingSavePrimaryKey = "feednomiPendingSave";
       const pendingSaveBackupKey = "feednomiPendingSaveBackup";
@@ -2468,6 +2552,18 @@
       const correctionPanel = $("#correctionPanel");
       const correctionOptions = $("#correctionOptions");
       const customCorrection = $("#customCorrection");
+      const analysisLoader = $("#analysisLoader");
+      const resultsArea = $("#resultsArea");
+      const saveRow = $("#saveRow");
+
+      function setAnalysisUiState(mode, message = "") {
+        const loading = mode === "loading";
+        const results = mode === "results";
+        analysisLoader.hidden = !loading;
+        resultsArea.hidden = !results;
+        saveRow.hidden = !results;
+        if (message) $("#analysisLoaderText").textContent = message;
+      }
 
       function isHeicFile(file) {
         const name = file.name.toLowerCase();
@@ -2515,6 +2611,7 @@
       }
 
       function updateAnalyzerStatus(message) {
+        setAnalysisUiState("loading", "Identifying the food, estimating portions, and matching nutrition data.");
         $("#foodName").textContent = message;
         $("#servingSize").textContent = "Scanning image";
         $("#confidence").textContent = "-";
@@ -2533,22 +2630,8 @@
         $("#saveHint").textContent = "Analyzing photo before it can be saved.";
       }
 
-      async function analyzeFood(key, note = "") {
-        if (debugUsda) {
-          $("#saveHint").textContent = `Debug USDA mode: looking up ${foods[key]?.name || key}...`;
-          try {
-            const food = await lookupManualCorrection(key, foods[key]?.name || key);
-            applyNutritionResult(food, "Debug USDA sample lookup.");
-            return;
-          } catch (error) {
-            $("#saveHint").textContent = `Debug USDA lookup failed: ${error.message}`;
-          }
-        }
-        const food = { ...foods[key], key, confidence: 1, alternatives: [] };
-        applyNutritionResult(food, note || "Sample food selected from the guide.");
-      }
-
       function applyNutritionResult(food, note = "") {
+        setAnalysisUiState("results");
         food = prepareServingEditableFood(food);
         state.analyzed = food;
         updateServingControls(food.servingMultiplier || 1);
@@ -2631,6 +2714,7 @@
       }
 
       function renderAnalyzedValues(food) {
+        setAnalysisUiState("results");
         $("#servingSize").textContent = food.serving;
         $("#calories").textContent = `${food.calories} kcal`;
         $("#protein").textContent = food.protein;
@@ -2723,6 +2807,78 @@
         return food;
       }
 
+      function normalizedCandidateText(value = "") {
+        return String(value)
+          .toLowerCase()
+          .replace(/\([^)]*\)/g, "")
+          .replace(/local estimate|usda food row|raw|cooked|prepared|unspecified|whole|reduced fat|low fat|nonfat|skim|fat free|\d+\s*%/g, "")
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+      }
+
+      function candidateMacroSignature(candidate = {}) {
+        const calories = candidate.calories == null ? "x" : Math.round(Number(candidate.calories) / 25) * 25;
+        const protein = candidate.protein == null ? "x" : Math.round(Number(candidate.protein) / 2) * 2;
+        const fiber = candidate.fiber == null ? "x" : Math.round(Number(candidate.fiber));
+        const sugar = candidate.sugar == null ? "x" : Math.round(Number(candidate.sugar) / 3) * 3;
+        return `${calories}|${protein}|${fiber}|${sugar}`;
+      }
+
+      function isGenericAmbiguousSource(text = "") {
+        const normalized = normalizedCandidateText(text);
+        return ["milk", "water", "oil", "sauce", "dressing", "cheese"].includes(normalized);
+      }
+
+      function isLocalEstimateCandidate(candidate = {}) {
+        return String(candidate.dataType || candidate.description || "").toLowerCase().includes("local estimate");
+      }
+
+      function isGenericSameAsComponent(candidate = {}, component = {}) {
+        const description = normalizedCandidateText(candidate.description || "");
+        const name = normalizedCandidateText(component.name || component.label || "");
+        return Boolean(description && name && description === name && isGenericAmbiguousSource(description));
+      }
+
+      function isSameAsCurrentComponent(candidate = {}, component = {}) {
+        const description = normalizedCandidateText(candidate.description || "");
+        const name = normalizedCandidateText(component.name || component.label || "");
+        const sameName = Boolean(name && description && (description === name || description.includes(name) || name.includes(description)));
+        const sameCalories = Math.abs(Number(candidate.calories || 0) - numberFromValue(component.calories, 0)) <= 3;
+        const sameProtein = Math.abs(Number(candidate.protein || 0) - numberFromValue(component.protein, 0)) <= 0.6;
+        const sameFiber = Math.abs(Number(candidate.fiber || 0) - numberFromValue(component.fiber, 0)) <= 0.6;
+        return isLocalEstimateCandidate(candidate) && sameCalories && sameProtein && sameFiber && (sameName || !candidate.rejectedReason);
+      }
+
+      function meaningfulComponentCandidates(candidates = [], component = {}) {
+        const seen = new Set();
+        return candidates.filter((candidate) => {
+          if (isLocalEstimateCandidate(candidate)) return false;
+          if (isSameAsCurrentComponent(candidate, component)) return false;
+          if (isGenericSameAsComponent(candidate, component)) return false;
+          const text = normalizedCandidateText(candidate.description || "");
+          const family = text.split(" ").slice(0, 3).join(" ");
+          const signature = isGenericAmbiguousSource(candidate.description)
+            ? `${family}|generic|${candidate.rejectedReason ? "rejected" : "accepted"}`
+            : `${family}|${candidateMacroSignature(candidate)}|${candidate.rejectedReason ? "rejected" : "accepted"}`;
+          if (seen.has(signature)) return false;
+          seen.add(signature);
+          return true;
+        });
+      }
+
+      function candidateStatusText(candidate = {}, fallback = "Nutrition source match") {
+        const reason = String(candidate.rejectedReason || "").trim();
+        if (!reason) return fallback;
+        const lowerReason = reason.toLowerCase();
+        if (lowerReason.includes("openai match validator rejected")) {
+          return "Not a confident match for this piece";
+        }
+        if (lowerReason.length > 90) {
+          return "Needs review before using";
+        }
+        return reason;
+      }
+
       function renderComponentBreakdown(food) {
         const list = $("#componentBreakdown");
         if (!list) return;
@@ -2750,7 +2906,8 @@
           const confidence = component.confidence ? `${Math.round(Number(component.confidence) * 100)}%` : "estimated";
           const share = Number(component.estimatedShare || component.portion || 0);
           const shareText = share > 0 && share < 0.98 ? ` · ${Math.round(share * 100)}% of meal` : "";
-          const componentCandidateHtml = (candidatesByComponent.get(index) || []).slice(0, 4).map((item) => {
+          const componentCandidates = meaningfulComponentCandidates(candidatesByComponent.get(index) || [], component);
+          const componentCandidateHtml = componentCandidates.slice(0, 4).map((item) => {
             const candidateIndex = food.usdaCandidates.indexOf(item);
             const action = item.rejectedReason ? "Add as piece" : `Use for ${component.name || "piece"}`;
             const candidateMacros = [
@@ -2762,7 +2919,7 @@
               <div class="component-source-option">
                 <div>
                   <strong>${escapeHtml(item.description || "USDA food row")}</strong>
-                  <span>${escapeHtml(item.rejectedReason || "Nutrition source match")}</span>
+                  <span>${escapeHtml(candidateStatusText(item))}</span>
                   <div class="component-macros">${escapeHtml(candidateMacros || "Nutrition row available")}</div>
                 </div>
                 <button type="button" data-component-candidate-index="${candidateIndex}">${escapeHtml(action)}</button>
@@ -2780,7 +2937,7 @@
                 ${[0.5, 1, 1.5, 2].map((value) => `<button type="button" data-component-index="${index}" data-component-multiplier="${value}" class="${!removed && multiplier === value ? "is-selected" : ""}">${value}x</button>`).join("")}
                 <button type="button" data-component-index="${index}" data-component-action="${removed ? "restore" : "remove"}">${removed ? "Restore" : "Remove"}</button>
               </div>
-              ${componentCandidateHtml ? `<div class="component-source-list"><p>USDA options for this piece</p>${componentCandidateHtml}</div>` : ""}
+              ${componentCandidateHtml ? `<details class="component-source-list"><summary>Not right? Change source</summary><div class="component-source-options"><p>USDA options for this piece</p>${componentCandidateHtml}</div></details>` : ""}
             </div>
           `;
         }).join("");
@@ -2799,7 +2956,7 @@
                   <div class="component-item">
                     <div class="component-main">
                       <strong>${escapeHtml(item.description || "Possible food")}</strong>
-                      <span>${escapeHtml(item.rejectedReason || "Different food than the current piece")}</span>
+                      <span>${escapeHtml(candidateStatusText(item, "Different food than the current piece"))}</span>
                       <div class="component-macros">${escapeHtml(macros || "Nutrition row available")}</div>
                     </div>
                     <div class="component-actions">
@@ -3441,6 +3598,9 @@
         analysisBadge.textContent = message;
         analysisBadge.classList.add("is-visible");
         analysisBadge.classList.toggle("is-done", done);
+        if (!done && !analysisLoader.hidden) {
+          $("#analysisLoaderText").textContent = message;
+        }
       }
 
       function unlockAudio() {
@@ -3623,6 +3783,7 @@
           foodImage.value = "";
           state.currentPhotoDataUrl = "";
           state.analyzed = null;
+          setAnalysisUiState("idle");
           analysisBadge.classList.remove("is-visible", "is-done");
           $("#dropTitle").textContent = "Unsupported photo format";
           $("#dropHelp").textContent = avifMessage;
@@ -3797,7 +3958,6 @@
         $("#editProfile").style.display = signedIn ? "inline-flex" : "none";
         $("#refreshLog").style.display = signedIn ? "inline-flex" : "none";
         $("#weeklyRecap").style.display = signedIn ? "inline-flex" : "none";
-        $("#sampleFoodRow").classList.toggle("is-hidden", signedIn);
         $("#reminderSetting").classList.toggle("is-visible", canUseReminders && !showReminderPrompt);
         $("#reminderPrompt").classList.toggle("is-visible", showReminderPrompt);
         $("#emailReminders").checked = Boolean(state.reminderSettings.enabled);
@@ -6068,6 +6228,7 @@
         dropZone.classList.remove("has-preview", "has-image");
         dropZone.style.backgroundImage = "";
         dropZone.style.backgroundPosition = "";
+        setAnalysisUiState("idle");
         analysisBadge.classList.remove("is-visible", "is-done");
         correctionPanel.classList.remove("is-visible");
         correctionOptions.innerHTML = "";
@@ -6292,34 +6453,6 @@
         unlockAudio();
         const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
         handlePickedFile(file);
-      });
-
-      document.querySelectorAll("[data-sample]").forEach((button) => {
-        button.addEventListener("click", async () => {
-          const key = button.dataset.sample;
-          const samplePhoto = samplePhotos[key] || "";
-          state.currentPhotoDataUrl = "";
-          foodImage.value = "";
-          dropZone.classList.remove("has-image");
-          previewImage.removeAttribute("src");
-          previewImage.alt = "";
-          analysisBadge.classList.remove("is-visible", "is-done");
-          $("#dropTitle").textContent = "Sample food selected";
-          $("#dropHelp").textContent = "Choose an image to replace this sample with your own photo.";
-          chooseImageBtn.textContent = "Choose image";
-          dropZone.classList.add("has-preview");
-          dropZone.style.backgroundImage = `linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12)), url("${samplePhoto || "assets/food-spread.png"}")`;
-          dropZone.style.backgroundPosition = "center";
-          dropZone.style.backgroundSize = "cover";
-          if (samplePhoto) {
-            try {
-              state.currentPhotoDataUrl = await imageUrlToDataUrl(samplePhoto);
-            } catch (error) {
-              state.currentPhotoDataUrl = "";
-            }
-          }
-          analyzeFood(key);
-        });
       });
 
       correctionOptions.addEventListener("click", async (event) => {
