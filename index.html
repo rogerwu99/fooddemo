@@ -640,6 +640,125 @@
         line-height: 1.42;
       }
 
+      .component-card {
+        grid-column: 1 / -1;
+        min-height: 0;
+      }
+
+      .component-list {
+        display: grid;
+        gap: 9px;
+      }
+
+      .component-empty {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.42;
+      }
+
+      .component-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        padding: 10px;
+        border: 1px solid #e0eae2;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .component-item.is-removed {
+        opacity: 0.58;
+      }
+
+      .component-main {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .component-main strong {
+        color: var(--ink);
+      }
+
+      .component-main span,
+      .component-macros {
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.35;
+      }
+
+      .component-actions {
+        display: flex;
+        align-items: start;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 5px;
+      }
+
+      .component-actions button {
+        min-height: 30px;
+        border: 1px solid #cbd8ce;
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        font-size: 0.78rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .component-actions button.is-selected {
+        border-color: #2f7d4f;
+        background: #e6f4ea;
+        color: #1f5f3a;
+      }
+
+      .component-source-list {
+        grid-column: 1 / -1;
+        display: grid;
+        gap: 7px;
+        margin-top: 6px;
+        padding-top: 8px;
+        border-top: 1px solid #edf2ee;
+      }
+
+      .component-source-list p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 800;
+      }
+
+      .component-source-option {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        padding: 8px;
+        border: 1px solid #dce7df;
+        border-radius: 8px;
+        background: #f8fbf8;
+      }
+
+      .component-source-option div {
+        min-width: 0;
+      }
+
+      .component-source-option button {
+        min-height: 30px;
+        border: 1px solid #2f7d4f;
+        border-radius: 8px;
+        background: #e6f4ea;
+        color: #1f5f3a;
+        font-size: 0.78rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .component-source-option strong,
+      .component-source-option span {
+        display: block;
+      }
+
       .serving-editor {
         display: grid;
         gap: 8px;
@@ -1925,6 +2044,12 @@
                   </div>
                   <p class="nutrition-note" id="nutritionBasisNote">Nutrition values will show the serving basis after analysis.</p>
                 </article>
+                <article class="result-card component-card">
+                  <h4>Estimated pieces</h4>
+                  <div class="component-list" id="componentBreakdown">
+                    <p class="component-empty">Components appear after analysis.</p>
+                  </div>
+                </article>
                 <article class="result-card">
                   <h4>Why eat this</h4>
                   <p class="reason" id="whyEat">Upload a plate to get an evidence-style eating reason.</p>
@@ -2318,6 +2443,7 @@
         session: null,
         savingPending: false,
         usdaCandidates: [],
+        componentCandidateSuggestions: [],
         selectedSex: "neutral",
         selectedAvatarStyle: "neutral",
         setupMode: "setup",
@@ -2398,6 +2524,7 @@
         $("#fiber").textContent = "-";
         $("#sugarLabel").textContent = "Sugar";
         $("#sugar").textContent = "-";
+        renderComponentBreakdown({ components: [] });
         $("#nutritionBasisNote").textContent = "Estimating the USDA serving basis from the photo.";
         $("#whyEat").textContent = "Reading the uploaded image and estimating the most likely food category.";
         $("#pointValue").textContent = "Analyzing";
@@ -2434,6 +2561,7 @@
         $("#fiber").textContent = food.fiber;
         $("#sugarLabel").textContent = sugarLabelText(food);
         $("#sugar").textContent = food.sugar;
+        renderComponentBreakdown(food);
         $("#nutritionBasisNote").textContent = nutritionBasisText(food);
         $("#whyEat").textContent = formatWhyText(food);
         $("#pointValue").textContent = `${food.points || 0} points`;
@@ -2457,6 +2585,7 @@
 
       function prepareServingEditableFood(food) {
         const prepared = { ...food };
+        prepared.components = prepareComponentBreakdown(food.components || []);
         const base = food.baseNutrition || {
           serving: food.serving || "estimated serving",
           calories: numberFromValue(food.calories, 0),
@@ -2477,18 +2606,20 @@
         const next = { ...food, servingMultiplier: multiplier };
         const base = next.baseNutrition || prepareServingEditableFood(food).baseNutrition;
         next.baseNutrition = base;
-        next.serving = multiplier === 1 ? base.serving : `${formatMultiplier(multiplier)} x ${base.serving}`;
-        next.calories = Math.round(base.calories * multiplier);
-        next.protein = formatGrams(base.protein * multiplier);
-        next.fiber = formatGrams(base.fiber * multiplier);
-        next.sugar = formatGrams(base.sugar * multiplier);
-        next.naturalSugar = roundOne(base.naturalSugar * multiplier);
-        next.addedSugar = roundOne(base.addedSugar * multiplier);
-        next.unknownSugar = roundOne(base.unknownSugar * multiplier);
-        next.points = calculateClientPoints(next);
-        next.effect = effectForPoints(next.points);
-        if (Array.isArray(next.components)) {
-          next.components = next.components.map((component) => ({ ...component }));
+        if (Array.isArray(next.components) && next.components.length) {
+          next.components = scaleComponents(next.components, multiplier);
+          applyComponentTotals(next);
+        } else {
+          next.serving = multiplier === 1 ? base.serving : `${formatMultiplier(multiplier)} x ${base.serving}`;
+          next.calories = Math.round(base.calories * multiplier);
+          next.protein = formatGrams(base.protein * multiplier);
+          next.fiber = formatGrams(base.fiber * multiplier);
+          next.sugar = formatGrams(base.sugar * multiplier);
+          next.naturalSugar = roundOne(base.naturalSugar * multiplier);
+          next.addedSugar = roundOne(base.addedSugar * multiplier);
+          next.unknownSugar = roundOne(base.unknownSugar * multiplier);
+          next.points = calculateClientPoints(next);
+          next.effect = effectForPoints(next.points);
         }
         if (updateUi) {
           state.analyzed = next;
@@ -2506,10 +2637,13 @@
         $("#fiber").textContent = food.fiber;
         $("#sugarLabel").textContent = sugarLabelText(food);
         $("#sugar").textContent = food.sugar;
+        renderComponentBreakdown(food);
         $("#nutritionBasisNote").textContent = nutritionBasisText(food);
+        $("#whyEat").textContent = formatWhyText(food);
         $("#pointValue").textContent = `${food.points || 0} points`;
         $("#calorieFit").textContent = calorieFitText(food);
         $("#avatarEffect").textContent = food.effect;
+        $("#saveFood").disabled = food.loggable === false;
       }
 
       function updateServingControls(multiplier) {
@@ -2529,6 +2663,177 @@
       function formatGrams(value) {
         const rounded = roundOne(value);
         return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} g`;
+      }
+
+      function prepareComponentBreakdown(components = []) {
+        return components.map((component) => {
+          const base = component.baseNutrition || {
+            serving: component.serving || component.nutritionBasis || "estimated serving",
+            calories: numberFromValue(component.calories, 0),
+            protein: numberFromValue(component.protein, 0),
+            fiber: numberFromValue(component.fiber, 0),
+            sugar: numberFromValue(component.sugar, 0),
+            naturalSugar: Number(component.naturalSugar || 0),
+            addedSugar: Number(component.addedSugar || 0),
+            unknownSugar: Number(component.unknownSugar || 0)
+          };
+          return { ...component, baseNutrition: base, componentMultiplier: Number(component.componentMultiplier || 1), estimatedShare: Number(component.estimatedShare || component.portion || 1), removed: Boolean(component.removed) };
+        });
+      }
+
+      function scaleComponents(components = [], servingMultiplier = 1) {
+        return components.map((component) => {
+          const base = component.baseNutrition || prepareComponentBreakdown([component])[0].baseNutrition;
+          const componentMultiplier = Number(component.componentMultiplier || 1);
+          const factor = servingMultiplier * componentMultiplier;
+          return {
+            ...component,
+            baseNutrition: base,
+            serving: factor === 1 ? base.serving : `${formatMultiplier(factor)} x ${base.serving}`,
+            calories: Math.round(base.calories * factor),
+            protein: formatGrams(base.protein * factor),
+            fiber: formatGrams(base.fiber * factor),
+            sugar: formatGrams(base.sugar * factor),
+            naturalSugar: roundOne(base.naturalSugar * factor),
+            addedSugar: roundOne(base.addedSugar * factor),
+            unknownSugar: roundOne(base.unknownSugar * factor)
+          };
+        });
+      }
+
+      function applyComponentTotals(food) {
+        const activeComponents = (food.components || []).filter((component) => !component.removed);
+        const calories = activeComponents.reduce((sum, component) => sum + numberFromValue(component.calories, 0), 0);
+        const protein = activeComponents.reduce((sum, component) => sum + numberFromValue(component.protein, 0), 0);
+        const fiber = activeComponents.reduce((sum, component) => sum + numberFromValue(component.fiber, 0), 0);
+        const sugar = activeComponents.reduce((sum, component) => sum + numberFromValue(component.sugar, 0), 0);
+        food.serving = activeComponents.length
+          ? activeComponents.map((component) => component.serving || component.name).slice(0, 4).join(" + ")
+          : "No components selected";
+        food.calories = Math.round(calories);
+        food.protein = formatGrams(protein);
+        food.fiber = formatGrams(fiber);
+        food.sugar = formatGrams(sugar);
+        food.naturalSugar = roundOne(activeComponents.reduce((sum, component) => sum + Number(component.naturalSugar || 0), 0));
+        food.addedSugar = roundOne(activeComponents.reduce((sum, component) => sum + Number(component.addedSugar || 0), 0));
+        food.unknownSugar = roundOne(activeComponents.reduce((sum, component) => sum + Number(component.unknownSugar || 0), 0));
+        food.points = activeComponents.length ? calculateClientPoints(food) : 0;
+        food.effect = activeComponents.length ? effectForPoints(food.points) : "Avatar unchanged";
+        food.loggable = activeComponents.length > 0 && food.loggable !== false;
+        return food;
+      }
+
+      function renderComponentBreakdown(food) {
+        const list = $("#componentBreakdown");
+        if (!list) return;
+        const components = Array.isArray(food.components) ? food.components : [];
+        const componentSuggestions = Array.isArray(food.usdaCandidates) ? food.usdaCandidates : [];
+        const candidatesByComponent = componentSuggestions.reduce((map, item) => {
+          const key = Number.isInteger(item.componentIndex) ? item.componentIndex : -1;
+          if (!map.has(key)) map.set(key, []);
+          map.get(key).push(item);
+          return map;
+        }, new Map());
+        if (!components.length) {
+          list.innerHTML = `<p class="component-empty">No component breakdown for this estimate yet.</p>`;
+          return;
+        }
+        const componentHtml = components.map((component, index) => {
+          const removed = Boolean(component.removed);
+          const multiplier = Number(component.componentMultiplier || 1);
+          const macros = [
+            `${numberFromValue(component.calories, 0)} kcal`,
+            `Protein ${escapeHtml(component.protein || "-")}`,
+            `Fiber ${escapeHtml(component.fiber || "-")}`,
+            `Sugar ${escapeHtml(component.sugar || "-")}`
+          ].join(" · ");
+          const confidence = component.confidence ? `${Math.round(Number(component.confidence) * 100)}%` : "estimated";
+          const share = Number(component.estimatedShare || component.portion || 0);
+          const shareText = share > 0 && share < 0.98 ? ` · ${Math.round(share * 100)}% of meal` : "";
+          const componentCandidateHtml = (candidatesByComponent.get(index) || []).slice(0, 4).map((item) => {
+            const candidateIndex = food.usdaCandidates.indexOf(item);
+            const action = item.rejectedReason ? "Add as piece" : `Use for ${component.name || "piece"}`;
+            const candidateMacros = [
+              item.calories != null ? `${Math.round(item.calories)} kcal` : "",
+              item.protein != null ? `Protein ${Math.round(item.protein)}g` : "",
+              item.fiber != null ? `Fiber ${Math.round(item.fiber)}g` : ""
+            ].filter(Boolean).join(" · ");
+            return `
+              <div class="component-source-option">
+                <div>
+                  <strong>${escapeHtml(item.description || "USDA food row")}</strong>
+                  <span>${escapeHtml(item.rejectedReason || "Nutrition source match")}</span>
+                  <div class="component-macros">${escapeHtml(candidateMacros || "Nutrition row available")}</div>
+                </div>
+                <button type="button" data-component-candidate-index="${candidateIndex}">${escapeHtml(action)}</button>
+              </div>
+            `;
+          }).join("");
+          return `
+            <div class="component-item${removed ? " is-removed" : ""}">
+              <div class="component-main">
+                <strong>${escapeHtml(component.name || "Food component")}${removed ? " (removed)" : ""}</strong>
+                <span>${escapeHtml(component.serving || component.nutritionBasis || "estimated serving")} · ${escapeHtml(confidence)}${shareText}</span>
+                <div class="component-macros">${macros}</div>
+              </div>
+              <div class="component-actions" aria-label="Adjust ${escapeHtml(component.name || "component")}">
+                ${[0.5, 1, 1.5, 2].map((value) => `<button type="button" data-component-index="${index}" data-component-multiplier="${value}" class="${!removed && multiplier === value ? "is-selected" : ""}">${value}x</button>`).join("")}
+                <button type="button" data-component-index="${index}" data-component-action="${removed ? "restore" : "remove"}">${removed ? "Restore" : "Remove"}</button>
+              </div>
+              ${componentCandidateHtml ? `<div class="component-source-list"><p>USDA options for this piece</p>${componentCandidateHtml}</div>` : ""}
+            </div>
+          `;
+        }).join("");
+        const unassignedSuggestions = candidatesByComponent.get(-1) || [];
+        const suggestionHtml = unassignedSuggestions.length
+          ? `<div class="component-suggestions">
+              <p class="component-empty">Nutrition rows to add as separate pieces:</p>
+              ${unassignedSuggestions.slice(0, 4).map((item) => {
+                const candidateIndex = food.usdaCandidates.indexOf(item);
+                const macros = [
+                  item.calories != null ? `${Math.round(item.calories)} kcal` : "",
+                  item.protein != null ? `Protein ${Math.round(item.protein)}g` : "",
+                  item.fiber != null ? `Fiber ${Math.round(item.fiber)}g` : ""
+                ].filter(Boolean).join(" · ");
+                return `
+                  <div class="component-item">
+                    <div class="component-main">
+                      <strong>${escapeHtml(item.description || "Possible food")}</strong>
+                      <span>${escapeHtml(item.rejectedReason || "Different food than the current piece")}</span>
+                      <div class="component-macros">${escapeHtml(macros || "Nutrition row available")}</div>
+                    </div>
+                    <div class="component-actions">
+                      <button type="button" data-component-candidate-index="${candidateIndex}">Add as piece</button>
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+            </div>`
+          : "";
+        list.innerHTML = `${componentHtml}${suggestionHtml}`;
+      }
+
+      function updateComponentAmount(index, multiplier) {
+        if (!state.analyzed || !Array.isArray(state.analyzed.components) || !state.analyzed.components[index]) return;
+        const next = { ...state.analyzed, components: state.analyzed.components.map((component) => ({ ...component })) };
+        next.components[index].componentMultiplier = multiplier;
+        next.components[index].removed = false;
+        next.components = scaleComponents(next.components, Number(next.servingMultiplier || 1));
+        applyComponentTotals(next);
+        state.analyzed = next;
+        renderAnalyzedValues(next);
+        previewUnsaved(next.points);
+      }
+
+      function toggleComponentRemoved(index) {
+        if (!state.analyzed || !Array.isArray(state.analyzed.components) || !state.analyzed.components[index]) return;
+        const next = { ...state.analyzed, components: state.analyzed.components.map((component) => ({ ...component })) };
+        next.components[index].removed = !next.components[index].removed;
+        next.components = scaleComponents(next.components, Number(next.servingMultiplier || 1));
+        applyComponentTotals(next);
+        state.analyzed = next;
+        renderAnalyzedValues(next);
+        previewUnsaved(next.points);
       }
 
       function componentMentionsMeat(component = {}) {
@@ -2554,7 +2859,7 @@
         const fiber = numberFromValue(food.fiber, 0);
         const sugar = numberFromValue(food.sugar, 0);
         const calories = numberFromValue(food.calories, 0);
-        const components = food.components || [];
+        const components = (food.components || []).filter((component) => !component.removed);
         const producePortion = components.reduce((sum, component) => {
           return sum + (component.role === "fruit_veg" ? Number(component.portion || 0) : 0);
         }, 0);
@@ -2629,8 +2934,9 @@
       }
 
       function formatWhyText(food) {
-        if (food.components && food.components.length > 1) {
-          const componentReasons = food.components
+        const activeComponents = (food.components || []).filter((component) => !component.removed);
+        if (activeComponents.length > 1) {
+          const componentReasons = activeComponents
             .filter((item) => item.why)
             .slice(0, 4)
             .map((item) => `${item.name}: ${item.why}.`);
@@ -2671,10 +2977,19 @@
       function renderCorrections(food) {
         const options = [];
         const candidateRows = Array.isArray(food.usdaCandidates) ? food.usdaCandidates : [];
-        const usdaCandidates = (debugUsda || food.nutritionUnavailable) ? candidateRows : [];
+        const visibleCandidates = (debugUsda || food.nutritionUnavailable) ? candidateRows : [];
+        const pieceCandidates = visibleCandidates.filter((item) => item.rejectedReason);
+        const usdaCandidates = visibleCandidates.filter((item) => !item.rejectedReason);
         state.usdaCandidates = usdaCandidates;
+        state.componentCandidateSuggestions = pieceCandidates;
+        renderComponentBreakdown(food);
         const currentName = food.name || "this food";
         const currentConfidence = food.confidence ? `${Math.round(food.confidence * 100)}% confidence` : "unknown confidence";
+        const componentCount = Array.isArray(food.components) ? food.components.length : 0;
+        const correctionUsdaCandidates = componentCount ? [] : usdaCandidates;
+        const sourceTarget = correctionUsdaCandidates.length && Number.isInteger(correctionUsdaCandidates[0].componentIndex) && food.components?.[correctionUsdaCandidates[0].componentIndex]
+          ? food.components[correctionUsdaCandidates[0].componentIndex].name || "this piece"
+          : currentName;
         if (food.alternatives) {
           options.push(...food.alternatives.map((item) => ({
             key: item.key,
@@ -2684,14 +2999,14 @@
           })));
         }
 
-        if (!food || (food.loggable === false && !food.nutritionUnavailable && !usdaCandidates.length)) {
+        if (!food || (food.loggable === false && !food.nutritionUnavailable && !correctionUsdaCandidates.length)) {
           correctionPanel.classList.remove("is-visible");
           correctionOptions.innerHTML = "";
           return;
         }
 
-        $("#correctionSummary").textContent = usdaCandidates.length
-          ? `Current guess: ${currentName} (${currentConfidence}). Choose a USDA nutrition row, or type a different food.`
+        $("#correctionSummary").textContent = correctionUsdaCandidates.length
+          ? `Current guess: ${currentName} (${currentConfidence}). Choose a nutrition row for ${sourceTarget}, or type a different food.`
           : options.length
           ? `Current guess: ${currentName} (${currentConfidence}). Choosing a match re-runs nutrition lookup before saving.`
           : `Current guess: ${currentName} (${currentConfidence}). Type a correction if this is not right.`;
@@ -2699,15 +3014,18 @@
           const confidence = item.source === "Similar dish" ? item.source : (item.confidence ? `${Math.round(item.confidence * 100)}% confidence` : item.source);
           return `<button type="button" data-correction="${item.key}" data-label="${escapeHtml(item.name)}"><span>${escapeHtml(item.name)}</span><span class="correction-confidence">${escapeHtml(confidence)}</span></button>`;
         }).join("");
-        const usdaOptionHtml = usdaCandidates.length
-          ? `<div class="correction-subhead">Choose nutrition source</div>${usdaCandidates.slice(0, 6).map((item, index) => {
+        const usdaOptionHtml = correctionUsdaCandidates.length
+          ? `<div class="correction-subhead">Choose nutrition source</div>${correctionUsdaCandidates.slice(0, 6).map((item, index) => {
+              const targetName = Number.isInteger(item.componentIndex) && food.components?.[item.componentIndex]
+                ? `${food.components[item.componentIndex].name || "Piece"} · `
+                : "";
               const macros = [
                 item.calories != null ? `${Math.round(item.calories)} kcal` : "",
                 item.protein != null ? `${Math.round(item.protein)}g protein` : "",
                 item.fiber != null ? `${Math.round(item.fiber)}g fiber` : ""
               ].filter(Boolean).join(" · ");
               const status = item.rejectedReason ? "Needs review" : "Suggested";
-              return `<button type="button" data-usda-index="${index}"><span>${escapeHtml(item.description || "USDA food row")}</span><span class="correction-confidence">${escapeHtml(`${macros ? `${macros} · ` : ""}${status}`)}</span></button>`;
+              return `<button type="button" data-usda-index="${index}"><span>${escapeHtml(`${targetName}${item.description || "USDA food row"}`)}</span><span class="correction-confidence">${escapeHtml(`${macros ? `${macros} · ` : ""}${status}`)}</span></button>`;
             }).join("")}`
           : "";
         correctionOptions.innerHTML = `${foodOptionHtml}${usdaOptionHtml}`;
@@ -2744,17 +3062,20 @@
       async function selectUsdaCandidate(index) {
         const candidate = state.usdaCandidates[index];
         if (!candidate || !state.analyzed) return;
-        const label = state.analyzed.correctionLabel || state.analyzed.name || candidate.description || "Selected food";
+        const componentIndex = Number.isInteger(candidate.componentIndex) ? candidate.componentIndex : -1;
+        const currentComponents = Array.isArray(state.analyzed.components) ? state.analyzed.components : [];
+        const targetComponent = componentIndex >= 0 ? currentComponents[componentIndex] : null;
+        const label = targetComponent?.name || targetComponent?.label || state.analyzed.correctionLabel || state.analyzed.name || candidate.description || "Selected food";
         $("#saveFood").disabled = true;
         $("#saveHint").textContent = `Applying USDA row: ${candidate.description || "selected row"}...`;
         const response = await fetch("/select-usda", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            key: state.analyzed.key || normalizeFoodName(label),
+            key: targetComponent?.key || state.analyzed.key || normalizeFoodName(label),
             label,
-            role: state.analyzed.components && state.analyzed.components[0] ? state.analyzed.components[0].role : "",
-            nutrientRole: state.analyzed.components && state.analyzed.components[0] ? state.analyzed.components[0].nutrientRole : "",
+            role: targetComponent?.role || (state.analyzed.components && state.analyzed.components[0] ? state.analyzed.components[0].role : ""),
+            nutrientRole: targetComponent?.nutrientRole || (state.analyzed.components && state.analyzed.components[0] ? state.analyzed.components[0].nutrientRole : ""),
             candidate
           })
         });
@@ -2771,8 +3092,120 @@
         const selected = await response.json();
         selected.corrected = true;
         selected.correctionLabel = label;
-        applyNutritionResult(selected, "USDA nutrition row selected by user.");
+        if (targetComponent && currentComponents.length) {
+          applyComponentNutritionSelection(componentIndex, selected, candidate);
+        } else {
+          applyNutritionResult(selected, "USDA nutrition row selected by user.");
+        }
         $("#saveHint").textContent = `Using USDA row: ${candidate.description || "selected row"}. Save it when ready.`;
+      }
+
+      function applyComponentNutritionSelection(componentIndex, selected, candidate) {
+        const selectedComponent = Array.isArray(selected.components) && selected.components[0]
+          ? selected.components[0]
+          : selected;
+        const next = {
+          ...state.analyzed,
+          components: state.analyzed.components.map((component, index) => {
+            if (index !== componentIndex) return { ...component };
+            const componentMultiplier = Number(component.componentMultiplier || 1);
+            const servingMultiplier = Number(state.analyzed.servingMultiplier || 1);
+            const normalized = prepareComponentBreakdown([{
+              ...component,
+              ...selectedComponent,
+              key: component.key || selected.key || selectedComponent.key,
+              name: component.name || selectedComponent.name || selected.name,
+              role: component.role || selectedComponent.role,
+              nutrientRole: component.nutrientRole || selectedComponent.nutrientRole,
+              confidence: 1,
+              componentMultiplier,
+              removed: false,
+              sourceMatch: selectedComponent.sourceMatch || selected.sourceMatch || candidate.description || component.sourceMatch,
+              nutritionBasis: selectedComponent.nutritionBasis || selected.nutritionBasis || component.nutritionBasis,
+              usdaCandidates: []
+            }])[0];
+            normalized.componentMultiplier = componentMultiplier;
+            return normalized;
+          }),
+          nutritionUnavailable: false,
+          loggable: true,
+          corrected: true,
+          correctionLabel: state.analyzed.correctionLabel || state.analyzed.name,
+          usdaCandidates: [],
+          selectedUsda: selected.selectedUsda
+        };
+        next.components = scaleComponents(next.components, Number(next.servingMultiplier || 1));
+        applyComponentTotals(next);
+        state.analyzed = next;
+        state.usdaCandidates = [];
+        renderAnalyzedValues(next);
+        renderCorrections(next);
+        previewUnsaved(next.points);
+      }
+
+      async function addUsdaCandidateAsComponent(index) {
+        const candidate = state.analyzed?.usdaCandidates?.[index];
+        if (!candidate || !state.analyzed) return;
+        if (!candidate.rejectedReason) {
+          const sourceIndex = state.usdaCandidates.indexOf(candidate);
+          if (sourceIndex >= 0) {
+            await selectUsdaCandidate(sourceIndex);
+          }
+          return;
+        }
+        const label = candidate.description || "Added food";
+        $("#saveFood").disabled = true;
+        $("#saveHint").textContent = `Adding ${label} as a separate piece...`;
+        const response = await fetch("/select-usda", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: normalizeFoodName(label),
+            label,
+            candidate
+          })
+        });
+        if (!response.ok) {
+          let message = "Food piece could not be added.";
+          try {
+            const payload = await response.json();
+            message = payload.error || payload.details || message;
+          } catch (error) {
+            message = response.statusText || message;
+          }
+          throw new Error(message);
+        }
+        const selected = await response.json();
+        const selectedComponent = Array.isArray(selected.components) && selected.components[0]
+          ? selected.components[0]
+          : selected;
+        const next = {
+          ...state.analyzed,
+          components: [
+            ...(state.analyzed.components || []).map((component) => ({ ...component })),
+            prepareComponentBreakdown([{
+              ...selectedComponent,
+              key: selected.key || normalizeFoodName(label),
+              name: label,
+              confidence: 1,
+              componentMultiplier: 1,
+              removed: false,
+              sourceMatch: selectedComponent.sourceMatch || selected.sourceMatch || label,
+              nutritionBasis: selectedComponent.nutritionBasis || selected.nutritionBasis || "selected nutrition row"
+            }])[0]
+          ],
+          usdaCandidates: (state.analyzed.usdaCandidates || []).filter((item) => item !== candidate),
+          nutritionUnavailable: false,
+          loggable: true,
+          corrected: true
+        };
+        next.components = scaleComponents(next.components, Number(next.servingMultiplier || 1));
+        applyComponentTotals(next);
+        state.analyzed = next;
+        renderAnalyzedValues(next);
+        renderCorrections(next);
+        previewUnsaved(next.points);
+        $("#saveHint").textContent = `Added ${label} as a separate piece. Save it when ready.`;
       }
 
       async function applyCorrection(key, label = "") {
@@ -3196,6 +3629,7 @@
           $("#saveHint").textContent = avifMessage;
           $("#foodName").textContent = "Awaiting photo";
           $("#whyEat").textContent = "Choose a supported image format to analyze nutrition.";
+          renderComponentBreakdown({ components: [] });
           $("#saveFood").disabled = true;
           return;
         }
@@ -5652,6 +6086,7 @@
         $("#fiber").textContent = "-";
         $("#sugarLabel").textContent = "Sugar";
         $("#sugar").textContent = "-";
+        renderComponentBreakdown({ components: [] });
         $("#nutritionBasisNote").textContent = "Nutrition values will show the serving basis after analysis.";
         $("#whyEat").textContent = "Upload a plate to get an evidence-style eating reason.";
         $("#pointValue").textContent = "0 points";
@@ -5900,6 +6335,24 @@
         const button = event.target.closest("[data-correction]");
         if (!button) return;
         applyCorrection(button.dataset.correction, button.dataset.label || button.textContent.trim());
+      });
+
+      $("#componentBreakdown").addEventListener("click", (event) => {
+        const candidateButton = event.target.closest("[data-component-candidate-index]");
+        if (candidateButton) {
+          addUsdaCandidateAsComponent(Number(candidateButton.dataset.componentCandidateIndex)).catch((error) => {
+            $("#saveHint").textContent = `Food piece failed: ${error.message}`;
+          });
+          return;
+        }
+        const multiplierButton = event.target.closest("[data-component-multiplier]");
+        if (multiplierButton) {
+          updateComponentAmount(Number(multiplierButton.dataset.componentIndex), Number(multiplierButton.dataset.componentMultiplier));
+          return;
+        }
+        const actionButton = event.target.closest("[data-component-action]");
+        if (!actionButton) return;
+        toggleComponentRemoved(Number(actionButton.dataset.componentIndex));
       });
 
       $("#applyCorrection").addEventListener("click", () => {
