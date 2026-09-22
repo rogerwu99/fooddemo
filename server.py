@@ -55,7 +55,7 @@ MEAT_FOOD_TERMS = {
 BASE_FOOD_TERMS = {
     "bagel", "bread", "cereal", "farro", "grain", "granola", "muesli", "noodle",
     "oat", "oatmeal", "pasta", "porridge", "quinoa", "rice", "roll", "rolls",
-    "spaghetti", "tortilla", "wrap",
+    "spaghetti", "toast", "tortilla", "wrap",
 }
 
 DESSERT_FOOD_TERMS = {
@@ -331,6 +331,28 @@ NUTRITION_DB = {
         "why": "Avocado adds fiber and satisfying fat, with more calorie density than leafy vegetables.",
         "effect": "Balanced shift",
     },
+    "milk": {
+        "name": "Milk",
+        "serving": "1/2 cup",
+        "calories": 61,
+        "protein": "4 g",
+        "fiber": "0 g",
+        "sugar": "0 g added",
+        "points": 10,
+        "why": "Milk adds fluid, some protein, and natural lactose without being the main driver of the meal.",
+        "effect": "Balanced shift",
+    },
+    "yogurt": {
+        "name": "Yogurt",
+        "serving": "3/4 cup plain Greek yogurt",
+        "calories": 130,
+        "protein": "15 g",
+        "fiber": "0 g",
+        "sugar": "0 g added",
+        "points": 22,
+        "why": "Plain yogurt adds protein and creaminess; fruit, grains, and sweeteners determine the rest of the score.",
+        "effect": "Balanced shift",
+    },
     "muesli": {
         "name": "Muesli",
         "serving": "3/4 cup",
@@ -340,6 +362,28 @@ NUTRITION_DB = {
         "sugar": "2 g added",
         "points": 34,
         "why": "Muesli brings whole-grain fiber and some protein, with the score depending on added sugar and what it is paired with.",
+        "effect": "Balanced shift",
+    },
+    "granola": {
+        "name": "Granola",
+        "serving": "1/4 cup",
+        "calories": 120,
+        "protein": "3 g",
+        "fiber": "2 g",
+        "sugar": "4 g added",
+        "points": 14,
+        "why": "Granola adds crunch and energy, but portions matter because calories and added sugar can climb quickly.",
+        "effect": "Softness gain",
+    },
+    "bread": {
+        "name": "Bread",
+        "serving": "2 slices",
+        "calories": 160,
+        "protein": "6 g",
+        "fiber": "3 g",
+        "sugar": "2 g added",
+        "points": 12,
+        "why": "Bread adds a starch base; whole-grain versions bring more fiber than refined bread.",
         "effect": "Balanced shift",
     },
     "bread_roll": {
@@ -353,6 +397,28 @@ NUTRITION_DB = {
         "why": "A bread roll adds quick energy, but refined starch contributes fewer Nomi points than beans, greens, fruit, or whole grains.",
         "effect": "Softness gain",
     },
+    "tortilla": {
+        "name": "Tortilla",
+        "serving": "1 medium tortilla",
+        "calories": 140,
+        "protein": "4 g",
+        "fiber": "2 g",
+        "sugar": "0 g added",
+        "points": 10,
+        "why": "A tortilla works as the starch wrapper; the fillings determine most of the nutrition score.",
+        "effect": "Balanced shift",
+    },
+    "cheese": {
+        "name": "Cheese",
+        "serving": "1 oz",
+        "calories": 110,
+        "protein": "7 g",
+        "fiber": "0 g",
+        "sugar": "0 g added",
+        "points": 6,
+        "why": "Cheese adds protein and richness, but calorie density means it should count as a topping.",
+        "effect": "Softness gain",
+    },
     "butter": {
         "name": "Butter",
         "serving": "1 tablespoon",
@@ -363,6 +429,39 @@ NUTRITION_DB = {
         "points": 1,
         "why": "Butter adds concentrated fat and flavor, so it should count visibly without driving the score upward.",
         "effect": "Softness gain",
+    },
+    "salsa": {
+        "name": "Salsa",
+        "serving": "2 tablespoons",
+        "calories": 10,
+        "protein": "0 g",
+        "fiber": "1 g",
+        "sugar": "0 g added",
+        "points": 8,
+        "why": "Salsa adds acidity and vegetables with very few calories.",
+        "effect": "Light boost",
+    },
+    "dressing": {
+        "name": "Dressing",
+        "serving": "2 tablespoons",
+        "calories": 120,
+        "protein": "0 g",
+        "fiber": "0 g",
+        "sugar": "2 g added",
+        "points": 2,
+        "why": "Dressing can add flavor and fat quickly, so the amount matters.",
+        "effect": "Softness gain",
+    },
+    "tomatoes": {
+        "name": "Tomatoes",
+        "serving": "1/2 cup",
+        "calories": 16,
+        "protein": "1 g",
+        "fiber": "1 g",
+        "sugar": "0 g added",
+        "points": 18,
+        "why": "Tomatoes add produce, color, and acidity with few calories.",
+        "effect": "Light boost",
     },
     "mixed": {
         "name": "Mixed plate",
@@ -377,7 +476,11 @@ NUTRITION_DB = {
     },
 }
 
-LOCAL_ESTIMATE_KEYS = {"berries", "bread_roll", "butter", "greens", "muesli", "oatmeal", "pickles", "rice", "syrup", "vegetables"}
+LOCAL_ESTIMATE_KEYS = {
+    "berries", "bread", "bread_roll", "butter", "cheese", "dressing", "granola", "greens",
+    "milk", "muesli", "oatmeal", "pickles", "rice", "salsa", "syrup", "tomatoes",
+    "tortilla", "vegetables", "yogurt",
+}
 
 
 def filename_hint(file_name):
@@ -441,80 +544,12 @@ def score_candidates(signals, file_name):
     ]
 
 
-def oatmeal_bowl_components_from_signals(signals, file_name, current_components=None):
-    signals = signals or {}
-    current_components = current_components or []
-    current_keys = {component.get("key") for component in current_components}
-    if current_keys and current_keys - {"cake", "mixed"}:
-        return []
-
-    hint = filename_hint(file_name)
-    tan = float(signals.get("tan", 0))
-    brown = float(signals.get("brown", 0))
-    purple = float(signals.get("purple", 0))
-    red = float(signals.get("red", 0))
-    bright = float(signals.get("bright", 0))
-    dark = float(signals.get("dark", 0))
-    food_pixels = float(signals.get("foodPixels", 0))
-    green = float(signals.get("green", 0))
-    fruit_signal = purple > 0.018 or red > 0.045
-    text_signal = hint == "oatmeal" or any(
-        word in (file_name or "").lower()
-        for word in ["oat", "oatmeal", "porridge", "blueberr", "berry"]
-    )
-    oatmeal_signal = hint == "oatmeal" or (
-        (tan > 0.075 or (brown > 0.12 and bright > 0.08))
-        and green < 0.18
-        and dark < 0.38
-        and (fruit_signal or text_signal)
-    )
-    cake_signal = brown > 0.28 and dark > 0.2 and not fruit_signal and hint != "oatmeal"
-    if not oatmeal_signal or cake_signal:
-        return []
-
-    components = [
-        {
-            "key": "oatmeal",
-            "label": "Oatmeal",
-            "query": "cooked oatmeal",
-            "serving_estimate": "1 cup cooked",
-            "role": "base",
-            "nutrient_role": "fiber",
-            "portion": 0.65,
-            "confidence": 0.68,
-        }
-    ]
-    if fruit_signal:
-        components.append(
-            {
-                "key": "berries",
-                "label": "Blueberries",
-                "query": "blueberries raw",
-                "serving_estimate": "1/2 cup",
-                "role": "fruit_veg",
-                "nutrient_role": "fiber",
-                "portion": 0.25,
-                "confidence": 0.62,
-            }
-        )
-    if brown > 0.08 and bright > 0.12:
-        components.append(
-            {
-                "key": "syrup",
-                "label": "Syrup",
-                "query": "maple syrup",
-                "serving_estimate": "1 tablespoon",
-                "role": "sweetener",
-                "nutrient_role": "added_sugar",
-                "portion": 0.08,
-                "confidence": 0.45,
-            }
-        )
-    return components
-
-
 def name_for_components(components):
     keys = {component.get("key") for component in components}
+    if {"oatmeal", "berries", "milk", "syrup"}.issubset(keys):
+        return "Oatmeal with blueberries, milk, and syrup"
+    if {"oatmeal", "berries", "milk"}.issubset(keys):
+        return "Oatmeal with blueberries and milk"
     if {"oatmeal", "berries", "syrup"}.issubset(keys):
         return "Oatmeal with blueberries and syrup"
     if {"oatmeal", "berries"}.issubset(keys):
@@ -568,6 +603,7 @@ def enrich_component_with_nutrition(component, include_candidates=True):
     )
     component_food["serving"] = component.get("serving_estimate") or component_food["serving"]
     component_food["confidence"] = component.get("confidence", 0.5)
+    component_food["servingConfidence"] = component.get("serving_confidence")
     component_food["portion"] = component.get("portion", 1)
     component_food["estimatedShare"] = component.get("portion", 1)
     return component_food
@@ -891,21 +927,26 @@ def analyze_with_openai_vision(image_data_url, file_name):
     prompt = (
         "Analyze this food photo for a nutrition logging app. Return JSON only with this shape: "
         '{"is_food":true,"confidence":0.0,'
-        '"foods":[{"label":"specific visible food or component","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|rice|quinoa|greens|vegetables|pickles|beans|lentils|tofu|salmon|egg|avocado|muesli|bread_roll|butter|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
-        '"query":"plain USDA food search query","serving_estimate":"short serving estimate",'
+        '"foods":[{"label":"specific visible food or component","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|rice|quinoa|greens|vegetables|pickles|beans|lentils|tofu|salmon|egg|avocado|milk|yogurt|muesli|granola|bread|bread_roll|tortilla|cheese|butter|salsa|dressing|tomatoes|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
+        '"query":"plain USDA food search query","serving_estimate":"short visible amount such as 3/4 cup, 90 g, 120 ml, 1 slice, or 1 tbsp sauce",'
+        '"amount_grams":null,"amount_ml":null,"serving_confidence":0.0,'
         '"role":"base|protein|fruit_veg|mix_in|topping|sauce|condiment|dessert",'
         '"nutrient_role":"fiber|protein|added_sugar|fat|neutral",'
         '"portion":0.0,"confidence":0.0}],'
-        '"dish_alternatives":[{"label":"complete alternate dish identity","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|rice|quinoa|greens|vegetables|pickles|beans|lentils|tofu|salmon|egg|avocado|muesli|bread_roll|butter|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
+        '"dish_alternatives":[{"label":"complete alternate dish identity","canonical":"broccoli|chicken|berries|oatmeal|syrup|pasta|rice|quinoa|greens|vegetables|pickles|beans|lentils|tofu|salmon|egg|avocado|milk|yogurt|muesli|granola|bread|bread_roll|tortilla|cheese|butter|salsa|dressing|tomatoes|eggplant_parmesan|chicken_parmesan|pizza|cake|mixed",'
         '"query":"plain USDA food search query","confidence":0.0,"reason":"short visual reason"}],'
         '"dish_name":"string","notes":["short note"]}. '
         "If the image is not food, return is_food=false, confidence, foods=[], dish_name='', and notes explaining what was seen. "
         "Identify the complete dish and visible components, not only the most colorful ingredient. "
-        "For plates, trays, or tables with separate items, list every visible food separately even if one item is dominant: for example muesli, bread roll, butter pat, fruit, yogurt, coffee, or side dishes. "
+        "Every visible ingredient or side that materially affects calories should be its own food row with its own visible amount. "
+        "For plates, trays, or tables with separate items, list every visible food separately even if one item is dominant: for example grain base, fruit, milk or yogurt, bread, butter, sauces, toppings, beverages, or side dishes. "
         "For layered foods such as burritos, tacos, sandwiches, wraps, toast, nachos, sushi, parfaits, casseroles, and composed salads, return the visible layers separately when possible: base/starch, protein, produce, sauces, cheese, toppings, and sweeteners. "
-        "For example, oatmeal with blueberries and syrup should return dish_name='oatmeal with blueberries and syrup' "
-        "and separate foods for oatmeal, blueberries, and syrup. Mark syrup, honey, butter, sauces, dressings, drizzles, and condiments as role='topping' or role='sauce'. Portion is the approximate share of the dish "
-        "from 0 to 1. Prefer common food names that can be searched in USDA FoodData Central. "
+        "Use serving_estimate for the visible amount of each component, and include amount_grams or amount_ml when you can estimate them. "
+        "For non-condiment liquid components that materially affect the dish, estimate the actual liquid volume in ml or cups; do not use teaspoon/tablespoon units for milk, broth, yogurt, smoothies, soups, or beverages unless it is only a literal tiny splash. "
+        "If a non-condiment liquid is part of a bowl, cereal, porridge, drink, or soup, prefer approximate volumes such as 60 ml, 120 ml, 1/4 cup, or 1/2 cup over spoon measures. "
+        "Do not add sweeteners, sauces, dressings, butter, cheese, or liquid ingredients unless they are visibly present or strongly implied by the dish name; if included, estimate their own visible amount. "
+        "Mark syrup, honey, butter, sauces, dressings, drizzles, and condiments as role='topping' or role='sauce'. Portion is only the approximate visual share of the dish "
+        "from 0 to 1, and portions should roughly sum to 1 across the visible foods; nutrition will be calculated from serving_estimate when present. Prefer common food names that can be searched in USDA FoodData Central. "
         "For visually similar dishes, include complete dish alternatives with confidence scores in dish_alternatives, not as component foods. "
         "For example, a breaded cutlet with red sauce and cheese could include eggplant parmesan, chicken parmesan, and veal parmesan. "
         "Use canonical=mixed only when a component does not fit the known canonical set, but keep label and query specific, for example dumplings or burrito."
@@ -1088,6 +1129,17 @@ def components_from_vision(vision):
             portion = float(item.get("portion", 1))
         except (TypeError, ValueError):
             portion = 1
+        serving_estimate = item.get("serving_estimate") or ""
+        amount_grams = item.get("amount_grams")
+        amount_ml = item.get("amount_ml")
+        if not serving_estimate:
+            try:
+                if amount_grams is not None and float(amount_grams) > 0:
+                    serving_estimate = f"{round(float(amount_grams))} g"
+                elif amount_ml is not None and float(amount_ml) > 0:
+                    serving_estimate = f"{round(float(amount_ml))} ml"
+            except (TypeError, ValueError):
+                serving_estimate = ""
         if looks_like_combined_dish(original_label) and canonical in {"berries", "butter", "bread_roll", "muesli", "oatmeal", "syrup"}:
             original_label = NUTRITION_DB[canonical]["name"]
             default_queries = {
@@ -1100,16 +1152,18 @@ def components_from_vision(vision):
             }
             original_query = default_queries[canonical]
             portion = default_component_portion(canonical)
+            serving_estimate = serving_estimate or NUTRITION_DB[canonical]["serving"]
         components.append(
             {
                 "key": canonical,
                 "label": original_label or NUTRITION_DB[canonical]["name"],
                 "query": original_query or NUTRITION_DB[canonical]["name"],
-                "serving_estimate": item.get("serving_estimate") or NUTRITION_DB[canonical]["serving"],
+                "serving_estimate": serving_estimate or NUTRITION_DB[canonical]["serving"],
                 "role": item.get("role") or infer_component_role(canonical, original_label, original_query),
                 "nutrient_role": item.get("nutrient_role") or infer_nutrient_role(canonical, original_label, original_query),
                 "portion": max(0.05, min(1.0, portion)),
                 "confidence": round(max(0.05, min(0.96, float(item.get("confidence", 0.5)))), 2),
+                "serving_confidence": item.get("serving_confidence"),
             }
         )
     return normalize_component_portions(components)
@@ -1165,13 +1219,17 @@ def infer_component_role(canonical, label="", query=""):
         return "sweetener"
     if any(word in text for word in ["sauce", "dressing", "drizzle", "butter", "cream", "mayo", "aioli", "ranch", "glaze"]):
         return "topping"
+    if canonical in {"cheese"}:
+        return "topping"
     if text_has_term(text, PROTEIN_FOOD_TERMS):
+        return "protein"
+    if canonical in {"milk", "yogurt"}:
         return "protein"
     if text_has_term(text, PREPARED_DISH_TERMS):
         return "prepared"
-    if canonical in {"berries", "broccoli", "greens", "pickles", "vegetables"} or text_has_term(text, FRUIT_VEG_TERMS):
+    if canonical in {"berries", "broccoli", "greens", "pickles", "tomatoes", "vegetables"} or text_has_term(text, FRUIT_VEG_TERMS):
         return "fruit_veg"
-    if text_has_term(text, BASE_FOOD_TERMS):
+    if canonical in {"bread", "bread_roll", "granola", "muesli", "oatmeal", "rice", "tortilla"} or text_has_term(text, BASE_FOOD_TERMS):
         return "base"
     if text_has_term(text, DESSERT_FOOD_TERMS):
         return "dessert"
@@ -1182,23 +1240,43 @@ def infer_nutrient_role(canonical, label="", query=""):
     text = f"{canonical} {label} {query}".lower()
     if any(word in text for word in ["syrup", "honey", "sugar", "jam", "jelly"]):
         return "added_sugar"
-    if "butter" in text:
+    if "butter" in text or canonical in {"cheese", "dressing"}:
         return "fat"
     if text_has_term(text, PROTEIN_FOOD_TERMS):
         return "protein"
-    if canonical in {"berries", "broccoli", "greens", "muesli", "oatmeal", "pickles", "vegetables"} or text_has_term(text, FRUIT_VEG_TERMS):
+    if canonical in {"milk", "yogurt"}:
+        return "protein"
+    if canonical in {"berries", "broccoli", "greens", "muesli", "oatmeal", "pickles", "tomatoes", "vegetables"} or text_has_term(text, FRUIT_VEG_TERMS):
         return "fiber"
     return "neutral"
 
 
 def normalize_component_key(canonical, label="", query=""):
     text = f"{canonical} {label} {query}".lower()
-    if "muesli" in text or "granola" in text or re.search(r"\bcereal\b", text):
+    if re.search(r"\bmilk\b", text):
+        return "milk"
+    if "yogurt" in text or "yoghurt" in text:
+        return "yogurt"
+    if "granola" in text:
+        return "granola"
+    if "muesli" in text or re.search(r"\bcereal\b", text):
         return "muesli"
-    if "butter" in text:
-        return "butter"
+    if "tortilla" in text:
+        return "tortilla"
+    if "cheese" in text or "cheddar" in text or "mozzarella" in text or "feta" in text:
+        return "cheese"
+    if "dressing" in text or "ranch" in text or "vinaigrette" in text or "caesar" in text:
+        return "dressing"
+    if "salsa" in text:
+        return "salsa"
+    if "tomato" in text or "pico" in text:
+        return "tomatoes"
     if "bread roll" in text or "dinner roll" in text or re.search(r"\brolls?\b", text):
         return "bread_roll"
+    if "butter" in text:
+        return "butter"
+    if re.search(r"\bbread\b", text) or "toast" in text:
+        return "bread"
     if "pickle" in text:
         return "pickles"
     if "lentil" in text:
@@ -1301,10 +1379,10 @@ def expand_composite_components(components, vision):
     if "pickle" in dish_text and "pickles" not in keys:
         inferred.append(layered_component("pickles", "Pickles", "pickles", "1/2 cup", "fruit_veg", "fiber", 0.08, 0.58))
     if has_any(dish_text, ["burrito", "wrap", "taco", "quesadilla", "enchilada"]) and not has_layer_label("tortilla", "wrap"):
-        inferred.append(layered_component("mixed", "Tortilla", "flour tortilla", "1 medium tortilla", "base", "neutral", 0.22, 0.56))
+        inferred.append(layered_component("tortilla", "Tortilla", "flour tortilla", "1 medium tortilla", "base", "neutral", 0.22, 0.56))
     if has_any(dish_text, ["sandwich", "toast"]) and not has_layer_label("bread"):
         serving = "2 slices" if "sandwich" in dish_text else "1 slice"
-        inferred.append(layered_component("mixed", "Bread", "whole wheat bread", serving, "base", "neutral", 0.28, 0.56))
+        inferred.append(layered_component("bread", "Bread", "whole wheat bread", serving, "base", "neutral", 0.28, 0.56))
     if "burger" in dish_text and not has_layer_label("bun"):
         inferred.append(layered_component("mixed", "Bun", "hamburger bun", "1 bun", "base", "neutral", 0.25, 0.54))
     if has_any(dish_text, ["muesli", "granola", "cereal"]) and "muesli" not in keys:
@@ -1318,18 +1396,20 @@ def expand_composite_components(components, vision):
         inferred.append(layered_component("mixed", "Tortilla chips", "tortilla chips", "1.5 oz", "base", "neutral", 0.32, 0.54))
     if "sushi" in dish_text and "rice" not in keys and not any(component.get("key") == "rice" for component in inferred):
         inferred.append(layered_component("rice", "Sushi rice", "cooked sushi rice", "3/4 cup cooked", "base", "neutral", 0.35, 0.58))
+    if has_any(dish_text, ["milk"]) and "milk" not in keys and not has_layer_label("milk"):
+        inferred.append(layered_component("milk", "Milk", "milk", "1/2 cup", "protein", "protein", 0.18, 0.58))
     if has_any(dish_text, ["parfait", "yogurt"]) and not has_layer_label("yogurt"):
-        inferred.append(layered_component("mixed", "Yogurt", "plain greek yogurt", "3/4 cup", "protein", "protein", 0.42, 0.58))
+        inferred.append(layered_component("yogurt", "Yogurt", "plain greek yogurt", "3/4 cup", "protein", "protein", 0.42, 0.58))
     if has_any(dish_text, ["granola", "parfait"]) and not has_layer_label("granola"):
-        inferred.append(layered_component("mixed", "Granola", "granola", "1/4 cup", "topping", "neutral", 0.14, 0.52))
+        inferred.append(layered_component("granola", "Granola", "granola", "1/4 cup", "topping", "neutral", 0.14, 0.52))
     if has_any(dish_text, ["cheese", "cheddar", "mozzarella", "feta", "parmesan", "quesadilla", "nachos"]) and not has_layer_label("cheese"):
-        inferred.append(layered_component("mixed", "Cheese", "cheese", "1 oz", "topping", "fat", 0.12, 0.52))
+        inferred.append(layered_component("cheese", "Cheese", "cheese", "1 oz", "topping", "fat", 0.12, 0.52))
     if has_any(dish_text, ["salsa", "tomato sauce", "marinara"]) and not has_layer_label("salsa", "sauce"):
-        inferred.append(layered_component("mixed", "Salsa", "salsa", "2 tablespoons", "sauce", "neutral", 0.06, 0.5))
+        inferred.append(layered_component("salsa", "Salsa", "salsa", "2 tablespoons", "sauce", "neutral", 0.06, 0.5))
     if has_any(dish_text, ["dressing", "ranch", "vinaigrette", "caesar"]) and not has_layer_label("dressing"):
-        inferred.append(layered_component("mixed", "Dressing", "salad dressing", "2 tablespoons", "sauce", "fat", 0.08, 0.5))
+        inferred.append(layered_component("dressing", "Dressing", "salad dressing", "2 tablespoons", "sauce", "fat", 0.08, 0.5))
     if has_any(dish_text, ["tomato", "tomatoes", "pico", "salsa"]) and not has_layer_label("tomato"):
-        inferred.append(layered_component("mixed", "Tomatoes", "tomatoes raw", "1/2 cup", "fruit_veg", "fiber", 0.08, 0.5))
+        inferred.append(layered_component("tomatoes", "Tomatoes", "tomatoes raw", "1/2 cup", "fruit_veg", "fiber", 0.08, 0.5))
     if has_any(dish_text, ["vegetable", "vegetables", "veggies", "pepper", "peppers", "onion", "corn", "cucumber", "carrot"]) and "vegetables" not in keys and not has_layer_label("pepper", "onion", "corn", "vegetable", "cucumber", "carrot"):
         inferred.append(layered_component("vegetables", "Vegetables", "mixed vegetables", "1 cup", "fruit_veg", "fiber", 0.16, 0.5))
     if ("oat" in dish_text or "porridge" in dish_text) and "oatmeal" not in keys:
@@ -1565,6 +1645,18 @@ def portion_confidence_label(avg_confidence, component_count):
     return "Low - adjust serving size when available"
 
 
+def serving_has_explicit_amount(serving_text):
+    text = str(serving_text or "").lower()
+    word_units = [
+        "bowl", "bun", "cup", "ounce", "roll", "slice", "cutlet", "entree", "portion",
+        "plate", "tablespoon", "teaspoon", "gram", "grams", "milliliter", "milliliters",
+        "liter", "liters",
+    ]
+    if any(unit in text for unit in word_units):
+        return True
+    return bool(re.search(r"\b(\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*(g|ml|l|oz|tbsp|tsp)\b", text))
+
+
 def with_portion_weight(food, force_full_serving=False, respect_component_share=False):
     weighted = dict(food)
     try:
@@ -1578,13 +1670,19 @@ def with_portion_weight(food, force_full_serving=False, respect_component_share=
         food.get("serving", ""),
     )
     serving_text = str(food.get("serving", "") or "").lower()
-    has_explicit_serving = any(
-        token in serving_text
-        for token in ["bowl", "bun", "cup", "oz", "ounce", "roll", "slice", "cutlet", "entree", "portion", "plate", "tablespoon", "tbsp", "teaspoon", "tsp"]
+    has_explicit_serving = serving_has_explicit_amount(serving_text)
+    has_local_serving_estimate = (
+        food.get("databaseSource") == "Nomi local estimate"
+        and serving_text
+        and "estimated serving" not in serving_text
     )
-    explicit_full_serving = force_full_serving or (
-        has_explicit_serving
-        and role in {"base", "protein", "prepared", "dessert", "fruit_veg", "sweetener", "condiment", "sauce", "topping"}
+    explicit_full_serving = (
+        force_full_serving
+        or has_explicit_serving
+        or (
+            has_local_serving_estimate
+            and role in {"base", "protein", "prepared", "dessert", "fruit_veg", "sweetener", "condiment", "sauce", "topping", "mix_in"}
+        )
     )
     if explicit_full_serving:
         portion = 1
@@ -1730,13 +1828,24 @@ def parse_grams(value):
 
 def estimated_serving_grams(serving="", role="", key="", name=""):
     text = f"{serving} {role} {key} {name}".lower()
-    number_match = re.search(r"(\d+(?:\.\d+)?)", text)
-    amount = float(number_match.group(1)) if number_match else 1.0
-    if "1/2" in text:
-        amount = 0.5
-    elif "1.5" in text or "1 1/2" in text:
-        amount = 1.5
+    mixed_fraction_match = re.search(r"\b(\d+)\s+(\d+)\s*/\s*(\d+)\b", text)
+    fraction_match = re.search(r"\b(\d+)\s*/\s*(\d+)\b", text)
+    number_match = re.search(r"\b(\d+(?:\.\d+)?)\b", text)
+    if mixed_fraction_match and float(mixed_fraction_match.group(3)):
+        amount = float(mixed_fraction_match.group(1)) + (float(mixed_fraction_match.group(2)) / float(mixed_fraction_match.group(3)))
+    elif fraction_match and float(fraction_match.group(2)):
+        amount = float(fraction_match.group(1)) / float(fraction_match.group(2))
+    elif number_match:
+        amount = float(number_match.group(1))
+    else:
+        amount = 1.0
 
+    if re.search(r"\b(g|gram|grams)\b", text):
+        return amount
+    if re.search(r"\b(ml|milliliter|milliliters)\b", text):
+        return amount
+    if re.search(r"\b(l|liter|liters)\b", text):
+        return amount * 1000
     if "oz" in text or "ounce" in text:
         return amount * 28.35
     if "butter" in text and ("tablespoon" in text or "tbsp" in text):
@@ -1766,6 +1875,8 @@ def estimated_serving_grams(serving="", role="", key="", name=""):
     if "roll" in text:
         return amount * 35
     if "cup" in text:
+        if "milk" in text:
+            return amount * 244
         if "oat" in text or "porridge" in text:
             return amount * 234
         if "muesli" in text or "cereal" in text or "granola" in text:
@@ -1948,7 +2059,7 @@ def local_estimate_component(base, query="", include_candidates=False):
     component["nutritionBasis"] = base.get("serving", "estimated serving")
     component["databaseSource"] = "Nomi local estimate"
     component["sourceMatch"] = f"{base.get('name', query)} local estimate"
-    component["databaseNotes"] = ["Used a local estimate for this common breakfast component to avoid an extra database lookup."]
+    component["databaseNotes"] = ["Used a local estimate for this common component to avoid a vague or low-quality database match."]
     component["nutritionUnavailable"] = False
     component["loggable"] = True
     component["usdaCandidates"] = [
