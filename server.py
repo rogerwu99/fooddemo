@@ -672,11 +672,19 @@ def build_manual_correction_result(payload):
     )
     component_food["key"] = component["key"]
     component_food["name"] = component["label"]
-    component_food["serving"] = component["serving_estimate"] or component_food["serving"]
     component_food["confidence"] = 1
     component_food["portion"] = 1
     component_food["role"] = component["role"]
     component_food["nutrient_role"] = component["nutrient_role"]
+    component_food = scale_local_component_to_estimated_serving(
+        component_food,
+        component["serving_estimate"] or component_food.get("serving", ""),
+    )
+    component_food = scale_usda_component_to_estimated_serving(
+        component_food,
+        component["serving_estimate"] or component_food.get("serving", ""),
+    )
+    component_food["serving"] = component["serving_estimate"] or component_food["serving"]
 
     food = combine_components([component_food], label)
     food["key"] = key

@@ -799,6 +799,49 @@
         color: #1f5f3a;
       }
 
+      .component-correction-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(120px, 0.55fr) auto;
+        gap: 8px;
+        align-items: end;
+        margin-top: 8px;
+      }
+
+      .component-correction-form label {
+        display: grid;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 0.76rem;
+        font-weight: 800;
+      }
+
+      .component-correction-form input {
+        min-height: 34px;
+        width: 100%;
+        border: 1px solid #cbd8ce;
+        border-radius: 8px;
+        padding: 7px 8px;
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .component-correction-form button {
+        min-height: 34px;
+        border: 1px solid #2f7d4f;
+        border-radius: 8px;
+        background: #e6f4ea;
+        color: #1f5f3a;
+        font-size: 0.78rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      @media (max-width: 720px) {
+        .component-correction-form {
+          grid-template-columns: 1fr;
+        }
+      }
+
       .component-source-options {
         display: grid;
         gap: 7px;
@@ -2593,17 +2636,16 @@
         if (lower.includes("berry") || lower.includes("fruit")) return "berries";
         if (lower.includes("oat") || lower.includes("porridge")) return "oatmeal";
         if (lower.includes("cacio") || lower.includes("pepe") || lower.includes("pasta") || lower.includes("spaghetti") || lower.includes("noodle")) return "pasta";
-        if (lower.includes("eggplant")) return "eggplant_parmesan";
-        if (lower.includes("parmesan") || lower.includes("parm")) return "chicken_parmesan";
-        if (lower.includes("cake") || lower.includes("dessert")) return "cake";
-        if (lower.includes("pizza")) return "pizza";
+        if (lower.includes("eggplant")) return "vegetables";
+        if (lower.includes("honey") || lower.includes("syrup") || lower.includes("maple")) return "syrup";
         return "mixed";
       }
 
       function normalizeFoodName(name = "") {
         const lower = name.toLowerCase();
-        if (lower.includes("eggplant") && (lower.includes("parmesan") || lower.includes("parm"))) return "eggplant_parmesan";
-        if (lower.includes("chicken") && (lower.includes("parmesan") || lower.includes("parm"))) return "chicken_parmesan";
+        if (lower.includes("chicken")) return "chicken";
+        if (lower.includes("eggplant")) return "vegetables";
+        if (lower.includes("honey") || lower.includes("syrup") || lower.includes("maple")) return "syrup";
         if (lower.includes("oat")) return "oatmeal";
         if (lower.includes("cacio") || lower.includes("pepe") || lower.includes("pasta") || lower.includes("spaghetti") || lower.includes("noodle")) return "pasta";
         if (lower.includes("blueberry") || lower.includes("berry")) return "berries";
@@ -2849,12 +2891,84 @@
         return isLocalEstimateCandidate(candidate) && sameCalories && sameProtein && sameFiber && (sameName || !candidate.rejectedReason);
       }
 
+      function isMeaningfullyDifferentSource(candidate = {}, component = {}) {
+        const description = normalizedCandidateText(candidate.description || "");
+        const name = normalizedCandidateText(component.name || component.label || "");
+        if (!description) return false;
+        if (isGenericAmbiguousSource(description)) return false;
+        if (name && (description === name || description.includes(name) || name.includes(description))) {
+          const calorieDelta = Math.abs(Number(candidate.calories || 0) - numberFromValue(component.calories, 0));
+          const proteinDelta = Math.abs(Number(candidate.protein || 0) - numberFromValue(component.protein, 0));
+          const fiberDelta = Math.abs(Number(candidate.fiber || 0) - numberFromValue(component.fiber, 0));
+          return calorieDelta >= 25 || proteinDelta >= 3 || fiberDelta >= 2;
+        }
+        return true;
+      }
+
+      function sourceIdentityTokens(text = "") {
+        const stopWords = new Set([
+          "and", "with", "from", "food", "foods", "item", "piece", "meal", "dish",
+          "raw", "cooked", "prepared", "fresh", "whole", "plain", "style", "breast",
+          "meat", "only", "skin", "without", "added", "reduced", "low", "fat", "free"
+        ]);
+        return normalizedCandidateText(text)
+          .split(" ")
+          .filter((word) => word.length >= 4 && !stopWords.has(word));
+      }
+
+      function isSameSourceIdentity(candidate = {}, component = {}) {
+        const componentTokens = sourceIdentityTokens([
+          component.key,
+          component.name,
+          component.label,
+          component.query,
+          component.sourceMatch
+        ].filter(Boolean).join(" "));
+        const candidateTokens = sourceIdentityTokens(candidate.description || "");
+        if (!componentTokens.length || !candidateTokens.length) return true;
+        return componentTokens.some((componentToken) => candidateTokens.some((candidateToken) => (
+          componentToken === candidateToken
+          || (componentToken.length >= 6 && candidateToken.includes(componentToken))
+          || (candidateToken.length >= 6 && componentToken.includes(candidateToken))
+        )));
+      }
+
+      function sourceTextForComponent(component = {}) {
+        return normalizedCandidateText([
+          component.key,
+          component.name,
+          component.label,
+          component.query,
+          component.sourceMatch
+        ].filter(Boolean).join(" "));
+      }
+
+      function isBrandedSourceCandidate(candidate = {}) {
+        return Boolean(candidate.brandOwner || String(candidate.dataType || "").toLowerCase() === "branded");
+      }
+
+      function hasUnmatchedModifier(candidate = {}, component = {}) {
+        const candidateText = normalizedCandidateText(candidate.description || "");
+        const componentText = sourceTextForComponent(component);
+        const modifierGroups = [
+          ["meatless", "plant based", "vegan", "vegetarian", "meat alternative", "imitation"],
+          ["sandwich", "wrap", "burger", "parmesan", "pizza", "casserole", "entree", "meal"]
+        ];
+        return modifierGroups.some((terms) => (
+          terms.some((term) => candidateText.includes(term))
+          && !terms.some((term) => componentText.includes(term))
+        ));
+      }
+
       function meaningfulComponentCandidates(candidates = [], component = {}) {
         const seen = new Set();
-        return candidates.filter((candidate) => {
+        const uniqueCandidates = candidates.filter((candidate) => {
           if (isLocalEstimateCandidate(candidate)) return false;
+          if (isBrandedSourceCandidate(candidate)) return false;
+          if (hasUnmatchedModifier(candidate, component)) return false;
           if (isSameAsCurrentComponent(candidate, component)) return false;
           if (isGenericSameAsComponent(candidate, component)) return false;
+          if (!isSameSourceIdentity(candidate, component)) return false;
           const text = normalizedCandidateText(candidate.description || "");
           const family = text.split(" ").slice(0, 3).join(" ");
           const signature = isGenericAmbiguousSource(candidate.description)
@@ -2864,6 +2978,10 @@
           seen.add(signature);
           return true;
         });
+        if (uniqueCandidates.length <= 1 && !isMeaningfullyDifferentSource(uniqueCandidates[0], component)) {
+          return [];
+        }
+        return uniqueCandidates;
       }
 
       function candidateStatusText(candidate = {}, fallback = "Nutrition source match") {
@@ -2883,7 +3001,7 @@
         const list = $("#componentBreakdown");
         if (!list) return;
         const components = Array.isArray(food.components) ? food.components : [];
-        const componentSuggestions = Array.isArray(food.usdaCandidates) ? food.usdaCandidates : [];
+        const componentSuggestions = debugUsda && Array.isArray(food.usdaCandidates) ? food.usdaCandidates : [];
         const candidatesByComponent = componentSuggestions.reduce((map, item) => {
           const key = Number.isInteger(item.componentIndex) ? item.componentIndex : -1;
           if (!map.has(key)) map.set(key, []);
@@ -2937,7 +3055,21 @@
                 ${[0.5, 1, 1.5, 2].map((value) => `<button type="button" data-component-index="${index}" data-component-multiplier="${value}" class="${!removed && multiplier === value ? "is-selected" : ""}">${value}x</button>`).join("")}
                 <button type="button" data-component-index="${index}" data-component-action="${removed ? "restore" : "remove"}">${removed ? "Restore" : "Remove"}</button>
               </div>
-              ${componentCandidateHtml ? `<details class="component-source-list"><summary>Not right? Change source</summary><div class="component-source-options"><p>USDA options for this piece</p>${componentCandidateHtml}</div></details>` : ""}
+              <details class="component-source-list">
+                <summary>Not quite</summary>
+                <form class="component-correction-form" data-component-correction-index="${index}">
+                  <label>
+                    This piece is
+                    <input name="label" value="${escapeHtml(component.name || component.label || "")}" autocomplete="off">
+                  </label>
+                  <label>
+                    Amount
+                    <input name="serving" value="${escapeHtml(component.serving || component.nutritionBasis || "")}" autocomplete="off">
+                  </label>
+                  <button type="submit">Apply</button>
+                </form>
+              </details>
+              ${debugUsda && componentCandidateHtml ? `<details class="component-source-list"><summary>Advanced source</summary><div class="component-source-options"><p>USDA options for this piece</p>${componentCandidateHtml}</div></details>` : ""}
             </div>
           `;
         }).join("");
@@ -3134,7 +3266,7 @@
       function renderCorrections(food) {
         const options = [];
         const candidateRows = Array.isArray(food.usdaCandidates) ? food.usdaCandidates : [];
-        const visibleCandidates = (debugUsda || food.nutritionUnavailable) ? candidateRows : [];
+        const visibleCandidates = debugUsda ? candidateRows : [];
         const pieceCandidates = visibleCandidates.filter((item) => item.rejectedReason);
         const usdaCandidates = visibleCandidates.filter((item) => !item.rejectedReason);
         state.usdaCandidates = usdaCandidates;
@@ -3197,11 +3329,11 @@
           .replace(/"/g, "&quot;");
       }
 
-      async function lookupManualCorrection(key, label) {
+      async function lookupManualCorrection(key, label, serving = "") {
         const response = await fetch("/manual-correction", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key, label, debugUsda })
+          body: JSON.stringify({ key, label, serving, debugUsda })
         });
         if (!response.ok) {
           let message = "Manual correction failed.";
@@ -3214,6 +3346,70 @@
           throw new Error(message);
         }
         return response.json();
+      }
+
+      async function applyComponentManualCorrection(componentIndex, label, serving) {
+        if (!state.analyzed || !Array.isArray(state.analyzed.components) || !state.analyzed.components[componentIndex]) return;
+        const correctionLabel = label.trim();
+        if (!correctionLabel) return;
+        $("#saveFood").disabled = true;
+        $("#saveHint").textContent = `Looking up ${correctionLabel} for this piece...`;
+        const corrected = await lookupManualCorrection(normalizeFoodName(correctionLabel), correctionLabel, serving.trim());
+        if (corrected.loggable === false || corrected.nutritionUnavailable) {
+          throw new Error(corrected.why || "No reliable nutrition match was found for that piece.");
+        }
+        const selectedComponent = Array.isArray(corrected.components) && corrected.components[0]
+          ? corrected.components[0]
+          : corrected;
+        const correctedBaseNutrition = {
+          serving: selectedComponent.serving || serving || corrected.serving || "estimated serving",
+          calories: numberFromValue(selectedComponent.calories ?? corrected.calories, 0),
+          protein: numberFromValue(selectedComponent.protein ?? corrected.protein, 0),
+          fiber: numberFromValue(selectedComponent.fiber ?? corrected.fiber, 0),
+          sugar: numberFromValue(selectedComponent.sugar ?? corrected.sugar, 0),
+          naturalSugar: Number(selectedComponent.naturalSugar ?? corrected.naturalSugar ?? 0),
+          addedSugar: Number(selectedComponent.addedSugar ?? corrected.addedSugar ?? 0),
+          unknownSugar: Number(selectedComponent.unknownSugar ?? corrected.unknownSugar ?? 0)
+        };
+        const next = {
+          ...state.analyzed,
+          components: state.analyzed.components.map((component, index) => {
+            if (index !== componentIndex) return { ...component };
+            const componentMultiplier = Number(component.componentMultiplier || 1);
+            const normalized = prepareComponentBreakdown([{
+              ...component,
+              ...selectedComponent,
+              key: selectedComponent.key || corrected.key || normalizeFoodName(correctionLabel),
+              name: selectedComponent.name || corrected.name || correctionLabel,
+              label: correctionLabel,
+              serving: selectedComponent.serving || serving || corrected.serving || component.serving,
+              role: selectedComponent.role || component.role,
+              nutrientRole: selectedComponent.nutrientRole || selectedComponent.nutrient_role || component.nutrientRole,
+              confidence: 1,
+              componentMultiplier,
+              removed: false,
+              baseNutrition: correctedBaseNutrition,
+              sourceMatch: selectedComponent.sourceMatch || corrected.sourceMatch || component.sourceMatch,
+              nutritionBasis: selectedComponent.nutritionBasis || corrected.nutritionBasis || component.nutritionBasis,
+              usdaCandidates: []
+            }])[0];
+            normalized.componentMultiplier = componentMultiplier;
+            return normalized;
+          }),
+          nutritionUnavailable: false,
+          loggable: true,
+          corrected: true,
+          correctionLabel: state.analyzed.correctionLabel || state.analyzed.name,
+          usdaCandidates: []
+        };
+        next.components = scaleComponents(next.components, Number(next.servingMultiplier || 1));
+        applyComponentTotals(next);
+        state.analyzed = next;
+        state.usdaCandidates = [];
+        renderAnalyzedValues(next);
+        renderCorrections(next);
+        previewUnsaved(next.points);
+        $("#saveHint").textContent = `Updated ${correctionLabel}. Save it when ready.`;
       }
 
       async function selectUsdaCandidate(index) {
@@ -6486,6 +6682,31 @@
         const actionButton = event.target.closest("[data-component-action]");
         if (!actionButton) return;
         toggleComponentRemoved(Number(actionButton.dataset.componentIndex));
+      });
+
+      $("#componentBreakdown").addEventListener("submit", (event) => {
+        const form = event.target.closest("[data-component-correction-index]");
+        if (!form) return;
+        event.preventDefault();
+        const index = Number(form.dataset.componentCorrectionIndex);
+        const data = new FormData(form);
+        const submitButton = form.querySelector("button[type='submit']");
+        const originalText = submitButton ? submitButton.textContent : "";
+        form.querySelectorAll("input, button").forEach((control) => {
+          control.disabled = true;
+        });
+        if (submitButton) submitButton.textContent = "Updating...";
+        applyComponentManualCorrection(
+          index,
+          String(data.get("label") || ""),
+          String(data.get("serving") || "")
+        ).catch((error) => {
+          form.querySelectorAll("input, button").forEach((control) => {
+            control.disabled = false;
+          });
+          if (submitButton) submitButton.textContent = originalText || "Apply";
+          $("#saveHint").textContent = `Piece correction failed: ${error.message}`;
+        });
       });
 
       $("#applyCorrection").addEventListener("click", () => {
