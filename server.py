@@ -928,6 +928,20 @@ def analyze_with_openai_vision(image_data_url, file_name):
         )
         text = extract_response_text(response)
         return json.loads(text)
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        try:
+            provider_error = json.loads(detail).get("error", {})
+        except (json.JSONDecodeError, AttributeError):
+            provider_error = {}
+        message = provider_error.get("message") or detail or error.reason
+        code = provider_error.get("code") or provider_error.get("type") or "unknown"
+        request_id = error.headers.get("x-request-id", "")
+        safe_detail = f"OpenAI API {error.code} ({code}): {message}"
+        if request_id:
+            safe_detail += f" [request id: {request_id}]"
+        print(safe_detail, flush=True)
+        return {"error": safe_detail, "foods": []}
     except Exception as error:
         return {"error": str(error), "foods": []}
 
