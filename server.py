@@ -2799,7 +2799,11 @@ class FeedNomiHandler(SimpleHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-            self._send_json(build_nutrition_result(payload))
+            result = build_nutrition_result(payload)
+            if result.get("name") == "Analysis unavailable":
+                details = result.get("why", "Analysis unavailable")
+                print(f"Nutrition pipeline analysis failure: {details}", flush=True)
+            self._send_json(result)
         except Exception as error:
             self._send_json({"error": "Nutrition pipeline failed", "details": str(error)}, status=400)
 
