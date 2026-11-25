@@ -704,6 +704,69 @@
         min-height: 0;
       }
 
+      .qa-card {
+        grid-column: 1 / -1;
+        min-height: 0;
+      }
+
+      .qa-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .qa-item {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 9px;
+        align-items: start;
+        padding: 9px;
+        border: 1px solid #e0eae2;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .qa-status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 76px;
+        min-height: 26px;
+        border-radius: 8px;
+        padding: 0 8px;
+        font-size: 0.74rem;
+        font-weight: 900;
+      }
+
+      .qa-status.pass {
+        background: #e6f4ea;
+        color: #1f5f3a;
+      }
+
+      .qa-status.watch {
+        background: #fff7d6;
+        color: #765b04;
+      }
+
+      .qa-status.fail {
+        background: #fde8e1;
+        color: #8a2f18;
+      }
+
+      .qa-copy {
+        display: grid;
+        gap: 2px;
+      }
+
+      .qa-copy strong {
+        color: var(--ink);
+      }
+
+      .qa-copy span {
+        color: var(--muted);
+        font-size: 0.84rem;
+        line-height: 1.35;
+      }
+
       .component-list {
         display: grid;
         gap: 9px;
@@ -1463,6 +1526,29 @@
         padding: 18px;
       }
 
+      .retry-flow-demo {
+        display: grid;
+        gap: 8px;
+        margin: 12px 0;
+        padding: 12px;
+        border: 1px dashed #7b927f;
+        border-radius: 8px;
+        background: #f7faf7;
+      }
+
+      .retry-flow-demo p,
+      .retry-flow-demo output {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.4;
+      }
+
+      .retry-flow-demo output[data-state="pass"] {
+        color: #23683d;
+        font-weight: 800;
+      }
+
       .account-status {
         display: grid;
         gap: 8px;
@@ -1739,6 +1825,15 @@
       .log-item span {
         color: var(--muted);
         font-size: 0.82rem;
+      }
+
+      .log-item .log-processing-status {
+        display: block;
+        margin-top: 3px;
+        color: #7b5b14;
+        font-size: 0.76rem;
+        font-style: normal;
+        font-weight: 700;
       }
 
       .log-metrics {
@@ -2194,6 +2289,12 @@
                   <div class="metric"><span>Calorie fit</span><strong id="calorieFit">Profile needed</strong></div>
                   <div class="metric"><span>Nomi effect</span><strong id="avatarEffect">Neutral</strong></div>
                 </article>
+                <article class="result-card qa-card">
+                  <h4>Analyzer QA</h4>
+                  <div class="qa-list" id="analyzerQa">
+                    <p class="component-empty">QA checks appear after analysis.</p>
+                  </div>
+                </article>
               </div>
 
               <div class="save-row" id="saveRow" hidden>
@@ -2316,6 +2417,12 @@
                       <button class="text-btn" type="button" data-calendar-provider="outlook">Outlook</button>
                     </div>
                   </div>
+                </div>
+                <div class="retry-flow-demo" id="retryFlowDemo" hidden>
+                  <strong>Local retry-flow test</strong>
+                  <p>Isolated sample data only. Simulate recovery to check that this pending meal updates in place.</p>
+                  <button class="ghost-btn" id="runRetryFlowDemo" type="button">Simulate nutrition recovery</button>
+                  <output id="retryFlowDemoStatus" aria-live="polite">Ready. One pending sample meal is loaded.</output>
                 </div>
                 <div class="weekly-recap" id="weeklyRecapPanel" aria-live="polite">
                   <div class="weekly-coach" id="weeklyCoach" hidden>
@@ -2559,6 +2666,8 @@
       const logSignedPhotoBatchSize = 5;
       const recapPhotoLoadLimit = 6;
       const debugUsda = new URLSearchParams(window.location.search).get("debugUsda") === "1";
+      const retryFlowDemo = window.location.hostname === "localhost"
+        && new URLSearchParams(window.location.search).get("retryFlowDemo") === "1";
       const state = {
         analyzed: null,
         currentPhotoDataUrl: "",
@@ -2578,6 +2687,7 @@
         reminderSettings: { enabled: false, loaded: false, hasChoice: false },
         logPhotoLimit: logSignedPhotoInitialLimit,
         loadingMoreLogPhotos: false,
+        processingPendingMeals: false,
         user: localStorage.getItem("platepointsUser") || "",
         profile: JSON.parse(localStorage.getItem("platepointsProfile") || "null"),
         log: JSON.parse(localStorage.getItem("platepointsLog") || "[]")
@@ -2664,6 +2774,7 @@
         $("#sugarLabel").textContent = "Sugar";
         $("#sugar").textContent = "-";
         renderComponentBreakdown({ components: [] });
+        renderAnalyzerQa(null);
         $("#nutritionBasisNote").textContent = "Estimating the USDA serving basis from the photo.";
         $("#whyEat").textContent = "Reading the uploaded image and estimating the most likely food category.";
         $("#pointValue").textContent = "Analyzing";
@@ -2674,7 +2785,16 @@
 
       function applyNutritionResult(food, note = "") {
         setAnalysisUiState("results");
-        food = prepareServingEditableFood(food);
+        const analysisFailed = food.loggable === false && !food.nutritionUnavailable;
+        const nutritionPending = food.nutritionStatus === "partial";
+        const nutritionUnavailable = food.nutritionStatus === "unavailable";
+        food = analysisFailed || nutritionUnavailable
+          ? { ...food, calories: "-", protein: "-", fiber: "-", sugar: "-", points: 0, effect: "Avatar unchanged", components: food.components || [] }
+          : prepareServingEditableFood(food);
+        if (nutritionPending) {
+          food.points = 0;
+          food.effect = "Avatar unchanged";
+        }
         state.analyzed = food;
         updateServingControls(food.servingMultiplier || 1);
         $("#foodName").textContent = food.name;
@@ -2687,16 +2807,22 @@
         $("#sugarLabel").textContent = sugarLabelText(food);
         $("#sugar").textContent = food.sugar;
         renderComponentBreakdown(food);
+        renderAnalyzerQa(food);
         $("#nutritionBasisNote").textContent = nutritionBasisText(food);
         $("#whyEat").textContent = formatWhyText(food);
-        $("#pointValue").textContent = `${food.points || 0} points`;
-        $("#calorieFit").textContent = calorieFitText(food);
+        $("#pointValue").textContent = nutritionPending || nutritionUnavailable ? "Pending" : `${food.points || 0} points`;
+        $("#calorieFit").textContent = analysisFailed || nutritionPending || nutritionUnavailable ? "Unavailable" : calorieFitText(food);
         $("#avatarEffect").textContent = food.effect;
+        const canSavePending = food.loggable === false && Boolean(state.currentPhotoDataUrl);
         const loggable = food.loggable !== false;
-        $("#saveFood").disabled = !loggable;
-        $("#saveHint").textContent = loggable
+        $("#saveFood").disabled = !loggable && !canSavePending;
+        $("#saveHint").textContent = nutritionPending
+          ? "Some components are matched; the subtotal is partial. Feed Nomi to save it and retry the missing nutrition later."
+          : loggable
           ? (state.user ? `Signed in as ${state.user}. Ready to save.` : "Create an account to save this analysis to your profile.")
-          : (food.nutritionUnavailable ? "No reliable USDA nutrition match was found, so this result cannot be saved yet." : (food.name === "Analysis unavailable" ? "Connect the vision/database pipeline before saving uploaded food." : "No loggable food detected. Choose another photo."));
+          : (canSavePending
+            ? (food.nutritionUnavailable ? "Nutrition matching is unavailable. Feed Nomi to save this meal and retry nutrition later." : "Analysis is unavailable right now. Feed Nomi to save the photo; analysis can retry later.")
+            : (food.nutritionUnavailable ? "No reliable USDA nutrition match was found for this meal." : (food.name === "Analysis unavailable" ? "The photo could not be prepared for saving. Try another image." : "No loggable food detected. Choose another photo.")));
         if (loggable || food.nutritionUnavailable) {
           previewUnsaved(food.points);
           renderCorrections(food);
@@ -2743,8 +2869,8 @@
           next.naturalSugar = roundOne(base.naturalSugar * multiplier);
           next.addedSugar = roundOne(base.addedSugar * multiplier);
           next.unknownSugar = roundOne(base.unknownSugar * multiplier);
-          next.points = calculateClientPoints(next);
-          next.effect = effectForPoints(next.points);
+          next.points = next.nutritionStatus === "partial" ? 0 : calculateClientPoints(next);
+          next.effect = next.nutritionStatus === "partial" ? "Avatar unchanged" : effectForPoints(next.points);
         }
         if (updateUi) {
           state.analyzed = next;
@@ -2757,6 +2883,8 @@
 
       function renderAnalyzedValues(food) {
         setAnalysisUiState("results");
+        $("#foodName").textContent = food.name;
+        $("#confidence").textContent = food.confidence ? `${Math.round(food.confidence * 100)}%` : "-";
         $("#servingSize").textContent = food.serving;
         $("#calories").textContent = `${food.calories} kcal`;
         $("#protein").textContent = food.protein;
@@ -2764,17 +2892,20 @@
         $("#sugarLabel").textContent = sugarLabelText(food);
         $("#sugar").textContent = food.sugar;
         renderComponentBreakdown(food);
+        renderAnalyzerQa(food);
         $("#nutritionBasisNote").textContent = nutritionBasisText(food);
         $("#whyEat").textContent = formatWhyText(food);
-        $("#pointValue").textContent = `${food.points || 0} points`;
-        $("#calorieFit").textContent = calorieFitText(food);
+        $("#pointValue").textContent = ["partial", "unavailable"].includes(food.nutritionStatus) ? "Pending" : `${food.points || 0} points`;
+        $("#calorieFit").textContent = food.loggable === false && !food.nutritionUnavailable || ["partial", "unavailable"].includes(food.nutritionStatus) ? "Unavailable" : calorieFitText(food);
         $("#avatarEffect").textContent = food.effect;
         $("#saveFood").disabled = food.loggable === false;
       }
 
       function updateServingControls(multiplier) {
+        const unavailable = state.analyzed?.loggable === false && (!state.analyzed?.nutritionUnavailable || state.analyzed?.nutritionStatus === "unavailable");
         document.querySelectorAll("[data-serving-multiplier]").forEach((button) => {
           button.classList.toggle("is-selected", Number(button.dataset.servingMultiplier) === multiplier);
+          button.disabled = unavailable;
         });
       }
 
@@ -2812,6 +2943,17 @@
           const base = component.baseNutrition || prepareComponentBreakdown([component])[0].baseNutrition;
           const componentMultiplier = Number(component.componentMultiplier || 1);
           const factor = servingMultiplier * componentMultiplier;
+          if (component.nutritionUnavailable) {
+            return {
+              ...component,
+              baseNutrition: base,
+              serving: factor === 1 ? base.serving : `${formatMultiplier(factor)} x ${base.serving}`,
+              calories: "-",
+              protein: "-",
+              fiber: "-",
+              sugar: "-"
+            };
+          }
           return {
             ...component,
             baseNutrition: base,
@@ -2843,10 +2985,71 @@
         food.naturalSugar = roundOne(activeComponents.reduce((sum, component) => sum + Number(component.naturalSugar || 0), 0));
         food.addedSugar = roundOne(activeComponents.reduce((sum, component) => sum + Number(component.addedSugar || 0), 0));
         food.unknownSugar = roundOne(activeComponents.reduce((sum, component) => sum + Number(component.unknownSugar || 0), 0));
-        food.points = activeComponents.length ? calculateClientPoints(food) : 0;
-        food.effect = activeComponents.length ? effectForPoints(food.points) : "Avatar unchanged";
+        food.points = activeComponents.length && food.nutritionStatus !== "partial" ? calculateClientPoints(food) : 0;
+        food.effect = food.nutritionStatus === "partial" || !activeComponents.length ? "Avatar unchanged" : effectForPoints(food.points);
         food.loggable = activeComponents.length > 0 && food.loggable !== false;
         return food;
+      }
+
+      function escapeRegExp(value = "") {
+        return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      }
+
+      function tidyDishName(value = "") {
+        return String(value)
+          .replace(/\s+/g, " ")
+          .replace(/\bwith\s+with\b/ig, "with")
+          .replace(/\s+([,.)])/g, "$1")
+          .trim();
+      }
+
+      function correctedDishName(originalName = "", previousComponent = {}, correctionLabel = "") {
+        const original = tidyDishName(originalName);
+        const label = tidyDishName(correctionLabel);
+        if (!original || !label) return original || label;
+
+        const replacementTargets = [
+          previousComponent.name,
+          previousComponent.label,
+          previousComponent.query,
+          previousComponent.sourceMatch
+        ]
+          .filter(Boolean)
+          .map(tidyDishName)
+          .filter((item) => item.length >= 3)
+          .sort((a, b) => b.length - a.length);
+
+        for (const target of replacementTargets) {
+          const pattern = new RegExp(`\\b${escapeRegExp(target)}\\b`, "i");
+          if (pattern.test(original)) return tidyDishName(original.replace(pattern, label));
+        }
+
+        const oldText = [previousComponent.key, previousComponent.name, previousComponent.label, previousComponent.query, previousComponent.sourceMatch]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const newText = label.toLowerCase();
+        const swaps = [
+          "chicken",
+          "beef",
+          "pork",
+          "turkey",
+          "salmon",
+          "fish",
+          "shrimp",
+          "eggplant",
+          "tofu",
+          "tempeh",
+          "beans",
+          "lentils"
+        ];
+        const oldToken = swaps.find((token) => oldText.includes(token) && original.toLowerCase().includes(token));
+        const newTokenAlreadyNamed = swaps.some((token) => newText.includes(token));
+        if (oldToken && newTokenAlreadyNamed) {
+          return tidyDishName(original.replace(new RegExp(`\\b${escapeRegExp(oldToken)}\\b`, "i"), label));
+        }
+
+        return original;
       }
 
       function normalizedCandidateText(value = "") {
@@ -2997,6 +3200,93 @@
         return reason;
       }
 
+      function qaStatusLabel(status) {
+        if (status === "pass") return "Pass";
+        if (status === "fail") return "Review";
+        return "Watch";
+      }
+
+      function qaItem(status, label, detail) {
+        return { status, label, detail };
+      }
+
+      function analyzerQaItems(food) {
+        if (!food) return [];
+        const components = Array.isArray(food.components) ? food.components.filter((component) => !component.removed) : [];
+        const componentCount = components.length;
+        const calories = numberFromValue(food.calories, 0);
+        const protein = numberFromValue(food.protein, 0);
+        const hasUnavailable = Boolean(food.nutritionUnavailable || food.loggable === false);
+        const sourceText = [
+          food.name,
+          food.serving,
+          food.portionConfidence,
+          ...(components || []).flatMap((component) => [
+            component.name,
+            component.label,
+            component.serving,
+            component.role,
+            component.sourceMatch,
+            component.nutritionBasis
+          ])
+        ].filter(Boolean).join(" ").toLowerCase();
+        const hasAmbiguousLayer = /mixed|main layer|unknown|ambiguous|no reliable/.test(sourceText);
+        const hasMissingServing = components.some((component) => {
+          const serving = String(component.serving || component.nutritionBasis || "").toLowerCase();
+          return !serving || serving === "-" || serving.includes("estimated serving");
+        });
+        const hasProteinComponent = components.some((component) => (
+          component.role === "protein" || component.nutrientRole === "protein" || componentMentionsMeat(component) || componentMentionsPlantProtein(component)
+        ));
+        const sourcePickerVisible = debugUsda && Array.isArray(food.usdaCandidates) && food.usdaCandidates.length > 0;
+
+        return [
+          componentCount >= 2
+            ? qaItem("pass", "Pieces", `${componentCount} pieces are being counted separately.`)
+            : componentCount === 1
+              ? qaItem("watch", "Pieces", "Only one piece was found. Use Not quite if visible ingredients are missing.")
+              : qaItem("fail", "Pieces", "No component breakdown is available for this result."),
+          hasMissingServing
+            ? qaItem("watch", "Amounts", "One or more pieces still has a generic serving estimate.")
+            : qaItem("pass", "Amounts", "Each visible piece has an editable serving amount."),
+          hasAmbiguousLayer || Number(food.confidence || 0) < 0.58
+            ? qaItem("watch", "Identity", "The analysis includes an ambiguous or low-confidence identity.")
+            : qaItem("pass", "Identity", "The piece names look specific enough to review."),
+          food.nutritionStatus === "partial"
+            ? qaItem("watch", "Nutrition", "Subtotal uses matched pieces only; remaining nutrition is queued for retry.")
+            : hasUnavailable
+            ? qaItem("fail", "Nutrition", "Nutrition is unavailable for at least part of this result.")
+            : calories <= 0 || calories > 1400 || (componentCount > 1 && calories < 120) || (hasProteinComponent && protein < 5)
+              ? qaItem("watch", "Nutrition", "Calories or macros look unusual for the detected pieces.")
+              : qaItem("pass", "Nutrition", "Calories and macros are in a plausible range for review."),
+          componentCount
+            ? qaItem("pass", "Correction", "Not quite is available for piece-level identity and amount fixes.")
+            : qaItem("watch", "Correction", "Correction is limited until pieces are available."),
+          sourcePickerVisible
+            ? qaItem("watch", "Source hygiene", "Advanced USDA source rows are visible because debug mode is on.")
+            : qaItem("pass", "Source hygiene", "Database row clutter is hidden in the normal UI.")
+        ];
+      }
+
+      function renderAnalyzerQa(food) {
+        const list = $("#analyzerQa");
+        if (!list) return;
+        const items = analyzerQaItems(food);
+        if (!items.length) {
+          list.innerHTML = `<p class="component-empty">QA checks appear after analysis.</p>`;
+          return;
+        }
+        list.innerHTML = items.map((item) => `
+          <div class="qa-item">
+            <span class="qa-status ${escapeHtml(item.status)}">${escapeHtml(qaStatusLabel(item.status))}</span>
+            <span class="qa-copy">
+              <strong>${escapeHtml(item.label)}</strong>
+              <span>${escapeHtml(item.detail)}</span>
+            </span>
+          </div>
+        `).join("");
+      }
+
       function renderComponentBreakdown(food) {
         const list = $("#componentBreakdown");
         if (!list) return;
@@ -3015,12 +3305,14 @@
         const componentHtml = components.map((component, index) => {
           const removed = Boolean(component.removed);
           const multiplier = Number(component.componentMultiplier || 1);
-          const macros = [
-            `${numberFromValue(component.calories, 0)} kcal`,
-            `Protein ${escapeHtml(component.protein || "-")}`,
-            `Fiber ${escapeHtml(component.fiber || "-")}`,
-            `Sugar ${escapeHtml(component.sugar || "-")}`
-          ].join(" · ");
+          const macros = component.nutritionUnavailable
+            ? "Nutrition pending"
+            : [
+                `${numberFromValue(component.calories, 0)} kcal`,
+                `Protein ${escapeHtml(component.protein || "-")}`,
+                `Fiber ${escapeHtml(component.fiber || "-")}`,
+                `Sugar ${escapeHtml(component.sugar || "-")}`
+              ].join(" · ");
           const confidence = component.confidence ? `${Math.round(Number(component.confidence) * 100)}%` : "estimated";
           const share = Number(component.estimatedShare || component.portion || 0);
           const shareText = share > 0 && share < 0.98 ? ` · ${Math.round(share * 100)}% of meal` : "";
@@ -3239,8 +3531,11 @@
       function nutritionBasisText(food) {
         const serving = food.serving && food.serving !== "-" ? food.serving : "the estimated serving";
         const source = food.nutritionProvider || food.databaseSource || "";
+        if (food.nutritionStatus === "partial") {
+          return "Partial subtotal includes matched pieces only; unmatched nutrition is pending. Totals may be low and points are withheld until the full meal is processed.";
+        }
         if (food.nutritionUnavailable || source.includes("unavailable")) {
-          return "No reliable USDA nutrition match was found, so calories, macros, points, and saving are disabled for this result.";
+          return "No reliable nutrition match is available yet. Nutrition is pending; points are withheld until it can be calculated.";
         }
         const sourceText = source.includes("USDA") ? "USDA FoodData Central" : (source || "the nutrition database");
         return `Values are estimated for ${serving}. Nutrition data is from ${sourceText}. Include a quarter, credit card, fork, or standard plate in the photo to improve serving-size accuracy.`;
@@ -3352,6 +3647,7 @@
         if (!state.analyzed || !Array.isArray(state.analyzed.components) || !state.analyzed.components[componentIndex]) return;
         const correctionLabel = label.trim();
         if (!correctionLabel) return;
+        const previousComponent = { ...state.analyzed.components[componentIndex] };
         $("#saveFood").disabled = true;
         $("#saveHint").textContent = `Looking up ${correctionLabel} for this piece...`;
         const corrected = await lookupManualCorrection(normalizeFoodName(correctionLabel), correctionLabel, serving.trim());
@@ -3402,6 +3698,7 @@
           correctionLabel: state.analyzed.correctionLabel || state.analyzed.name,
           usdaCandidates: []
         };
+        next.name = correctedDishName(state.analyzed.name, previousComponent, correctionLabel);
         next.components = scaleComponents(next.components, Number(next.servingMultiplier || 1));
         applyComponentTotals(next);
         state.analyzed = next;
@@ -3467,7 +3764,7 @@
               ...component,
               ...selectedComponent,
               key: component.key || selected.key || selectedComponent.key,
-              name: component.name || selectedComponent.name || selected.name,
+              name: selectedComponent.name || selected.name || component.name,
               role: component.role || selectedComponent.role,
               nutrientRole: component.nutrientRole || selectedComponent.nutrientRole,
               confidence: 1,
@@ -3633,6 +3930,30 @@
         return new File([blob], `${baseName}.jpg`, { type: "image/jpeg" });
       }
 
+      function recentMealHints(logs = state.log) {
+        const meals = new Map();
+        for (const item of logs.slice(0, 30)) {
+          if (item?.nutrition?.processingStatus && item.nutrition.processingStatus !== "complete") continue;
+          const name = String(item?.nutrition?.correctionLabel || item?.name || "").trim().slice(0, 80);
+          if (!name || /^(meal photo|saved meal|analysis unavailable)$/i.test(name)) continue;
+          const key = name.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+          if (!key) continue;
+          const previous = meals.get(key) || { name, count: 0, corrected: false, components: new Set() };
+          previous.count += 1;
+          previous.corrected ||= Boolean(item.corrected || item.nutrition?.corrected);
+          for (const component of (item.nutrition?.components || []).slice(0, 8)) {
+            const label = String(component.name || component.label || "").trim().slice(0, 48);
+            if (label) previous.components.add(label);
+          }
+          meals.set(key, previous);
+        }
+        return [...meals.values()]
+          .filter((meal) => meal.count >= 2 || meal.corrected)
+          .sort((a, b) => Number(b.corrected) - Number(a.corrected) || b.count - a.count)
+          .slice(0, 5)
+          .map((meal) => ({ name: meal.name, frequency: meal.count, components: [...meal.components].slice(0, 5) }));
+      }
+
       async function runNutritionPipeline({ file, signals, converted, imageDataUrl, imageOptimization }) {
         const response = await fetch("/nutrition-pipeline", {
           method: "POST",
@@ -3644,6 +3965,7 @@
             signals,
             imageDataUrl,
             imageOptimization,
+            recentMeals: recentMealHints(),
             debugUsda
           })
         });
@@ -3939,7 +4261,7 @@
           applyNutritionResult(result);
           playDoneSound();
         } catch (error) {
-          setPhotoPreview(dataUrl || "", file.name, false);
+          if (dataUrl) setPhotoPreview(dataUrl, file.name, true);
           applyNutritionResult({
             name: "Analysis unavailable",
             serving: "-",
@@ -5623,18 +5945,25 @@
               const deleteId = item.id ? escapeHtml(item.id) : "";
               const photo = item.photo ? `<img class="log-thumb" src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name)}" />` : '<div class="log-thumb" aria-hidden="true"></div>';
               const timestamp = formatLogTimestamp(item.savedAt || item.created_at || "");
+              const pendingStatus = item.nutrition?.processingStatus;
+              const showPartialNutrition = pendingStatus === "nutrition_pending" && item.nutrition?.nutritionStatus === "partial";
+              const analysisPending = pendingStatus !== "complete" && !showPartialNutrition;
+              const pendingLabel = pendingStatus && pendingStatus !== "complete"
+                ? `<em class="log-processing-status">${pendingStatus === "analysis_pending" ? "Analysis pending · will retry" : "Nutrition processing pending · will retry"}</em>`
+                : "";
               const loadMore = morePhotos && index + 1 === state.logPhotoLimit ? morePhotos : "";
               return `
-                <div class="log-item">
+              <div class="log-item">
                   ${photo}
                   <div>
                     <strong>${escapeHtml(item.name)}</strong>
                     <span>${escapeHtml(item.serving)}${timestamp ? ` · ${escapeHtml(timestamp)}` : ""}</span>
+                    ${pendingLabel}
                     <div class="log-metrics">
-                      <span>${escapeHtml(item.calories)} kcal</span>
-                      <span>Protein ${escapeHtml(item.protein || "-")}</span>
-                      <span>Fiber ${escapeHtml(item.fiber || "-")}</span>
-                      <span>Sugar ${escapeHtml(item.sugar || "-")}</span>
+                      <span>${analysisPending ? "—" : `${escapeHtml(item.calories)} kcal`}</span>
+                      <span>${analysisPending ? "Protein —" : `Protein ${escapeHtml(item.protein || "-")}`}</span>
+                      <span>${analysisPending ? "Fiber —" : `Fiber ${escapeHtml(item.fiber || "-")}`}</span>
+                      <span>${analysisPending ? "Sugar —" : `Sugar ${escapeHtml(item.sugar || "-")}`}</span>
                     </div>
                   </div>
                   <span class="point-badge">${escapeHtml(item.points)}</span>
@@ -5682,7 +6011,8 @@
           correctedFrom: nutrition.correctedFrom || row.correctedFrom || null,
           correctionLabel: nutrition.correctionLabel || row.correctionLabel || "",
           calorieFit: nutrition.calorieFit || row.calorieFit || "",
-          dailyCalorieTarget: nutrition.dailyCalorieTarget || row.dailyCalorieTarget || null
+          dailyCalorieTarget: nutrition.dailyCalorieTarget || row.dailyCalorieTarget || null,
+          processingStatus: nutrition.processingStatus || ""
         };
       }
 
@@ -5932,6 +6262,10 @@
         }
       }
 
+      function isSignedIn() {
+        return Boolean(state.supabase ? state.session : state.user);
+      }
+
       async function setSupabaseSession(session) {
         state.session = session;
         if (!session || !session.user) {
@@ -5989,6 +6323,7 @@
         await hydrateSignedPhotoUrls(state.log, state.logPhotoLimit);
         setAuthStatus(`Signed in as ${state.user}. ${state.log.length} saved meal${state.log.length === 1 ? "" : "s"} loaded.`, "success");
         renderLog();
+        void retryPendingMealBatch();
       }
 
       async function loadReminderSettings() {
@@ -6220,14 +6555,264 @@
         }));
       }
 
+      function dataUrlFromBlob(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.addEventListener("load", () => resolve(reader.result));
+          reader.addEventListener("error", () => reject(reader.error || new Error("Could not read saved meal photo.")));
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      async function updatePendingMeal(entry, values) {
+        const table = state.supabaseConfig.foodLogTable || "food_logs";
+        const { data, error } = await state.supabase.from(table)
+          .update(values)
+          .eq("id", entry.id)
+          .eq("user_id", state.session.user.id)
+          .select("*")
+          .single();
+        if (error) throw error;
+        const index = state.log.findIndex((item) => item.id === entry.id);
+        if (index >= 0) {
+          const normalized = normalizeLogRow(data);
+          normalized.photo = state.log[index].photo || "";
+          state.log[index] = normalized;
+        }
+      }
+
+      async function retryPendingMeal(entry) {
+        const meta = entry.nutrition || {};
+        if (retryFlowDemo) {
+          return {
+            name: "Oatmeal with blueberries",
+            serving: "1 cup cooked + 1/2 cup",
+            calories: 196,
+            protein: "8 g",
+            fiber: "8 g",
+            sugar: "7 g",
+            points: 48,
+            confidence: 0.88,
+            nutritionStatus: "complete",
+            nutritionUnavailable: false,
+            loggable: true,
+            why: "The previously pending berry nutrition is now included.",
+            effect: "Bright boost",
+            components: [
+              { name: "Oatmeal", serving: "1 cup cooked", calories: 154, protein: "6 g", fiber: "4 g", sugar: "0 g", nutritionUnavailable: false },
+              { name: "Blueberries", serving: "1/2 cup", calories: 42, protein: "1 g", fiber: "4 g", sugar: "7 g", nutritionUnavailable: false }
+            ],
+            componentInputs: meta.componentInputs || [],
+            componentNutritionInputs: (meta.componentNutritionInputs || []).map((item) => ({ ...item, nutritionUnavailable: false }))
+          };
+        }
+        if (meta.processingStatus === "nutrition_pending" && Array.isArray(meta.componentNutritionInputs) && meta.componentNutritionInputs.length) {
+          const response = await fetch("/nutrition-components", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              dishName: meta.dishName || entry.name,
+              primaryKey: meta.primaryKey || "mixed",
+              componentInputs: meta.componentInputs || [],
+              componentNutritionInputs: meta.componentNutritionInputs
+            })
+          });
+          if (!response.ok) {
+            let message = "Component nutrition retry failed.";
+            try {
+              const payload = await response.json();
+              message = payload.details || payload.error || message;
+            } catch (error) {
+              message = response.statusText || message;
+            }
+            throw new Error(message);
+          }
+          return response.json();
+        }
+        const bucket = state.supabaseConfig.photoBucket || "food-photos";
+        const { data: signed, error: signedError } = await state.supabase.storage
+          .from(bucket)
+          .createSignedUrl(entry.photoPath, 60 * 5);
+        if (signedError || !signed?.signedUrl) throw signedError || new Error("Saved photo is unavailable.");
+        const response = await fetch(signed.signedUrl);
+        if (!response.ok) throw new Error(`Could not load saved photo (${response.status}).`);
+        const blob = await response.blob();
+        const file = new File([blob], "saved-meal.jpg", { type: blob.type || "image/jpeg" });
+        const dataUrl = await dataUrlFromBlob(blob);
+        const image = await loadImage(dataUrl);
+        const signals = getPhotoSignals(image);
+        const optimized = resizeImageForAnalysis(image, chooseAnalysisImageSize(image, signals, file));
+        signals.analysisMaxSize = optimized.maxSize;
+        signals.analysisWidth = optimized.width;
+        signals.analysisHeight = optimized.height;
+        return runNutritionPipeline({
+          file,
+          signals,
+          converted: false,
+          imageDataUrl: optimized.dataUrl,
+          imageOptimization: {
+            maxSize: optimized.maxSize,
+            width: optimized.width,
+            height: optimized.height,
+            originalWidth: optimized.originalWidth,
+            originalHeight: optimized.originalHeight
+          }
+        });
+      }
+
+      async function retryPendingMealBatch() {
+        if (!state.supabase || !state.session || state.processingPendingMeals) return;
+        const now = Date.now();
+        const batch = state.log.filter((entry) => {
+          const meta = entry.nutrition || {};
+          const attempts = Number(meta.processingAttempts || 0);
+          const lastAttempt = Date.parse(meta.lastProcessingAttemptAt || "") || 0;
+          const canRetryComponents = meta.processingStatus === "nutrition_pending"
+            && Array.isArray(meta.componentNutritionInputs) && meta.componentNutritionInputs.length > 0;
+          const canRetryPhoto = Boolean(entry.photoPath) && meta.processingStatus && meta.processingStatus !== "complete";
+          return entry.id && (canRetryComponents || canRetryPhoto) && meta.processingStatus && meta.processingStatus !== "complete"
+            && attempts < 3 && now - lastAttempt >= 30 * 60 * 1000;
+        }).slice(0, 2);
+        if (!batch.length) return;
+        state.processingPendingMeals = true;
+        try {
+          for (const entry of batch) {
+            const meta = { ...(entry.nutrition || {}) };
+            const attempts = Number(meta.processingAttempts || 0) + 1;
+            const attemptAt = new Date().toISOString();
+            try {
+              await updatePendingMeal(entry, {
+                nutrition: { ...meta, processingAttempts: attempts, lastProcessingAttemptAt: attemptAt }
+              });
+              const food = await retryPendingMeal(entry);
+              if (!food || food.loggable === false || food.nutritionUnavailable || food.nutritionStatus === "partial" || food.name === "Analysis unavailable") {
+                throw new Error(food?.why || "Nutrition analysis is still unavailable.");
+              }
+              const nextNutrition = {
+                ...meta,
+                components: food.components || [],
+                why: food.why || "",
+                effect: food.effect || "",
+                pipeline: food.pipeline || {},
+                analysisStages: food.analysisStages || food.pipeline?.stages || {},
+                componentInputs: food.componentInputs || meta.componentInputs || [],
+                componentNutritionInputs: food.componentNutritionInputs || meta.componentNutritionInputs || [],
+                dishName: food.name || meta.dishName || entry.name,
+                nutritionStatus: food.nutritionStatus || "complete",
+                processingStatus: "complete",
+                processedAt: new Date().toISOString(),
+                processingAttempts: attempts,
+                lastProcessingAttemptAt: attemptAt,
+                processingError: ""
+              };
+              await updatePendingMeal(entry, {
+                name: food.name,
+                serving: food.serving || "estimated serving",
+                calories: numberFromValue(food.calories, 0),
+                protein: food.protein || "0 g",
+                fiber: food.fiber || "0 g",
+                sugar: food.sugar || "0 g",
+                points: numberFromValue(food.points, 0),
+                confidence: numberFromValue(food.confidence, 0),
+                nutrition: nextNutrition
+              });
+            } catch (error) {
+              await updatePendingMeal(entry, {
+                nutrition: {
+                  ...meta,
+                  processingStatus: meta.processingStatus || "analysis_pending",
+                  processingAttempts: attempts,
+                  lastProcessingAttemptAt: attemptAt,
+                  processingError: String(error.message || error).slice(0, 300)
+                }
+              });
+            }
+          }
+        } finally {
+          state.processingPendingMeals = false;
+          renderLog();
+        }
+      }
+
+      function initRetryFlowDemo() {
+        $("#retryFlowDemo").hidden = false;
+        const now = Date.now();
+        state.user = "Local retry demo";
+        state.session = { user: { id: "local-retry-demo", email: "local-retry-demo@example.test" } };
+        state.supabaseConfig = { foodLogTable: "food_logs", photoBucket: "unused-demo-bucket" };
+        const demoRow = {
+          id: "local-retry-fixture-1",
+          user_id: state.session.user.id,
+          name: "Oatmeal with blueberries",
+          serving: "1 cup cooked + 1/2 cup",
+          calories: 154,
+          protein: "6 g",
+          fiber: "4 g",
+          sugar: "0 g",
+          points: 0,
+          confidence: 0.82,
+          photo_url: "",
+          created_at: new Date(now - 60 * 60 * 1000).toISOString(),
+          nutrition: {
+            processingStatus: "nutrition_pending",
+            nutritionStatus: "partial",
+            processingAttempts: 0,
+            lastProcessingAttemptAt: new Date(now - 60 * 60 * 1000).toISOString(),
+            dishName: "Oatmeal with blueberries",
+            primaryKey: "oatmeal",
+            components: [
+              { name: "Oatmeal", serving: "1 cup cooked", calories: 154, protein: "6 g", fiber: "4 g", sugar: "0 g", nutritionUnavailable: false },
+              { name: "Blueberries", serving: "1/2 cup", calories: "-", protein: "-", fiber: "-", sugar: "-", nutritionUnavailable: true }
+            ],
+            componentInputs: [
+              { key: "oatmeal", label: "Oatmeal", query: "cooked oatmeal", serving_estimate: "1 cup cooked", portion: 0.7 },
+              { key: "berries", label: "Blueberries", query: "blueberries raw", serving_estimate: "1/2 cup", portion: 0.3 }
+            ],
+            componentNutritionInputs: [
+              { key: "oatmeal", name: "Oatmeal", nutritionUnavailable: false },
+              { key: "berries", name: "Blueberries", nutritionUnavailable: true }
+            ]
+          }
+        };
+        state.log = [demoRow];
+        state.supabase = {
+          from() {
+            return {
+              update(values) {
+                let requestedId = "";
+                const query = {
+                  eq(column, value) {
+                    if (column === "id") requestedId = value;
+                    return query;
+                  },
+                  select() { return query; },
+                  async single() {
+                    if (requestedId !== demoRow.id) return { data: null, error: new Error("Demo row not found") };
+                    Object.assign(demoRow, values);
+                    return { data: { ...demoRow }, error: null };
+                  }
+                };
+                return query;
+              }
+            };
+          }
+        };
+        setAuthStatus("Local retry demo. No account or database is connected.", "info");
+        updateAccountActions();
+        ["#editProfile", "#refreshLog", "#weeklyRecap", "#signOut", "#reminderSetting", "#reminderPrompt"]
+          .forEach((selector) => { $(selector).style.display = "none"; });
+        renderLog();
+      }
+
       async function deleteStoredPhoto(entry) {
         if (!state.supabase || !state.session || !entry?.photoPath || isPublicPhotoUrl(entry.photoPath)) return;
         const bucket = state.supabaseConfig.photoBucket || "food-photos";
         await state.supabase.storage.from(bucket).remove([entry.photoPath]);
       }
 
-      async function storePendingSave() {
-        if (!state.analyzed || state.analyzed.loggable === false) return false;
+      async function storePendingSave(options = {}) {
+        const { silent = false } = options;
+        if (!state.analyzed || (state.analyzed.loggable === false && !state.currentPhotoDataUrl)) return false;
         const pending = {
           analyzed: state.analyzed,
           photo: "",
@@ -6243,19 +6828,24 @@
             if (compactPhoto && compactPhoto.length < 900000) pending.photo = compactPhoto;
             setStoredPendingSave(pending);
           }
-          rememberAuthReturn("#analyzer");
-          $("#authNote").textContent = `Pending meal saved for sign in: ${state.analyzed.name}.`;
-          $("#saveHint").textContent = `Pending meal saved for sign in: ${state.analyzed.name}.`;
+          rememberAuthReturn("#food-log");
+          if (!silent) {
+            $("#authNote").textContent = `Pending meal saved for sign in: ${state.analyzed.name}.`;
+            $("#saveHint").textContent = `Pending meal saved for sign in: ${state.analyzed.name}.`;
+          }
           return true;
         } catch (error) {
           pending.photo = "";
           try {
             setStoredPendingSave(pending);
-            $("#authNote").textContent = `Pending meal saved without photo: ${state.analyzed.name}.`;
-            $("#saveHint").textContent = `Pending meal saved without photo: ${state.analyzed.name}.`;
+            rememberAuthReturn("#food-log");
+            if (!silent) {
+              $("#authNote").textContent = `Pending meal saved without photo: ${state.analyzed.name}.`;
+              $("#saveHint").textContent = `Pending meal saved without photo: ${state.analyzed.name}.`;
+            }
             return true;
           } catch (innerError) {
-            $("#saveHint").textContent = "Could not preserve this meal through sign in. Try signing in first, then save.";
+            if (!silent) $("#saveHint").textContent = "Could not preserve this meal through sign in. Try signing in first, then save.";
             return false;
           }
         }
@@ -6455,7 +7045,10 @@
       }
 
       async function saveCurrentFood() {
-        if (!state.analyzed || state.analyzed.loggable === false) return false;
+        if (!state.analyzed || (state.analyzed.loggable === false && !state.currentPhotoDataUrl)) return false;
+        const visionUnavailable = state.analyzed.analysisStages?.vision === "failed" || state.analyzed.name === "Analysis unavailable";
+        const nutritionPending = state.analyzed.nutritionStatus === "partial" || state.analyzed.nutritionStatus === "unavailable";
+        const queuedForRetry = visionUnavailable || nutritionPending;
         if ((state.supabase && !state.session) || (!state.supabase && !state.user)) {
           const pendingStored = await storePendingSave();
           if (!pendingStored) return false;
@@ -6468,6 +7061,10 @@
         try {
           const nutritionMeta = {
             components: state.analyzed.components || [],
+            componentInputs: state.analyzed.componentInputs || [],
+            componentNutritionInputs: state.analyzed.componentNutritionInputs || [],
+            dishName: state.analyzed.name || "",
+            primaryKey: state.analyzed.key || "mixed",
             why: state.analyzed.why,
             effect: state.analyzed.effect,
             servingMultiplier: state.analyzed.servingMultiplier || 1,
@@ -6479,16 +7076,22 @@
             correctionLabel: state.analyzed.correctionLabel || "",
             calorieFit: calorieFitText(state.analyzed),
             dailyCalorieTarget: getProfileTargets()?.dailyCalories || null,
-            pipeline: state.analyzed.pipeline || {}
+            pipeline: state.analyzed.pipeline || {},
+            analysisStages: state.analyzed.analysisStages || state.analyzed.pipeline?.stages || {},
+            nutritionStatus: state.analyzed.nutritionStatus || "complete",
+            processingStatus: visionUnavailable ? "analysis_pending" : nutritionPending ? "nutrition_pending" : "complete",
+            processingAttempts: 0,
+            lastProcessingAttemptAt: queuedForRetry ? new Date().toISOString() : "",
+            processingError: queuedForRetry ? String(state.analyzed.why || (nutritionPending ? "Some component nutrition is unavailable." : "Analysis unavailable")).slice(0, 300) : ""
           };
           const entry = {
-            name: state.analyzed.name,
-            serving: state.analyzed.serving,
-            calories: numberFromValue(state.analyzed.calories, 0),
-            protein: state.analyzed.protein,
-            fiber: state.analyzed.fiber,
-            sugar: state.analyzed.sugar,
-            points: numberFromValue(state.analyzed.points, 0),
+            name: visionUnavailable ? "Meal photo" : state.analyzed.name,
+            serving: visionUnavailable ? "Analysis pending" : state.analyzed.serving,
+            calories: visionUnavailable || state.analyzed.nutritionStatus === "unavailable" ? 0 : numberFromValue(state.analyzed.calories, 0),
+            protein: visionUnavailable || state.analyzed.nutritionStatus === "unavailable" ? "-" : state.analyzed.protein,
+            fiber: visionUnavailable || state.analyzed.nutritionStatus === "unavailable" ? "-" : state.analyzed.fiber,
+            sugar: visionUnavailable || state.analyzed.nutritionStatus === "unavailable" ? "-" : state.analyzed.sugar,
+            points: queuedForRetry ? 0 : numberFromValue(state.analyzed.points, 0),
             confidence: numberFromValue(state.analyzed.confidence, 0),
             photo: state.currentPhotoDataUrl,
             savedAt: new Date().toISOString(),
@@ -6504,6 +7107,9 @@
               photoUrl = await uploadCurrentPhoto();
             } catch (photoError) {
               $("#saveHint").textContent = "Photo upload failed, saving food log without the image...";
+            }
+            if (queuedForRetry && !photoUrl) {
+              throw new Error("The photo could not be saved to storage, so this meal cannot be queued for retry. Please try saving again.");
             }
             const table = state.supabaseConfig.foodLogTable || "food_logs";
             const { data, error } = await state.supabase.from(table).insert({
@@ -6533,7 +7139,9 @@
             localStorage.setItem("platepointsLog", JSON.stringify(state.log));
             renderLog();
           }
-          setAuthStatus(state.supabase && state.session ? `Saved to ${state.user}'s food log.` : "Saved in this browser.", "success");
+          setAuthStatus(state.supabase && state.session
+            ? (queuedForRetry ? `Meal saved to ${state.user}'s food log. Missing nutrition will retry later.` : `Saved to ${state.user}'s food log.`)
+            : (queuedForRetry ? "Meal saved in this browser; automatic processing requires a signed-in account." : "Saved in this browser."), "success");
           resetAnalyzer();
           return true;
         } catch (error) {
@@ -6723,6 +7331,27 @@
       });
 
       $("#saveFood").addEventListener("click", () => saveCurrentFood());
+      $("#runRetryFlowDemo").addEventListener("click", async () => {
+        const button = $("#runRetryFlowDemo");
+        const output = $("#retryFlowDemoStatus");
+        button.disabled = true;
+        output.removeAttribute("data-state");
+        output.textContent = "Retrying the pending component and updating its existing row...";
+        try {
+          await retryPendingMealBatch();
+          const completed = state.log.find((entry) => entry.id === "local-retry-fixture-1");
+          if (state.log.length !== 1 || completed?.nutrition?.processingStatus !== "complete" || Number(completed.points) <= 0) {
+            throw new Error("The sample row did not finish as expected.");
+          }
+          output.dataset.state = "pass";
+          output.textContent = "Passed: the original sample row now has complete nutrition and points. No duplicate was added.";
+        } catch (error) {
+          output.dataset.state = "fail";
+          output.textContent = `Test failed: ${error.message || error}`;
+        } finally {
+          button.disabled = false;
+        }
+      });
       $("#editProfile").addEventListener("click", () => openProfileSetup("edit"));
       $("#refreshLog").addEventListener("click", () => refreshFoodLog());
       $("#weeklyRecap").addEventListener("click", () => openWeeklyCoach());
@@ -6828,8 +7457,12 @@
         if (event.target === setupModal) setupModal.classList.remove("is-open");
       });
 
-      renderLog();
-      initSupabase();
+      if (retryFlowDemo) {
+        initRetryFlowDemo();
+      } else {
+        renderLog();
+        initSupabase();
+      }
     </script>
   </body>
 </html>

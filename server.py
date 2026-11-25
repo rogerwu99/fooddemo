@@ -576,7 +576,8 @@ def build_nutrition_result(payload):
     converted = bool(payload.get("converted"))
     image_optimization = payload.get("imageOptimization") or {}
     image_data_url = payload.get("imageDataUrl", "")
-    vision = analyze_with_openai_vision(image_data_url, file_name)
+    recent_meals = sanitize_recent_meal_hints(payload.get("recentMeals"))
+    vision = analyze_with_openai_vision(image_data_url, file_name, recent_meals)
     if not vision:
         return analysis_unavailable_result(
             "Vision analysis is not configured. Set OPENAI_API_KEY to analyze uploaded food photos.",
@@ -607,12 +608,119 @@ def build_nutrition_result(payload):
 
     component_foods = lookup_component_nutrition_parallel(components, True)
 
-    food = combine_components(component_foods, vision.get("dish_name", ""))
-    primary = ranked[0]
+    return build_result_from_component_foods(
+        component_foods,
+        components,
+        vision.get("dish_name", ""),
+        ranked,
+        vision,
+        file_name,
+        source_format,
+        converted,
+        signals,
+        image_optimization,
+    )
+
+
+def build_nutrition_from_saved_components(payload):
+    saved_foods = payload.get("componentNutritionInputs") or []
+    component_inputs = payload.get("componentInputs") or []
+    if not isinstance(saved_foods, list) or not saved_foods:
+        raise ValueError("Saved component nutrition is missing; photo analysis is required.")
+    saved_foods = saved_foods[:6]
+    component_inputs = [
+        item if isinstance(item, dict) else {}
+        for item in component_inputs[:6]
+    ] if isinstance(component_inputs, list) else []
+    saved_foods = [item if isinstance(item, dict) else {} for item in saved_foods]
+    if len(component_inputs) < len(saved_foods):
+        component_inputs += [{} for _ in range(len(saved_foods) - len(component_inputs))]
+
+    retry_components = []
+    for index, food in enumerate(saved_foods):
+        if not isinstance(food, dict) or not food.get("nutritionUnavailable"):
+            continue
+        descriptor = component_inputs[index] if isinstance(component_inputs[index], dict) else {}
+        label = str(descriptor.get("label") or food.get("name") or "Food")[:160]
+        query = str(descriptor.get("query") or label)[:200]
+        key = normalize_component_key(
+            str(descriptor.get("key") or food.get("key") or "mixed"), label, query
+        )
+        try:
+            portion = float(descriptor.get("portion", food.get("portion", 1)))
+        except (TypeError, ValueError):
+            portion = 1
+        retry_components.append({
+            "index": index,
+            "component": {
+                "key": key,
+                "label": label,
+                "query": query,
+                "serving_estimate": str(descriptor.get("serving_estimate") or food.get("serving") or "")[:100],
+                "role": descriptor.get("role") or food.get("role") or "mix_in",
+                "nutrient_role": descriptor.get("nutrient_role") or food.get("nutrient_role") or "neutral",
+                "portion": max(0.05, min(1.0, portion)),
+                "confidence": descriptor.get("confidence", food.get("confidence", 0.5)),
+                "serving_confidence": descriptor.get("serving_confidence"),
+            },
+        })
+
+    if retry_components:
+        refreshed = lookup_component_nutrition_parallel(
+            [item["component"] for item in retry_components], True
+        )
+        for item, food in zip(retry_components, refreshed):
+            saved_foods[item["index"]] = food
+
+    components = [
+        {
+            "key": normalize_component_key(
+                str((component_inputs[index] or {}).get("key") or food.get("key") or "mixed"),
+                str((component_inputs[index] or {}).get("label") or food.get("name") or "Food"),
+                str((component_inputs[index] or {}).get("query") or food.get("name") or "Food"),
+            ),
+            "label": str((component_inputs[index] or {}).get("label") or food.get("name") or "Food"),
+            "query": str((component_inputs[index] or {}).get("query") or food.get("name") or "Food"),
+            "serving_estimate": str((component_inputs[index] or {}).get("serving_estimate") or food.get("serving") or ""),
+            "role": (component_inputs[index] or {}).get("role") or food.get("role") or "mix_in",
+            "nutrient_role": (component_inputs[index] or {}).get("nutrient_role") or food.get("nutrient_role") or "neutral",
+            "portion": (component_inputs[index] or {}).get("portion", food.get("portion", 1)),
+            "confidence": (component_inputs[index] or {}).get("confidence", food.get("confidence", 0.5)),
+            "serving_confidence": (component_inputs[index] or {}).get("serving_confidence"),
+        }
+        for index, food in enumerate(saved_foods)
+    ]
+    primary_key = str(payload.get("primaryKey") or (components[0]["key"] if components else "mixed"))
+    if primary_key not in NUTRITION_DB:
+        primary_key = "mixed"
+    ranked = [{"key": primary_key}]
+    return build_result_from_component_foods(
+        saved_foods,
+        components,
+        str(payload.get("dishName") or "")[:200],
+        ranked,
+        {},
+        "",
+        "saved component retry",
+        False,
+        {},
+        {},
+    )
+
+
+def build_result_from_component_foods(
+    component_foods, components, dish_name, ranked, vision, file_name,
+    source_format, converted, signals, image_optimization,
+):
+
+    food = combine_components(component_foods, dish_name)
+    primary = ranked[0] if ranked else {"key": component_foods[0].get("key", "mixed")}
     key = primary["key"]
     food["key"] = key
     food["confidence"] = round(sum(item.get("confidence", 0) for item in component_foods) / max(1, len(component_foods)), 2)
-    food["alternatives"] = correction_alternatives(vision, ranked, key, food.get("name", ""))
+    food["alternatives"] = correction_alternatives(vision, ranked, key, food.get("name", "")) if vision else []
+    food["componentInputs"] = components
+    food["componentNutritionInputs"] = component_foods
     food["pipeline"] = {
         "steps": [
             "File accepted",
@@ -626,11 +734,18 @@ def build_nutrition_result(payload):
         "converted": converted,
         "signals": signals,
         "imageOptimization": image_optimization,
-        "visionProvider": "OpenAI Responses API",
+        "visionProvider": "OpenAI Responses API" if vision else "Previously identified components",
         "nutritionProvider": food.get("databaseSource", "Nutrition unavailable"),
         "notes": food.get("databaseNotes", []),
         "componentCount": len(component_foods),
+        "stages": {
+            "vision": "complete",
+            "components": "complete",
+            "nutrition": food.get("nutritionStatus", "complete"),
+            "score": "withheld" if food.get("nutritionStatus") != "complete" else "complete",
+        },
     }
+    food["analysisStages"] = food["pipeline"]["stages"]
     return food
 
 
@@ -813,6 +928,13 @@ def non_food_result(vision, source_format, converted, signals):
         "alternatives": [],
         "components": [],
         "loggable": False,
+        "nutritionStatus": "unavailable",
+        "analysisStages": {
+            "vision": "failed",
+            "components": "blocked",
+            "nutrition": "blocked",
+            "score": "blocked",
+        },
         "pipeline": {
             "steps": [
                 "File accepted",
@@ -825,6 +947,12 @@ def non_food_result(vision, source_format, converted, signals):
             "signals": signals,
             "visionProvider": "OpenAI Responses API",
             "nutritionProvider": "Skipped",
+            "stages": {
+                "vision": "failed",
+                "components": "blocked",
+                "nutrition": "blocked",
+                "score": "blocked",
+            },
             "notes": vision.get("notes", []),
         },
     }
@@ -845,6 +973,13 @@ def analysis_unavailable_result(message, source_format, converted, signals):
         "alternatives": [],
         "components": [],
         "loggable": False,
+        "nutritionStatus": "unavailable",
+        "analysisStages": {
+            "vision": "failed",
+            "components": "blocked",
+            "nutrition": "blocked",
+            "score": "blocked",
+        },
         "pipeline": {
             "steps": [
                 "File accepted",
@@ -857,6 +992,12 @@ def analysis_unavailable_result(message, source_format, converted, signals):
             "signals": signals,
             "visionProvider": "OpenAI Responses API",
             "nutritionProvider": "Skipped",
+            "stages": {
+                "vision": "failed",
+                "components": "blocked",
+                "nutrition": "blocked",
+                "score": "blocked",
+            },
             "notes": [message],
         },
     }
@@ -874,7 +1015,30 @@ def post_json(url, payload, headers=None, timeout=30):
         return json.loads(response.read().decode("utf-8"))
 
 
-def analyze_with_openai_vision(image_data_url, file_name):
+def sanitize_recent_meal_hints(value):
+    if not isinstance(value, list):
+        return []
+    hints = []
+    for item in value[:5]:
+        if not isinstance(item, dict):
+            continue
+        name = re.sub(r"\s+", " ", str(item.get("name") or "")).strip()[:80]
+        if not name:
+            continue
+        try:
+            frequency = max(1, min(30, int(item.get("frequency", 1))))
+        except (TypeError, ValueError):
+            frequency = 1
+        components = []
+        for component in item.get("components", [])[:5] if isinstance(item.get("components"), list) else []:
+            label = re.sub(r"\s+", " ", str(component or "")).strip()[:48]
+            if label and label.lower() not in {existing.lower() for existing in components}:
+                components.append(label)
+        hints.append({"name": name, "frequency": frequency, "components": components})
+    return hints
+
+
+def analyze_with_openai_vision(image_data_url, file_name, recent_meals=None):
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key or not image_data_url:
         return None
@@ -906,6 +1070,15 @@ def analyze_with_openai_vision(image_data_url, file_name):
         "For example, a visually ambiguous breaded main item with sauce and cheese can list alternate dish identities, while foods still list visible pieces such as breaded main item, cheese, sauce, pasta, or vegetables. "
         "Use canonical=mixed only when a component does not fit the known canonical set, but keep label and query specific, for example dumplings or burrito."
     )
+    recent_meals = sanitize_recent_meal_hints(recent_meals)
+    if recent_meals:
+        prompt += (
+            " The following are compact user food-history hints, not evidence from this image: "
+            + json.dumps(recent_meals, ensure_ascii=True, separators=(",", ":"))
+            + ". Use them only as a soft prior when the visible food is genuinely ambiguous and compatible with a familiar meal. "
+            "Never let history override clear visual evidence, invent a dish or ingredient that is not visible, "
+            "or treat frequency as proof; identify the current photo from its contents."
+        )
     payload = {
         "model": os.environ.get("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
         "input": [
@@ -1498,7 +1671,7 @@ def combine_components(component_foods, dish_name=""):
         return rows
 
     unavailable_components = [food for food in component_foods if food.get("nutritionUnavailable")]
-    if unavailable_components:
+    if len(unavailable_components) == len(component_foods):
         notes = []
         source_matches = []
         for food in component_foods:
@@ -1531,7 +1704,12 @@ def combine_components(component_foods, dish_name=""):
                     "portion": food.get("portion", 1),
                     "estimatedShare": food.get("estimatedShare", food.get("portion", 1)),
                     "calories": "-",
+                    "protein": "-",
+                    "fiber": "-",
+                    "sugar": "-",
                     "confidence": food.get("confidence", 0.5),
+                    "nutritionUnavailable": True,
+                    "nutritionStatus": "pending",
                     "why": "no reliable USDA nutrition source",
                     "usdaCandidates": food.get("usdaCandidates", []),
                 }
@@ -1541,16 +1719,18 @@ def combine_components(component_foods, dish_name=""):
             "effect": "Avatar unchanged",
             "loggable": False,
             "nutritionUnavailable": True,
+            "nutritionStatus": "unavailable",
             "usdaCandidates": component_candidate_rows(component_foods),
         }
 
+    available_components = [food for food in component_foods if not food.get("nutritionUnavailable")]
     weighted_components = [
         with_portion_weight(
             food,
-            force_full_serving=len(component_foods) == 1,
+            force_full_serving=len(available_components) == 1 and len(component_foods) == 1,
             respect_component_share=len(component_foods) > 1,
         )
-        for food in component_foods
+        for food in available_components
     ]
     calories = sum(food["weightedCalories"] for food in weighted_components)
     protein = sum(food["weightedProtein"] for food in weighted_components)
@@ -1569,6 +1749,53 @@ def combine_components(component_foods, dish_name=""):
     for food in component_foods:
         notes.extend(food.get("databaseNotes", []))
 
+    weighted_by_source = {id(source): weighted for source, weighted in zip(available_components, weighted_components)}
+    component_rows = []
+    for food in component_foods:
+        if food.get("nutritionUnavailable"):
+            component_rows.append({
+                "name": food["name"],
+                "serving": food.get("serving", "estimated serving"),
+                "nutritionBasis": food.get("nutritionBasis", "No reliable nutrition source"),
+                "sourceMatch": food.get("sourceMatch", "No reliable USDA match"),
+                "role": food.get("role", "mix_in"),
+                "nutrientRole": food.get("nutrient_role", "neutral"),
+                "portion": food.get("portion", 1),
+                "estimatedShare": food.get("estimatedShare", food.get("portion", 1)),
+                "calories": "-",
+                "protein": "-",
+                "fiber": "-",
+                "sugar": "-",
+                "confidence": food.get("confidence", 0.5),
+                "nutritionUnavailable": True,
+                "nutritionStatus": "pending",
+                "why": "nutrition lookup pending",
+                "usdaCandidates": food.get("usdaCandidates", []),
+            })
+            continue
+        weighted = weighted_by_source[id(food)]
+        component_rows.append({
+            "name": food["name"],
+            "serving": food.get("serving", "estimated serving"),
+            "nutritionBasis": food.get("nutritionBasis", food.get("serving", "estimated serving")),
+            "sourceMatch": food.get("sourceMatch", food.get("databaseSource", "Local estimate")),
+            "role": food.get("role", "mix_in"),
+            "nutrientRole": food.get("nutrient_role", "neutral"),
+            "portion": weighted["portionWeight"],
+            "estimatedShare": food.get("estimatedShare", weighted["portionWeight"]),
+            "calories": round(weighted["weightedCalories"]),
+            "protein": f"{weighted['weightedProtein']:.0f} g",
+            "fiber": f"{weighted['weightedFiber']:.0f} g",
+            "sugar": f"{weighted['weightedSugar']:.0f} g",
+            "naturalSugar": round(weighted["weightedNaturalSugar"], 1),
+            "addedSugar": round(weighted["weightedAddedSugar"], 1),
+            "unknownSugar": round(weighted["weightedUnknownSugar"], 1),
+            "confidence": food.get("confidence", 0.5),
+            "nutritionUnavailable": False,
+            "nutritionStatus": "complete",
+            "why": short_component_why(food),
+        })
+
     combined = {
         "name": name,
         "serving": " + ".join(food.get("serving", "estimated serving") for food in component_foods),
@@ -1585,36 +1812,22 @@ def combine_components(component_foods, dish_name=""):
         "databaseNotes": dedupe(notes)[:5],
         "sourceMatch": "; ".join(source_matches[:3]),
         "portionConfidence": portion_confidence_label(avg_confidence, len(component_foods)),
-        "components": [
-                {
-                    "name": food["name"],
-                    "serving": food.get("serving", "estimated serving"),
-                    "nutritionBasis": food.get("nutritionBasis", food.get("serving", "estimated serving")),
-                    "sourceMatch": food.get("sourceMatch", food.get("databaseSource", "Local estimate")),
-                    "role": food.get("role", "mix_in"),
-                    "nutrientRole": food.get("nutrient_role", "neutral"),
-                    "portion": food["portionWeight"],
-                    "estimatedShare": food.get("estimatedShare", food.get("portionWeight", 1)),
-                    "calories": round(food["weightedCalories"]),
-                    "protein": f"{food['weightedProtein']:.0f} g",
-                    "fiber": f"{food['weightedFiber']:.0f} g",
-                    "sugar": f"{food['weightedSugar']:.0f} g",
-                    "naturalSugar": round(food["weightedNaturalSugar"], 1),
-                    "addedSugar": round(food["weightedAddedSugar"], 1),
-                    "unknownSugar": round(food["weightedUnknownSugar"], 1),
-                    "confidence": food.get("confidence", 0.5),
-                    "why": short_component_why(food),
-                }
-            for food in weighted_components
-        ],
+        "components": component_rows,
+        "nutritionUnavailable": bool(unavailable_components),
+        "nutritionStatus": "partial" if unavailable_components else "complete",
+        "loggable": True,
     }
-    apply_combined_macro_plausibility(combined, weighted_components)
+    if not unavailable_components:
+        apply_combined_macro_plausibility(combined, weighted_components)
     debug_candidates = component_candidate_rows(component_foods)
     if debug_candidates:
         combined["usdaCandidates"] = debug_candidates
         combined["debugUsda"] = True
-    combined["points"] = calculate_points(combined)
-    combined["effect"] = effect_for_points(combined["points"])
+    combined["points"] = 0 if unavailable_components else calculate_points(combined)
+    combined["effect"] = "Avatar unchanged" if unavailable_components else effect_for_points(combined["points"])
+    if unavailable_components:
+        combined["why"] = "Partial nutrition subtotal includes matched components only. Missing component nutrition is pending; points are withheld until the full meal is calculated."
+        combined["nutritionBasis"] = f"Partial subtotal for matched components; {len(unavailable_components)} component(s) pending"
     return combined
 
 
@@ -2786,6 +2999,9 @@ class FeedNomiHandler(SimpleHTTPRequestHandler):
         if self.path == "/nutrition-pipeline":
             self._nutrition_pipeline()
             return
+        if self.path == "/nutrition-components":
+            self._nutrition_components()
+            return
         if self.path == "/manual-correction":
             self._manual_correction()
             return
@@ -2806,6 +3022,15 @@ class FeedNomiHandler(SimpleHTTPRequestHandler):
             self._send_json(result)
         except Exception as error:
             self._send_json({"error": "Nutrition pipeline failed", "details": str(error)}, status=400)
+
+    def _nutrition_components(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            result = build_nutrition_from_saved_components(payload)
+            self._send_json(result)
+        except Exception as error:
+            self._send_json({"error": "Component nutrition retry failed", "details": str(error)}, status=400)
 
     def _manual_correction(self):
         try:
